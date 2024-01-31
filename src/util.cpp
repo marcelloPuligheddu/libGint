@@ -1,0 +1,148 @@
+#include <cassert>
+#include "util.h"
+#include "define.h"
+
+
+
+unsigned int encode4( int a, int b, int c, int d ){
+   return a*256*256*256 + b*256*256 + c*256 + d;
+}
+
+__device__ __host__ void decode4(
+   unsigned int abcd, unsigned int* a, unsigned int* b,
+   unsigned int* c, unsigned int * d ){
+(*d) = abcd % 256;
+(*c) = abcd / 256 % 256 ;
+(*b) = abcd / (256*256) % 256 ;
+(*a) = abcd / (256*256*256) ;
+}
+
+
+unsigned int encodeL( int la, int lb, int lc, int ld ){
+    return la * NL3 + lb * NL2 + lc * NL + ld;
+}
+
+
+__device__ __host__ void decodeL( unsigned int L, int* la, int* lb, int* lc, int* ld ){
+   (*ld) = L % NL;
+   (*lc) = L / NL % NL ;
+   (*lb) = L / NL2 % NL ;
+   (*la) = L / NL3 ;
+}
+
+unsigned int encode_ipabcd_n123( int ipa, int ipb, int ipc, int ipd, int n1, int n2, int n3 ){
+    assert( ipa < 32 );
+    assert( ipa >= 0 );
+    assert( ipb < 32 );
+    assert( ipb >= 0 );
+    assert( ipc < 32 );
+    assert( ipc >= 0 );
+    assert( ipd < 32 );
+    assert( ipd >= 0 );
+    assert( n1 < 8 );
+    assert( n1 >= -8 );
+    assert( n2 < 8 );
+    assert( n2 >= -8 );
+    assert( n3 < 8 );
+    assert( n3 >= -8 );
+    
+    unsigned int ret = 0;
+    ret += n3+8;
+    ret += (n2+8) * 16;
+    ret += (n1+8) * 16 * 16;
+    ret += (ipd) * 16 * 16 * 16;
+    ret += (ipc) * 16 * 16 * 16 * 32;
+    ret += (ipb) * 16 * 16 * 16 * 32 * 32;
+    ret += (ipa) * 16 * 16 * 16 * 32 * 32 * 32;
+    
+//    assert( ret < 2147483647 ) ; // 2**(4*3) * 2**(5*4) == 2**32; 2147483647 = 2**32-1
+    
+    return ret;
+}
+
+
+
+__device__ __host__ void decode_ipabcd_none(
+      unsigned int ipzn,
+      unsigned int* __restrict__ ipa, unsigned int* __restrict__ ipb,
+      unsigned int* __restrict__ ipc, unsigned int* __restrict__ ipd ){
+   (*ipa) = ipzn / (16*16*16*32*32*32);
+   (*ipb) = ipzn / (16*16*16*32*32)%32;
+   (*ipc) = ipzn / (16*16*16*32)%32;
+   (*ipd) = ipzn / (16*16*16)%32;
+}
+
+
+__host__ __device__ void decode_ipabcd_n123(
+      unsigned int ipzn,
+      unsigned int* __restrict__ ipa, unsigned int* __restrict__ ipb,
+      unsigned int* __restrict__ ipc, unsigned int* __restrict__ ipd,
+      int* __restrict__ n1, int* __restrict__ n2, int* __restrict__ n3 ){
+   (*ipa) = ipzn / (16*16*16*32*32*32);
+   (*ipb) = ipzn / (16*16*16*32*32)%32;
+   (*ipc) = ipzn / (16*16*16*32)%32;
+   (*ipd) = ipzn / (16*16*16)%32;
+   (*n1)  = ipzn / (16*16)%16-8;
+   (*n2)  = ipzn / (16)%16-8;
+   (*n3)  = ipzn %16-8;
+}
+
+
+__device__ __host__ int NLco_dev( int L ){
+   const int _NLco_lut[35] = { 0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105, 120, 136, 153, 171, 190, 210, 231, 253, 276, 300, 325, 351, 378, 406, 435, 465, 496, 528, 561 };
+   return _NLco_lut[L+2];
+}
+
+// Returns L-lx
+// essentialy is using the pattern:
+// s = 0 0 0                                     -> L-lx = 0
+// p = 1 0 0, 0 1 0, 0 0 1                       -> L-Lx = 0 1 1 
+// d = 2 0 0, 1 1 0, 1 0 1, 0 2 0, 0 1 1, 0 0 2  -> L-lx = 0 1 1 2 2 2
+// and noting that L-lx does not really depend on L, but on the index of the cartesian direction. Good up to L=8
+// compute (cartesian) moment on x axis for a given total moment.
+__device__ __host__ int L_lx(const int i ){
+   const short int lx_lut[45] = { 0, 1,1, 2,2,2, 3,3,3,3, 4,4,4,4,4, 5,5,5,5,5,5, 6,6,6,6,6,6,6, 7,7,7,7,7,7,7,7, 8,8,8,8,8,8,8,8,8 };
+   return lx_lut[i];
+}
+
+__device__ __host__ int lx( const int i, const int L ){
+   return L - L_lx(i);
+}
+
+__device__ __host__ int lz( const int i, const int L ){
+   int i0 = NLco_dev(L_lx(i)-1);
+   int lz_ = i - i0;
+   return lz_;
+}
+
+// computes ly as L-lx-lz
+__device__ __host__ int ly( const int i, const int L ){
+   int i0 = NLco_dev(L_lx(i)-1);
+   int lz_ = i - i0;
+   int ly_ = L_lx(i)-lz_;
+   return ly_;
+}
+
+
+
+
+__device__ __host__ int compute_Nc( int la, int lb, int lc, int ld ){
+   return (la+1)*(la+2) * (lb+1)*(lb+2) * (lc+1)*(lc+2) * (ld+1)*(ld+2) / 16 ;
+}
+
+
+
+__device__ __host__ int compute_Ns( int la, int lb, int lc, int ld ){
+   return (2*la+1) * (2*lb+1) * (2*lc+1) * (2*ld+1) ;
+}
+
+
+
+__host__ __device__ void compute_weighted_distance(
+      double X12[3], const double X1[3], const double X2[3],
+      const double c1, const double c2, const double c12 ){
+   X12[0] = ( c1*X1[0] + c2*X2[0] ) / c12;
+   X12[1] = ( c1*X1[1] + c2*X2[1] ) / c12;
+   X12[2] = ( c1*X1[2] + c2*X2[2] ) / c12;
+}
+

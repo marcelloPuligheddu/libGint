@@ -24,6 +24,6 @@ $CPP main.cpp \
    plan.o util.o fgamma.o AIS.o UniqueArray.o \
    compute_Fm.o compute_VRR.o compute_HRR.o compute_TRA.o compute_SPH.o \
    -o test_libGint \
-   $CPPFLAGS -cuda
+   $CPPFLAGS -cuda -lcublas
 
 set +x

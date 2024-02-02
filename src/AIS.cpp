@@ -13,7 +13,7 @@
 #include "compute_TRA.h"
 #include "fgamma.h"
 #include "AIS.h"
-
+#include "c2s.h"
 using std::max;
 
 void AIS::show_state(){
@@ -274,6 +274,7 @@ void AIS::dispatch(){
    std::vector<double> SPHER(max_SPHER_size);
 
    for ( unsigned int L : encoded_moments ){
+
       int la,lb,lc,ld,labcd;
       decodeL(L,&la,&lb,&lc,&ld);
       labcd = la+lb+lc+ld;
@@ -371,9 +372,11 @@ void AIS::dispatch(){
    timer.stop();
    cout << "Fm GPU " << timer.elapsedMilliseconds() << " ms " << endl;
 
-   double *AC_dev, *ABCD_dev, *ABCD0_dev, *SPHER_dev;
+   double *AC_dev, *ABCD_dev, *ABCD0_dev, *SPHER_dev, *C2S_dev;
    unsigned int *HRR_dev, *SPH_dev, *TRA_dev;
    int *plan_dev;
+   cublasHandle_t cublas_handle;
+
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&AC_dev,    sizeof(double)*AC.size()    )); // TODO move alloc to be cor Fm
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&ABCD_dev,  sizeof(double)*ABCD.size()  )); // TODO move alloc to be
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&ABCD0_dev, sizeof(double)*ABCD0.size() )); // TODO move alloc to be
@@ -382,7 +385,10 @@ void AIS::dispatch(){
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&HRR_dev, sizeof(unsigned int)*max_HRR_size )); // TODO move alloc to
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&SPH_dev, sizeof(unsigned int)*max_SPH_size )); // TODO move alloc to
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&TRA_dev, sizeof(unsigned int)*max_TRA_size )); // TODO move alloc to
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&C2S_dev, sizeof(double)*245 )); // TODO move alloc to
 
+   CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( C2S_dev, c2s, sizeof(double)*245, cudaMemcpyHostToDevice )); // TODO move alloc to
 
    for ( unsigned int L : encoded_moments ){
       int la,lb,lc,ld,labcd;
@@ -413,19 +419,23 @@ void AIS::dispatch(){
 
                                             //    0  1  2  3  4  5  6  7  8  9,10
       const int vrr_team_size_vs_total_L[11] =  { 1, 4, 8,16,16,32,32,32,64,64,64 };
-      int vrr_team_size = 64;
+      int vrr_team_size = 256;
       if ( labcd < 11 ){ vrr_team_size = vrr_team_size_vs_total_L[labcd]; }
 
       timer.start();
-      compute_VRR_batched_gpu_low<<<Ncells,128>>>(
+      compute_VRR_batched_gpu_low<<<Ncells,256>>>(
          Ncells, plan_dev, Pm_input_list_dev, HRR_dev, Fm_dev, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, vrr_team_size );
 
-      compute_HRR_batched_gpu_low<<<Ncells,128>>>(
+      compute_HRR_batched_gpu_low<<<Ncells,256>>>(
          Ncells, plan_dev, HRR_dev, data_dev, ABCD_dev, ABCD0_dev,
          hrr_blocksize, Nc, numVC, numVCH );
 
-      compute_SPH_batched_gpu_low<<<Nqrtt,128>>>( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, ABCD_dev );
+      // Note: we need to DeviceSynchronize before going from kernels to cublas
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+
+      compute_SPH_batched_gpu_alt ( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, ABCD_dev, C2S_dev, cublas_handle );
 
       int corrBS = 64;
       int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
@@ -477,6 +487,10 @@ void AIS::dispatch(){
    }
    cout << "E[ CPU-GPU ] = " <<  diff_sum / Nval << endl;
    cout << "E[|CPU-GPU|] = " << adiff_sum / Nval << endl;
+
+
+   CUBLAS_GPU_ERR_CHECK( cublasDestroy(cublas_handle) );
+
 }
 
 

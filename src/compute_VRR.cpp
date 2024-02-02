@@ -7,7 +7,7 @@ using std::cout;
 using std::endl;
 
 
-void execute_VRR1( // int AL, int CL, int m, 
+__device__ __host__ void execute_VRR1( // int AL, int CL, int m, 
       const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ amc0m0,
@@ -33,7 +33,7 @@ void execute_VRR1( // int AL, int CL, int m,
 // Specialization of VRR for a>1, c=0. Applies
 // <a+1i,sss>(m) = PA_i <asss>(m) + WP_i <asss>(m+1) 
 //               + 1/2zab N_i(a) ( <a-1,sss>(m) - rho/zab <a-1,sss>(m+1) )
-void execute_VRR2(
+__device__ __host__ void execute_VRR2(
       const int AL, const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ amc0m0,
@@ -97,7 +97,7 @@ void execute_VRR2(
 }
 
 // more general case, for al>0 and cl>1
-void execute_VRR5(
+__device__ __host__ void execute_VRR5(
       const int AL, const int CL, const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ a0cmm0,
@@ -189,7 +189,7 @@ void execute_VRR5(
 }
 
 // case for a>0, c=1
-void execute_VRR6( 
+__device__ __host__ void execute_VRR6( 
       const int AL, const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ a0cmm0,
@@ -252,6 +252,18 @@ __device__ void execute_CP2S_gpu(
       const double* const __restrict__ Kc, const double* const __restrict__ Kd ){
 
    // index over the contract basis sets
+   double K = Ka[ ipa ] * Kb[ ipb ] * Kc[ ipc ] * Kd[ ipd ];
+
+   const int NcoA = NLco_dev(AL);
+   const int NcoC = NLco_dev(CL);
+   const int NcoAC = NcoA*NcoC;
+   for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
+      // must be block atomic 
+      atomicAdd( &sh_mem[ i ] , K * pr_mem[i]);
+   }
+
+/*
+
    const unsigned int nl___d = nld;
    const unsigned int nl__cd = nlc*nl___d;
    const unsigned int nl_bcd = nlb*nl__cd;
@@ -272,6 +284,7 @@ __device__ void execute_CP2S_gpu(
         atomicAdd( &sh_mem[ ilabcd*hrr_blocksize + i ] , K * pr_mem[i]);
       }
    }
+*/
 }
 
 

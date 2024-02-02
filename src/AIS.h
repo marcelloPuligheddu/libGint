@@ -98,4 +98,4 @@ class AIS {
    std::unordered_set<unsigned int> encoded_moments ;
 };
 
-#endif
+#endif // #ifndef AIS_H_COMPILE_GUARD

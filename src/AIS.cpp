@@ -411,22 +411,27 @@ void AIS::dispatch(){
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          TRA_dev, TRA[L].data(), sizeof(unsigned int)*(TRA[L].size()), cudaMemcpyHostToDevice ));
 
-      timer.start();
-      compute_VRR_batched_gpu_low<<<Ncells,16>>>(
-         Ncells, plan_dev, Pm_input_list_dev, HRR_dev, Fm_dev, data_dev,
-         AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
+                                            //    0  1  2  3  4  5  6  7  8  9,10
+      const int vrr_team_size_vs_total_L[11] =  { 1, 4, 8,16,16,32,32,32,64,64,64 };
+      int vrr_team_size = 64;
+      if ( labcd < 11 ){ vrr_team_size = vrr_team_size_vs_total_L[labcd]; }
 
-      compute_HRR_batched_gpu_low<<<Ncells,32>>>(
+      timer.start();
+      compute_VRR_batched_gpu_low<<<Ncells,128>>>(
+         Ncells, plan_dev, Pm_input_list_dev, HRR_dev, Fm_dev, data_dev,
+         AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, vrr_team_size );
+
+      compute_HRR_batched_gpu_low<<<Ncells,128>>>(
          Ncells, plan_dev, HRR_dev, data_dev, ABCD_dev, ABCD0_dev,
          hrr_blocksize, Nc, numVC, numVCH );
 
-      compute_SPH_batched_gpu_low<<<Nqrtt,64>>>( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, ABCD_dev );
+      compute_SPH_batched_gpu_low<<<Nqrtt,128>>>( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, ABCD_dev );
 
       int corrBS = 64;
       int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
       apply_correction<<<corrNB,corrBS>>>( Nqrtt*Ns, SPHER_dev, corr );
 
-      compute_TRA_batched_gpu_low<<<Nshell,64>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
+      compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
 
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
@@ -462,7 +467,7 @@ void AIS::dispatch(){
          nerrors++;
          double ratio = 1.0;
          if ( abs(ref) > 0. ){ ratio = val / ref ; }
-         cout << "CPU - GPU: Error at " << i << " " << val << " " << ref << " " << diff << " " << ratio << " " << endl ;
+         cout << "CPU - GPU: Error at " << i << " " << ref << " " << val << " " << diff << " " << ratio << " " << endl ;
          if ( nerrors >= 100 ){
             cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
             exit( EXIT_FAILURE );

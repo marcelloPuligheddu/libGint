@@ -238,6 +238,8 @@ void execute_VRR6(
       a0c0m0[ idx_000 ] = QC[d] * i_0m0 + WQ[d] * i_0mp + e2*inv_2z*i_mmp;
    }
 }
+
+
 __device__ void execute_CP2S_gpu( 
       const int AL, const int CL, 
       const double* __restrict__ pr_mem,
@@ -248,24 +250,6 @@ __device__ void execute_CP2S_gpu(
       const int unsigned nga, const int unsigned ngb, const int unsigned ngc, const int unsigned ngd,
       const double* const __restrict__ Ka, const double* const __restrict__ Kb,
       const double* const __restrict__ Kc, const double* const __restrict__ Kd ){
-
-   // Early returns 
-   if (nla+nlb+nlc+nld == 4 ){
-      double K = Ka[ipa] * Kb[ipb] * Kc[ipc] * Kd[ipd];
-      if ( AL+CL == 0 ){
-         // must be atomic
-         atomicAdd( &sh_mem[ 0 ] , K * pr_mem[0] );
-      } else {
-         const int NcoA = NLco_dev(AL);
-         const int NcoC = NLco_dev(CL);
-         const int NcoAC = NcoA*NcoC;
-         for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-            // must be atomic
-            atomicAdd( &sh_mem[ i ] , K * pr_mem[i]);
-         }
-      }
-      return;
-   }
 
    // index over the contract basis sets
    const unsigned int nl___d = nld;
@@ -280,17 +264,12 @@ __device__ void execute_CP2S_gpu(
       unsigned int d = ilabcd % nld ;
       double K = Ka[ a*nga + ipa ] * Kb[ b*ngb + ipb ] * Kc[ c*ngc + ipc ] * Kd[ d*ngd + ipd ];
 
-      if ( AL+CL == 0 ){
-         // must be atomic 
-         atomicAdd( &sh_mem[ ilabcd*hrr_blocksize ] , K * pr_mem[0]);
-      } else {
-         const int NcoA = NLco_dev(AL);
-         const int NcoC = NLco_dev(CL);
-         const int NcoAC = NcoA*NcoC;
-         for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-            // must be atomic
-            atomicAdd( &sh_mem[ ilabcd*hrr_blocksize + i ] , K * pr_mem[i]);
-         }
+      const int NcoA = NLco_dev(AL);
+      const int NcoC = NLco_dev(CL);
+      const int NcoAC = NcoA*NcoC;
+      for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
+        // must be atomic
+        atomicAdd( &sh_mem[ ilabcd*hrr_blocksize + i ] , K * pr_mem[i]);
       }
    }
 }
@@ -365,7 +344,13 @@ __global__ void compute_VRR_batched_gpu_low(
       const double* const __restrict__ data,
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
+      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, int vrr_team_size ){
+
+   
+   const int num_vrr_teams = blockDim.x / vrr_team_size;
+   int my_vrr_team = threadIdx.x / vrr_team_size;
+   int my_vrr_rank = threadIdx.x % vrr_team_size;
+//   assert(num_vrr_teams*vrr_team_size == blockDim.x);
 
    for( int block=blockIdx.x; block < Ncells ; block += gridDim.x ){
 
@@ -402,15 +387,16 @@ __global__ void compute_VRR_batched_gpu_low(
       for ( unsigned i= threadIdx.x; i < hrr_blocksize * nlabcd ; i+= blockDim.x ){
          sh_mem[i] = 0.0 ;
       }
+      __syncthreads();
 
-      for ( unsigned thread=threadIdx.x; thread < n_prm; thread+= blockDim.x ){
-         unsigned int Of   = Of0 + thread * F_size;
-         unsigned int ipzn = Pm_input_list[(Op + thread)*PM_SIZE+PMA_OFFSET_IPZN ];
+      for ( unsigned i = my_vrr_team; i < n_prm;  i += num_vrr_teams ){
+         unsigned int Of   = Of0 + i * F_size;
+         unsigned int ipzn = Pm_input_list[(Op + i)*PM_SIZE+PMA_OFFSET_IPZN ];
          unsigned int ipa,ipb,ipc,ipd;
 
          decode_ipabcd_none( ipzn, &ipa,&ipb,&ipc,&ipd );
 
-         double* pr_mem = &AC[ (Ov + thread) * vrr_blocksize ];
+         double* pr_mem = &AC[ (Ov + i) * vrr_blocksize ];
 
          for( int il=0; il < L+1; il++ ){
             pr_mem[il] = Fm[Of+il];
@@ -455,8 +441,8 @@ __global__ void compute_VRR_batched_gpu_low(
             double* m3 = &pr_mem[off_m3];
             double *m4, *m5, *m6 ;
 
-            const int my_vrr_rank = 0;
-            const int vrr_team_size = 1;
+//            const int my_vrr_rank = 0;
+//            const int vrr_team_size = 1;
 
             if ( t == VRR1 ){ 
                execute_VRR1( m, m1, m2, m3, PA, WP, my_vrr_rank, vrr_team_size );
@@ -481,6 +467,8 @@ __global__ void compute_VRR_batched_gpu_low(
                execute_CP2S_gpu( 
                   la, lc, m1, m2, my_vrr_rank, vrr_team_size, hrr_blocksize,
                   ipa, ipb, ipc, ipd, nla, nlb, nlc, nld, npa, npb, npc, npd, Ka, Kb, Kc, Kd );
+            } else if ( t == SYTM ){
+               __syncthreads();
             }
          } // end of loop over op  
       }

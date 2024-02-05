@@ -13,7 +13,7 @@ set -x
 accellerator=
 #CPPFLAGS="-mp=$accellerator -Minfo=accel -O2 -pg -lblas"
 #CPP=nvc++
-CPPFLAGS="-O333march=native -g -pg -lblas -Wall -pedantic -lcudart "
+CPPFLAGS="-O3 march=native -g -pg -lblas -Wall -pedantic -lcudart "
 CPP=nvc++
 
 rm compute_Fm.o compute_VRR.o compute_HRR.o compute_TRA.o compute_SPH.o 

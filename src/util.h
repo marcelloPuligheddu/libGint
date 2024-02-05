@@ -62,7 +62,7 @@ __device__ __host__ void compute_weighted_distance(
 
 
 
-__device__ __host__ int NLco_dev( int L );
+__host__ int NLco( int L );
 // Returns L-lx
 // essentialy is using the pattern:
 // s = 0 0 0                                     -> L-lx = 0
@@ -70,11 +70,17 @@ __device__ __host__ int NLco_dev( int L );
 // d = 2 0 0, 1 1 0, 1 0 1, 0 2 0, 0 1 1, 0 0 2  -> L-lx = 0 1 1 2 2 2
 // and noting that L-lx does not really depend on L, but on the index of the cartesian direction. Good up to L=8
 // compute (cartesian) moment on x axis for a given total moment.
-__device__ __host__ int L_lx(const int i );
-__device__ __host__ int lx( const int i, const int L );
-__device__ __host__ int lz( const int i, const int L );
-__device__ __host__ int ly( const int i, const int L );
+__host__ int L_lx(const int i );
+__host__ int lx( const int i, const int L );
+__host__ int lz( const int i, const int L );
+__host__ int ly( const int i, const int L );
 //#pragma omp end declare target
+
+__device__ int NLco_dev( int L );
+__device__ int L_lx_dev(const int i );
+__device__ int lx_dev( const int i, const int L );
+__device__ int lz_dev( const int i, const int L );
+__device__ int ly_dev( const int i, const int L );
 
 
 

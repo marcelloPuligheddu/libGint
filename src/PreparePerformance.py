@@ -40,9 +40,11 @@ output_file_name = 'performance_test.inp'
 #mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.0 0.0 1.1 ')
 #mol_h2o = pyscf.gto.M(atom = 'O 0 2 0;')
 #mol_h2o = pyscf.gto.M(atom = 'H 0 2 0; H 0.5 0.5 0; H 2 2 0; H 3.5 0.5 0; H 0 0 0 ; H 1 1 1')
-mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0; O 2 2 2; H 0 4 2; H 0.5 2.5 2')
+#mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0; O 2 2 2; H 0 4 2; H 0.5 2.5 2')
 #mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0')
+#mol_h2o = pyscf.gto.M(atom = ' Cr 2 0 0; H 0 2 0; H 0.5 0.5 0')
 #mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.1 0.2 0.3; O -0.11 -0.33 -0.22; O 3 2 1; O 3. 3. 3. ')
+mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.1 0.2 0.3; O -0.11 -0.33 -0.22; O 3 2 1; O 3. 3. 3.; O 1.23 4.21 0.13; O 2. 4. 0. ')
 #mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0 0 1; O 0 1 0; O 0 1 1; H 1 0 0; H 1 0 1; H 1 1 0; H 1 1 1;')
 #mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0 0 1; O 0 1 0; O 0 1 1; O 1 0 0; O 1 0 1; O 1 1 0; O 1 1 1;')
 #mol_h2o = pyscf.gto.M(atom=' O 2 0 0; H 2 0 1; H 2 1 0; O 2 1 1; H 2 0 0; H 2 0 1; O 2 1 0; H 2 1 1; H 3 0 0;')
@@ -53,17 +55,20 @@ mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0; O 2 2 2; H 0 4 2; H
 #mol_h2o.basis = {'H': [ [0,[1.,1.]]]}
 #mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]]]}
 #mol_h2o.basis = {'O': [ [1,[1.,1.],[0.9,0.9]],  [2,[1.,1.],[0.5,0.5]], [3,[1.,1.],[0.5,0.5]] ]}
-#mol_h2o.basis = {'H': [ [1,[1.,1.],[2.,2.]] ]}
+#mol_h2o.basis = {'O': [ [1,[1.,1.]] ]}
+#mol_h2o.basis = {'O': [ [1,[1.,1.],[2.,2.]] ]}
+#mol_h2o.basis = {'O': [ [1,[1.,1.],[2.,2.],[3.,3.]] ]}
 #mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]], [1,[1.,1.]] ]}
 #mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]], [1,[1.,1.]], [2,[1.,1.]] ]}
 #mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]], [1,[1.,1.]], [2,[1.,1.]], [3,[1.,1.]] ]}
-#mol_h2o.basis = {'O': [[3,[1.,1.]]]}
+mol_h2o.basis = {'O': [[3,[1.,1.]]]}
 #mol_h2o.basis = {'O': [[1,[1.,1.]]]}
 #mol_h2o.basis = {'O': [[1,[1.,1.]]]}
 #mol_h2o.basis = {'O': [[0,[1.,1.]], [1,[1.,1.]]]}
+#mol_h2o.basis = {'O': [[0,[1.,1.]], [1,[1.,1.],[2.,2.]]]}
 #mol_h2o.basis = {'O': [[4,[1.,1.]], [2,[1.5,1.],[0.5,0.5]], [3,[1.,1.],[0.1,0.1]]],'H': [[1,[2.5,1.]], [0,[2.,1.],[0.1,1.0],[1.4,0.7]]] }
 #mol_h2o.basis = {'O': [[2,[1.,1.],[0.5,0.5],[0.3,0.3]]], 'H': [[0,[1.,1.],[.5,.5]]] }
-mol_h2o.basis = '631++g**'
+#mol_h2o.basis = '631++g**'
 #mol_h2o.basis = '631g'
 #mol_h2o.basis = 'ccpvdz'
 mol_h2o.build()

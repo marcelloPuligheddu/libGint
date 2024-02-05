@@ -33,7 +33,7 @@ __global__ void compute_VRR_batched_gpu_low(
       const double* const __restrict__ data,
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, int vrr_team_size=1 );
+      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC );
 
 void compute_VRR_batched(
       const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& Pm_input_list,

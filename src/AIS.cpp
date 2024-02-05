@@ -440,18 +440,12 @@ void AIS::dispatch(){
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          TRA_dev, TRA[L].data(), sizeof(unsigned int)*(TRA[L].size()), cudaMemcpyHostToDevice ));
 
-                                            //    0  1  2  3  4  5  6  7  8  9,10
-      const int vrr_team_size_vs_total_L[11] =  { 1, 4, 8,16,16,32,32,32,32,32,32 };
-      int vrr_team_size = 32;
-      if ( labcd < 11 ){ vrr_team_size = vrr_team_size_vs_total_L[labcd]; }
-      vrr_team_size = max(32, vrr_team_size);
-
       timer.start();
       compute_VRR_batched_gpu_low<<<Ncells,32>>>(
          Ncells, plan_dev, Pm_input_list_dev, HRR_dev, Fm_dev, data_dev,
-         AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, vrr_team_size );
-
-      compute_HRR_batched_gpu_low<<<Ncells,32>>>(
+         AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
+     
+      compute_HRR_batched_gpu_low<<<Ncells,128>>>(
          Ncells, plan_dev, HRR_dev, data_dev, ABCD_dev, ABCD0_dev,
          hrr_blocksize, Nc, numVC, numVCH );
 

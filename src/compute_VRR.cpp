@@ -7,7 +7,29 @@ using std::cout;
 using std::endl;
 
 
-__device__ __host__ void execute_VRR1( // int AL, int CL, int m, 
+void execute_VRR1( // int AL, int CL, int m, 
+      const int m,
+      double* __restrict__ a0c0m0,
+      const double* __restrict__ amc0m0,
+      const double* __restrict__ amc0mp,
+      const double PA[3], const double WP[3], const int my_vrr_rank=0, const int vrr_team_size=1 ){
+
+   for( int imm=my_vrr_rank; imm < 3*m; imm+=vrr_team_size ){
+
+      int mm = imm / 3 ;
+      int i  = imm % 3 ;
+
+      int d  = i ;
+      int im = 0 ; 
+
+      int idx_000 = i  + 3*mm;
+      int idx_m00 = im + 1*mm;
+
+      a0c0m0[idx_000] = PA[d] * amc0m0[idx_m00] + WP[d] * amc0mp[idx_m00];
+   }
+}
+
+__device__ void execute_VRR1_gpu( // int AL, int CL, int m, 
       const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ amc0m0,
@@ -30,10 +52,12 @@ __device__ __host__ void execute_VRR1( // int AL, int CL, int m,
 }
 
 
+
+
 // Specialization of VRR for a>1, c=0. Applies
 // <a+1i,sss>(m) = PA_i <asss>(m) + WP_i <asss>(m+1) 
 //               + 1/2zab N_i(a) ( <a-1,sss>(m) - rho/zab <a-1,sss>(m+1) )
-__device__ __host__ void execute_VRR2(
+void execute_VRR2(
       const int AL, const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ amc0m0,
@@ -96,8 +120,71 @@ __device__ __host__ void execute_VRR2(
    }
 }
 
+__device__ void execute_VRR2_gpu(
+      const int AL, const int m,
+      double* __restrict__ a0c0m0,
+      const double* __restrict__ amc0m0,
+      const double* __restrict__ amc0mp,
+      const double* __restrict__ awc0m0,
+      const double* __restrict__ awc0mp,
+      const double PA[3], const double WP[3], const double inv_2zab, const double min_rho_zab2,
+      const int my_vrr_rank=0, const int vrr_team_size=1 ){
+   const int NcoA   = (AL+1)*(AL+2)/2;
+   const int NcoAxx = (AL+0)*(AL-1)/2;
+   const int NcoAx  = (AL+1)*(AL+0)/2;
+   const int NcoAyy = (AL+3)*(AL+0)/2 - 1;
+   const int NcoAy  = (AL+1)*(AL+2)/2 - 2 ;
+   const int NcoAm  = (AL+1)*(AL+0)/2;
+   const int NcoAw  = (AL-1)*(AL+0)/2;
+
+
+   for ( int imm = my_vrr_rank; imm < m*NcoA; imm+=vrr_team_size ){
+
+      int i  = imm % NcoA ;
+      int mm = imm / NcoA ;
+
+      int ex = lx_dev(i,AL);
+      int ey = ly_dev(i,AL);
+      int ez = AL - ex - ey ;
+      int d, im, iw, e2 ;
+      if ( i < NcoAxx ){
+         d  = 0;
+         im = i;
+         iw = i;
+         e2 = ex - 1;
+      } else if ( i < NcoAx ) {
+         d  = 0;
+         im = i;
+         iw = 0;
+         e2 = 0;
+      } else if ( i < NcoAyy ){
+         d  = 1;
+         im = i - AL;
+         iw = i - 2 * AL + 1;
+         e2 = ey - 1;
+      } else if ( i == NcoAy ){
+         d  = 1;
+         im = i - AL;
+         iw = 0;
+         e2 = 0;
+      } else {
+         d  = 2;
+         im = i - AL - 1;
+         iw = i - 2 * AL - 1;
+         e2 = ez - 1;
+      }
+      int idx_000 = imm ; // i  + NcoA *mm ;
+      int idx_m00 = im + NcoAm*mm ;
+      int idx_w00 = iw + NcoAw*mm ;
+
+      a0c0m0[ idx_000 ] = PA[d] * amc0m0[idx_m00] + 
+                          WP[d] * amc0mp[idx_m00] + 
+                          e2*( inv_2zab * awc0m0[idx_w00] + min_rho_zab2 * awc0mp[idx_w00] );
+   }
+}
+
 // more general case, for al>0 and cl>1
-__device__ __host__ void execute_VRR5(
+void execute_VRR5(
       const int AL, const int CL, const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ a0cmm0,
@@ -109,11 +196,11 @@ __device__ __host__ void execute_VRR5(
       const double inv_2zcd, const double min_rho_zcd2, const double inv_2z,
       const int my_vrr_rank=0, const int vrr_team_size=1 ){
    //
-   const int NcoA = NLco_dev(AL);
-   const int NcoAm= NLco_dev(AL-1);
-   const int NcoC = NLco_dev(CL);
-   const int NcoCm = NLco_dev(CL-1);
-   const int NcoCw = NLco_dev(CL-2);
+   const int NcoA = NLco(AL);
+   const int NcoAm= NLco(AL-1);
+   const int NcoC = NLco(CL);
+   const int NcoCm = NLco(CL-1);
+   const int NcoCw = NLco(CL-2);
    const int NcoCy = (CL+3)*CL/2-1;
    // k is the faster variable, followed by i, then m
    for ( int mik=my_vrr_rank; mik < NcoA*NcoC*m; mik+=vrr_team_size ){
@@ -188,8 +275,153 @@ __device__ __host__ void execute_VRR5(
    }
 }
 
+// more general case, for al>0 and cl>1
+__device__ void execute_VRR5_gpu(
+      const int AL, const int CL, const int m,
+      double* __restrict__ a0c0m0,
+      const double* __restrict__ a0cmm0,
+      const double* __restrict__ a0cmmp,
+      const double* __restrict__ a0cwm0,
+      const double* __restrict__ a0cwmp,
+      const double* __restrict__ amcmmp,
+      const double QC[3], const double WQ[3],
+      const double inv_2zcd, const double min_rho_zcd2, const double inv_2z,
+      const int my_vrr_rank=0, const int vrr_team_size=1 ){
+   //
+   const int NcoA = NLco_dev(AL);
+   const int NcoAm= NLco_dev(AL-1);
+   const int NcoC = NLco_dev(CL);
+   const int NcoCm = NLco_dev(CL-1);
+   const int NcoCw = NLco_dev(CL-2);
+   const int NcoCy = (CL+3)*CL/2-1;
+   // k is the faster variable, followed by i, then m
+   for ( int mik=my_vrr_rank; mik < NcoA*NcoC*m; mik+=vrr_team_size ){
+      int ex, ey, ez, fx, fy, fz;
+      int i, k, mm, d, km, kw, f2, im, e2 ;
+      int idx_000, idx_0m0, idx_0w0, idx_mmp;
+      double i_0m0, i_0mp, i_0w0, i_0wp, i_mmp;
+
+
+      k  = mik % NcoC;
+      i  = (mik/NcoC)%NcoA;
+      mm = mik/NcoC/NcoA;
+
+      ex = lx_dev(i,AL);
+      ey = ly_dev(i,AL);
+      ez = AL - ex - ey ; // lz(i,AL);
+      fx = lx_dev(k,CL);
+      fy = ly_dev(k,CL);
+      fz = CL- fx - fy ; // lz(k,CL);
+      // if the x moment of k is more than zero, than apply the vrr along x
+      if (k < NcoCw){ 
+         d  = 0;
+         km = k;
+         kw = k;
+         f2 = fx-1;
+         im = i;
+         e2 = ex;
+      // x[....]
+      } else if (k < NcoCm){
+         d  = 0;
+         km = k;
+         kw = 0; // not used since f2 = fx-1 = 0 
+         f2 = fx-1; // == 0
+         im = i;
+         e2 = ex;
+      // yy[...]
+      } else if (k < NcoCy){
+         d  = 1;
+         km = k - CL; // k - (fy+fz) = k - (CL-fx) = k - CL
+         kw = k - 2 * CL + 1;
+         f2 = fy-1;
+         im = i - (ey+ez); // we need the general version since ex may not be zero
+         e2 = ey;
+      // y[...]
+      } else if (k == NcoC - 2){
+          d  = 1;
+          km = k - CL;
+          kw = k - 2 * CL + 1;
+          f2 = fy-1;
+          im = i - (ey+ez);
+          e2 = ey;
+      // zzzzzzz
+      } else {
+          d  = 2;
+          km = k - CL - 1;
+          kw = k - 2 * CL - 1;
+          f2 = fz-1;
+          im = i - (ey+ez) - 1;
+          e2 = ez;
+      }
+      idx_000 = mik ; // k +i *NcoC + NcoA *NcoC *(mm)
+      idx_0m0 = km+i *NcoCm + NcoA *NcoCm*mm;
+      idx_0w0 = kw+i *NcoCw + NcoA *NcoCw*mm;
+      idx_mmp = km+im*NcoCm + NcoAm*NcoCm*mm;
+      i_0m0 = a0cmm0[ idx_0m0 ];
+      i_0mp = a0cmmp[ idx_0m0 ];
+      i_0w0 = a0cwm0[ idx_0w0 ];
+      i_0wp = a0cwmp[ idx_0w0 ];
+      i_mmp = amcmmp[ idx_mmp ];
+
+      a0c0m0[ idx_000 ] = QC[d] * i_0m0 + WQ[d] * i_0mp + f2*( inv_2zcd * i_0w0 + min_rho_zcd2 * i_0wp ) + e2*inv_2z*i_mmp;
+   }
+}
+
+
 // case for a>0, c=1
-__device__ __host__ void execute_VRR6( 
+void execute_VRR6( 
+      const int AL, const int m,
+      double* __restrict__ a0c0m0,
+      const double* __restrict__ a0cmm0,
+      const double* __restrict__ a0cmmp,
+      const double* __restrict__ amcmmp,
+      const double QC[3], const double WQ[3], const double inv_2z,
+      const int my_vrr_rank=0, const int vrr_team_size=1 ){
+   const int NcoA = NLco(AL);
+   const int NcoAm= NLco(AL-1);
+   const int NcoC = 3 ; // NLco(CL);
+   // k is the faster variable, followed by i, then m
+   for ( int mik=my_vrr_rank; mik < NcoA*NcoC*m; mik+=vrr_team_size ){
+      int ex, ey, ez ;
+      int i, k, mm, d, im, e2 ;
+      int idx_000, idx_0m0, idx_mmp;
+      double i_0m0, i_0mp, i_mmp;
+
+      k  = mik % NcoC;
+      i  = (mik/NcoC)%NcoA;
+      mm = mik/NcoC/NcoA;
+
+      ex = lx(i,AL);
+      ey = ly(i,AL);
+      ez = AL - ex - ey ; // lz(i,AL);
+
+      if (k == 0 ){
+         d  = 0;
+         im = i;
+         e2 = ex;
+      } else if (k == 1){
+         d  = 1;
+         im = i - (ey+ez);
+         e2 = ey;
+      } else {
+          d  = 2;
+          im = i - (ey+ez) - 1;
+          e2 = ez;
+      }
+      idx_000 = mik ; // k +i *NcoC + NcoA *NcoC *(mm)
+      idx_0m0 = i  + NcoA *mm;
+      idx_mmp = im + NcoAm*mm;
+      i_0m0 = a0cmm0[ idx_0m0 ];
+      i_0mp = a0cmmp[ idx_0m0 ];
+      i_mmp = amcmmp[ idx_mmp ];
+
+      a0c0m0[ idx_000 ] = QC[d] * i_0m0 + WQ[d] * i_0mp + e2*inv_2z*i_mmp;
+   }
+}
+
+
+// case for a>0, c=1
+__device__ void execute_VRR6_gpu( 
       const int AL, const int m,
       double* __restrict__ a0c0m0,
       const double* __restrict__ a0cmm0,
@@ -211,8 +443,8 @@ __device__ __host__ void execute_VRR6(
       i  = (mik/NcoC)%NcoA;
       mm = mik/NcoC/NcoA;
 
-      ex = lx(i,AL);
-      ey = ly(i,AL);
+      ex = lx_dev(i,AL);
+      ey = ly_dev(i,AL);
       ez = AL - ex - ey ; // lz(i,AL);
 
       if (k == 0 ){
@@ -309,8 +541,8 @@ void execute_CP2S_v2(
 //         cout << Ka[ipa] << " " <<  Kb[ipb] << " " <<  Kc[ipc] << " " << Kd[ipd] << endl;
          sh_mem[ 0 ] += K * pr_mem[0];
       } else {
-         const int NcoA = NLco_dev(AL);
-         const int NcoC = NLco_dev(CL);
+         const int NcoA = NLco(AL);
+         const int NcoC = NLco(CL);
          const int NcoAC = NcoA*NcoC;
          for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
             // must be atomic
@@ -337,8 +569,8 @@ void execute_CP2S_v2(
          // must be atomic 
          sh_mem[ ilabcd*hrr_blocksize ] += K * pr_mem[0];
       } else {
-         const int NcoA = NLco_dev(AL);
-         const int NcoC = NLco_dev(CL);
+         const int NcoA = NLco(AL);
+         const int NcoC = NLco(CL);
          const int NcoAC = NcoA*NcoC;
          for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
             // must be atomic
@@ -357,12 +589,9 @@ __global__ void compute_VRR_batched_gpu_low(
       const double* const __restrict__ data,
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, int vrr_team_size ){
+      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
 
    
-   const int num_vrr_teams = blockDim.x / vrr_team_size;
-   int my_vrr_team = threadIdx.x / vrr_team_size;
-   int my_vrr_rank = threadIdx.x % vrr_team_size;
 //   assert(num_vrr_teams*vrr_team_size == blockDim.x);
 
    for( int block=blockIdx.x; block < Ncells ; block += gridDim.x ){
@@ -402,7 +631,18 @@ __global__ void compute_VRR_batched_gpu_low(
       }
       __syncthreads();
 
-      for ( unsigned i = my_vrr_team; i < n_prm;  i += num_vrr_teams ){
+      int best_vrr_team_size = max( 1, (L*L+1) / n_prm);
+      int vrr_team_size = 32;
+      while ( vrr_team_size > best_vrr_team_size ){ vrr_team_size /= 2; }
+
+//      if ( blockIdx.x + threadIdx.x == 0  ){ printf( " VTS calc: L = %d N = %d  -> %d \n" , L, n_prm, vrr_team_size); }
+
+      int num_vrr_teams = blockDim.x / vrr_team_size;
+      int my_vrr_team = threadIdx.x / vrr_team_size;
+      int my_vrr_rank = threadIdx.x % vrr_team_size;
+
+      for ( unsigned i = my_vrr_team; i < n_prm ;  i += num_vrr_teams ){
+
          unsigned int Of   = Of0 + i * F_size;
          unsigned int ipzn = Pm_input_list[(Op + i)*PM_SIZE+PMA_OFFSET_IPZN ];
          unsigned int ipa,ipb,ipc,ipd;
@@ -458,23 +698,23 @@ __global__ void compute_VRR_batched_gpu_low(
 //            const int vrr_team_size = 1;
 
             if ( t == VRR1 ){ 
-               execute_VRR1( m, m1, m2, m3, PA, WP, my_vrr_rank, vrr_team_size );
+               execute_VRR1_gpu( m, m1, m2, m3, PA, WP, my_vrr_rank, vrr_team_size );
             } else if ( t == VRR2 ){
                m4 = &pr_mem[off_m4]; m5 = &pr_mem[off_m5]; 
-               execute_VRR2( la, m, m1, m2, m3, m4, m5, PA, WP, inv_2zab, min_rho_zab2, my_vrr_rank, vrr_team_size);
+               execute_VRR2_gpu( la, m, m1, m2, m3, m4, m5, PA, WP, inv_2zab, min_rho_zab2, my_vrr_rank, vrr_team_size);
             } else if ( t == VRR3 ){ 
-               execute_VRR1( m, m1, m2, m3, QC, WQ, my_vrr_rank, vrr_team_size );
+               execute_VRR1_gpu( m, m1, m2, m3, QC, WQ, my_vrr_rank, vrr_team_size );
             } else if ( t == VRR4 ){ 
                m4 = &pr_mem[off_m4]; m5 = &pr_mem[off_m5];
-               execute_VRR2( lc, m, m1, m2, m3, m4, m5, QC, WQ, inv_2zcd, min_rho_zcd2, my_vrr_rank, vrr_team_size );
+               execute_VRR2_gpu( lc, m, m1, m2, m3, m4, m5, QC, WQ, inv_2zcd, min_rho_zcd2, my_vrr_rank, vrr_team_size );
             } else if ( t == VRR5 ){ 
                m4 = &pr_mem[off_m4]; m5 = &pr_mem[off_m5]; m6 = &pr_mem[off_m6];
-               execute_VRR5(
+               execute_VRR5_gpu(
                   la, lc, m, m1, m2, m3, m4, m5, m6, 
                   QC, WQ, inv_2zcd, min_rho_zcd2, inv_2z, my_vrr_rank, vrr_team_size );
             } else if ( t == VRR6 ){ 
                m4 = &pr_mem[off_m4];
-               execute_VRR6( la, m, m1, m2, m3, m4, QC, WQ, inv_2z, my_vrr_rank, vrr_team_size);
+               execute_VRR6_gpu( la, m, m1, m2, m3, m4, QC, WQ, inv_2z, my_vrr_rank, vrr_team_size);
             } else if ( t == CP2S){
                m2 = &sh_mem[off_m2];
                execute_CP2S_gpu( 

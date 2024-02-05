@@ -379,7 +379,7 @@ std::vector<int> plan( const int LA, const int LB, const int LC, const int LD, i
 
    // Add a CP2S operation after an element if ((is computed using a VRR) and (it is needed for a HRR))
    OpArray tmp_op2;
-   for ( std::list<OpArray>::const_iterator it = G_list.begin() ; it != G_list.end(); it++ ){
+   for ( auto it = G_list.begin() ; it != G_list.end(); it++ ){
       tmp_op = (*it);
       int t  = tmp_op[T__OFFSET];
       int la = tmp_op[LA_OFFSET];

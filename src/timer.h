@@ -44,6 +44,22 @@ public:
         m_EndTime = std::chrono::system_clock::now();
         m_bRunning = false;
     }
+ 
+    double elapsedMicroseconds()
+    {
+        std::chrono::time_point<std::chrono::system_clock> endTime;
+        
+        if(m_bRunning)
+        {
+            endTime = std::chrono::system_clock::now();
+        }
+        else
+        {
+            endTime = m_EndTime;
+        }
+        
+        return std::chrono::duration_cast<std::chrono::microseconds>(endTime - m_StartTime).count();
+    }
     
     double elapsedMilliseconds()
     {

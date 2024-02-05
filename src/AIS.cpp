@@ -313,9 +313,12 @@ void AIS::dispatch(){
       compute_TRA_batched( Nshell, la, lb, lc, ld, TRA[L], SPHER, OUT );
 
       timer.stop();
-      cout << " CPU KRNL " << timer.elapsedMilliseconds() << " ms" ;
-      cout << " SL " << labcd << " GB/s " << OUT_size[L] / timer.elapsedMilliseconds() * sizeof(double) / 1.e6 ;
+
+      cout << " CPU KRNL " <<  " SL " << labcd << " " ;
+      cout << timer.elapsedMicroseconds() << " us " ;
+      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
       cout << endl;
+
    }
 
    timer2.stop();
@@ -467,10 +470,10 @@ void AIS::dispatch(){
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
       timer.stop();
-      cout << " GPU KRNL " << timer.elapsedMilliseconds() << " ms" ;
-      cout << " SL " << labcd << " GB/s " << OUT_size[L] / timer.elapsedMilliseconds() * sizeof(double) / 1.e6 ;
+      cout << " GPU KRNL " <<  " SL " << labcd << " " ;
+      cout << timer.elapsedMicroseconds() << " us " ;
+      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
       cout << endl;
-
    }
    timer.start();
    std::vector<double> OUT_from_gpu( OUT.size() );

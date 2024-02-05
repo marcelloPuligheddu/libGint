@@ -1,9 +1,19 @@
 set -x
 
+# On Scarf
+# module use /work4/scd/scarf562/eb-common/modules/all
+# module load amd-modules
+# module load OpenMPI/4.1.4-GCC-11.3.0
+# module load NCCL/2.12.12-GCCcore-11.3.0-CUDA-11.7.1
+# module load UCX-CUDA/1.12.1-GCCcore-11.3.0-CUDA-11.7.1
+# module load ScaLAPACK/2.2.0-gompi-2022a-fb
+# export OMP_NUM_THREADS=1
+# module load NVHPC/23.1-CUDA-12.0.0
+
 accellerator=
 #CPPFLAGS="-mp=$accellerator -Minfo=accel -O2 -pg -lblas"
 #CPP=nvc++
-CPPFLAGS="-Ofast -march=native -g -pg -lblas -Wall -pedantic -lcudart "
+CPPFLAGS="-O333march=native -g -pg -lblas -Wall -pedantic -lcudart "
 CPP=nvc++
 
 rm compute_Fm.o compute_VRR.o compute_HRR.o compute_TRA.o compute_SPH.o 

@@ -481,7 +481,7 @@ __global__ void compute_VRR_batched_gpu_low(
                   la, lc, m1, m2, my_vrr_rank, vrr_team_size, hrr_blocksize,
                   ipa, ipb, ipc, ipd, nla, nlb, nlc, nld, npa, npb, npc, npd, Ka, Kb, Kc, Kd );
             } else if ( t == SYTM ){
-               __syncthreads();
+//               __syncthreads();
             }
          } // end of loop over op  
       }

@@ -138,7 +138,8 @@ __global__ void compute_HRR_batched_gpu_low(
             ABCD0[ s0_st + i ] = 0. ;
          }
       }
-      
+      __syncthreads();
+
       const int tid = threadIdx.x;
       const int Nt = blockDim.x;
 
@@ -161,11 +162,12 @@ __global__ void compute_HRR_batched_gpu_low(
                la, lb, lc, ld, &sh_mem[off_m1], &sh_mem[off_m2], &sh_mem[off_m3],
                AB, hrr_blocksize, nlabcd, tid, Nt );
          } else if ( t == SYBL ){
-//            #pragma omp barrier
+//            #pragma omp team barrier (?)
             __syncthreads();
          }
       }
 
+      __syncthreads();
       // sums over cell from ABCD[Og:Og+nlabcd*Nc] to ABCD0[Oq:Oq+nlabcd*Nc]
       for ( unsigned int ilabcd=threadIdx.x ; ilabcd < nlabcd; ilabcd+=blockDim.x ){
          int sh_st = ilabcd * hrr_blocksize;

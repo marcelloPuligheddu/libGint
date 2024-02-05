@@ -313,7 +313,9 @@ void AIS::dispatch(){
       compute_TRA_batched( Nshell, la, lb, lc, ld, TRA[L], SPHER, OUT );
 
       timer.stop();
-      cout << " CPU KRNL :" << timer.elapsedMilliseconds() << " ms" << endl;
+      cout << " CPU KRNL " << timer.elapsedMilliseconds() << " ms" ;
+      cout << " SL " << labcd << " GB/s " << OUT_size[L] / timer.elapsedMilliseconds() * sizeof(double) / 1.e6 ;
+      cout << endl;
    }
 
    timer2.stop();
@@ -390,6 +392,24 @@ void AIS::dispatch(){
    CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
    CUDA_GPU_ERR_CHECK( cudaMemcpy( C2S_dev, c2s, sizeof(double)*245, cudaMemcpyHostToDevice )); // TODO move alloc to
 
+   cout << "GPU Memory use: " << endl;
+   cout << " OUT " << OUT.size()*sizeof(double) *1.e-6 << "MB " << endl; 
+   cout << " FMI " << sizeof(unsigned int)*(Fm_input_list.size()) *1.e-6 << "MB " << endl; 
+   cout << " PMI " << sizeof(unsigned int)*(Pm_input_list.size()) *1.e-6 << "MB " << endl; 
+   cout << " DAT " << ua.internal_buffer.size()*sizeof(double) *1.e-6 << "MB " << endl;
+   cout << " FM  " << sizeof(double)*(Fm.size()) *1.e-6 << "MB " << endl;
+   cout << " AC  " << sizeof(double)*AC.size() *1.e-6 << "MB "<< endl;
+   cout << " ABCD " << sizeof(double)*ABCD.size() *1.e-6 << "MB "<< endl;
+   cout << " ABCD0 " << sizeof(double)*ABCD0.size() *1.e-6 << "MB "<< endl;
+   cout << " SPHER  " << sizeof(double)*SPHER.size() *1.e-6 << "MB "<< endl;
+   cout << " PLAN  " << sizeof(int)*max_plan_size *1.e-6 << "MB "<< endl;
+   cout << " HRR  " << sizeof(unsigned int)*max_HRR_size *1.e-6 << "MB "<< endl;
+   cout << " SPH  " << sizeof(unsigned int)*max_SPH_size *1.e-6 << "MB "<< endl;
+   cout << " TRA  " << sizeof(unsigned int)*max_TRA_size *1.e-6 << "MB "<< endl;
+   cout << " AUX  " << sizeof(unsigned int)*(9+nelem+245) *1.e-6 << "MB "<< endl;
+
+   
+
    for ( unsigned int L : encoded_moments ){
       int la,lb,lc,ld,labcd;
       decodeL(L,&la,&lb,&lc,&ld);
@@ -447,7 +467,9 @@ void AIS::dispatch(){
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
       timer.stop();
-      cout << " GPU KRNL :" << timer.elapsedMilliseconds() << " ms" << endl;
+      cout << " GPU KRNL " << timer.elapsedMilliseconds() << " ms" ;
+      cout << " SL " << labcd << " GB/s " << OUT_size[L] / timer.elapsedMilliseconds() * sizeof(double) / 1.e6 ;
+      cout << endl;
 
    }
    timer.start();

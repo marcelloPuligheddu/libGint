@@ -27,8 +27,8 @@ SOFTWARE.
 
 __global__ void compute_VRR_batched_gpu_low(
       const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ Pm_input_list,
-      const unsigned int* const __restrict__ HRR,
+      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ Fm,
       const double* const __restrict__ data,
       double* const __restrict__ AC,
@@ -36,8 +36,8 @@ __global__ void compute_VRR_batched_gpu_low(
       int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC );
 
 void compute_VRR_batched(
-      const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& Pm_input_list,
-      const std::vector<unsigned int>& HRR, const std::vector<double>& Fm, const std::vector<double>& data,
+      const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& PMI,
+      const std::vector<unsigned int>& FVH, const std::vector<double>& Fm, const std::vector<double>& data,
       std::vector<double>& AC, std::vector<double>& ABCD, int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC );
 
 

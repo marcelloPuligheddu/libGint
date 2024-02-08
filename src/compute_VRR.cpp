@@ -583,8 +583,8 @@ void execute_CP2S_v2(
 
 __global__ void compute_VRR_batched_gpu_low(
       const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ Pm_input_list,
-      const unsigned int* const __restrict__ HRR,
+      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ Fm,
       const double* const __restrict__ data,
       double* const __restrict__ AC,
@@ -596,37 +596,31 @@ __global__ void compute_VRR_batched_gpu_low(
 
    for( int block=blockIdx.x; block < Ncells ; block += gridDim.x ){
 
-      unsigned int Ov     = HRR[block*HRR_SIZE+HRR_OFFSET_OV];
-      unsigned int n_prm  = HRR[block*HRR_SIZE+HRR_OFFSET_NPRM];
-      unsigned int Og     = HRR[block*HRR_SIZE+HRR_OFFSET_OG];
-//        Oq     = HRR[block*HRR_SIZE+HRR_OFFSET_OQ]
-//        idx_AB = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_AB]
-//        idx_CD = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_CD]
-      unsigned int nlabcd = HRR[block*HRR_SIZE+HRR_OFFSET_NLABCD];
-      unsigned int plabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PLABCD];
-      unsigned int ppabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PPABCD];
-      unsigned int idx_Ka = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KA];
-      unsigned int idx_Kb = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KB];
-      unsigned int idx_Kc = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KC];
-      unsigned int idx_Kd = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KD];
-      unsigned int Lmax   = HRR[block*HRR_SIZE+HRR_OFFSET_LMAX];
-      unsigned int Of0    = HRR[block*HRR_SIZE+HRR_OFFSET_OF0];
-      unsigned int Op     = HRR[block*HRR_SIZE+HRR_OFFSET_OP];
+      unsigned int Ov     = FVH[block*FVH_SIZE+FVH_OFFSET_OV];
+      unsigned int Og     = FVH[block*FVH_SIZE+FVH_OFFSET_OG];
+      unsigned int n_prm  = FVH[block*FVH_SIZE+FVH_OFFSET_NPRM];
+      unsigned int nlabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
+      unsigned int npabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NPABCD];
+      unsigned int idx_Ka = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KA];
+      unsigned int idx_Kb = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KB];
+      unsigned int idx_Kc = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KC];
+      unsigned int idx_Kd = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KD];
 
       const double* Ka = &data[idx_Ka];
       const double* Kb = &data[idx_Kb];
       const double* Kc = &data[idx_Kc];
       const double* Kd = &data[idx_Kd];
 
-      int F_size = Lmax+1;
-      if (Lmax > 0){ F_size += 4*3+5; }
+      int F_size = L+1;
+      if (L > 0){ F_size += 4*3+5; }
  
       unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
-      decode4( plabcd, &nla,&nlb,&nlc,&nld );
-      decode4( ppabcd, &npa,&npb,&npc,&npd );
+      decode4( nlabcd, &nla,&nlb,&nlc,&nld );
+      decode4( npabcd, &npa,&npb,&npc,&npd );
       double* sh_mem = &ABCD[ Og * hrr_blocksize ];
 
-      for ( unsigned i= threadIdx.x; i < hrr_blocksize * nlabcd ; i+= blockDim.x ){
+      int n_cc = nla*nlb*nlc*nld;
+      for ( unsigned i= threadIdx.x; i < hrr_blocksize * n_cc ; i+= blockDim.x ){
          sh_mem[i] = 0.0 ;
       }
       __syncthreads();
@@ -643,8 +637,8 @@ __global__ void compute_VRR_batched_gpu_low(
 
       for ( unsigned i = my_vrr_team; i < n_prm ;  i += num_vrr_teams ){
 
-         unsigned int Of   = Of0 + i * F_size;
-         unsigned int ipzn = Pm_input_list[(Op + i)*PM_SIZE+PMA_OFFSET_IPZN ];
+         unsigned int Of   = ( Ov + i ) * F_size;
+         unsigned int ipzn = PMI[(Ov + i )*PMI_SIZE+PMI_OFFSET_IPZN ];
          unsigned int ipa,ipb,ipc,ipd;
 
          decode_ipabcd_none( ipzn, &ipa,&ipb,&ipc,&ipd );
@@ -665,15 +659,15 @@ __global__ void compute_VRR_batched_gpu_low(
          double inv_2z = 0.;
 
          if (L > 0){
-            PA = &Fm[Of+Lmax+1];
-            WP = &Fm[Of+Lmax+4];
-            QC = &Fm[Of+Lmax+7];
-            WQ = &Fm[Of+Lmax+10];
-            inv_2zab = Fm[Of+Lmax+13];
-            min_rho_zab2  = Fm[Of+Lmax+14]; // - rho/zab**2
-            inv_2zcd = Fm[Of+Lmax+15];
-            min_rho_zcd2  = Fm[Of+Lmax+16]; // - rho/zcd**2
-            inv_2z = Fm[Of+Lmax+17];
+            PA = &Fm[Of+L+1];
+            WP = &Fm[Of+L+4];
+            QC = &Fm[Of+L+7];
+            WQ = &Fm[Of+L+10];
+            inv_2zab = Fm[Of+L+13];
+            min_rho_zab2  = Fm[Of+L+14]; // - rho/zab**2
+            inv_2zcd = Fm[Of+L+15];
+            min_rho_zcd2  = Fm[Of+L+16]; // - rho/zcd**2
+            inv_2z = Fm[Of+L+17];
          }
 
          for ( int op=0; op < numVC; op++ ){
@@ -733,62 +727,59 @@ __global__ void compute_VRR_batched_gpu_low(
 
 void compute_VRR_batched_low(
       const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ Pm_input_list,
-      const unsigned int* const __restrict__ HRR,
+      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ Fm,
       const double* const __restrict__ data,
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
       int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
-//#pragma omp target teams num_teams(Ncells) distribute map(to:plan,Pm_input_list,HRR,Fm,data ) map(from:AC,ABCD)
+
    for( int block=0; block < Ncells ; block++ ){
 
-      unsigned int Ov     = HRR[block*HRR_SIZE+HRR_OFFSET_OV];
-      unsigned int n_prm  = HRR[block*HRR_SIZE+HRR_OFFSET_NPRM];
-      unsigned int Og     = HRR[block*HRR_SIZE+HRR_OFFSET_OG];
-//        Oq     = HRR[block*HRR_SIZE+HRR_OFFSET_OQ]
-//        idx_AB = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_AB]
-//        idx_CD = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_CD]
-      unsigned int nlabcd = HRR[block*HRR_SIZE+HRR_OFFSET_NLABCD];
-      unsigned int plabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PLABCD];
-      unsigned int ppabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PPABCD];
-      unsigned int idx_Ka = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KA];
-      unsigned int idx_Kb = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KB];
-      unsigned int idx_Kc = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KC];
-      unsigned int idx_Kd = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KD];
-      unsigned int Lmax   = HRR[block*HRR_SIZE+HRR_OFFSET_LMAX];
-      unsigned int Of0    = HRR[block*HRR_SIZE+HRR_OFFSET_OF0];
-      unsigned int Op     = HRR[block*HRR_SIZE+HRR_OFFSET_OP];
+      unsigned int Ov     = FVH[block*FVH_SIZE+FVH_OFFSET_OV];
+      unsigned int Og     = FVH[block*FVH_SIZE+FVH_OFFSET_OG];
+      unsigned int n_prm  = FVH[block*FVH_SIZE+FVH_OFFSET_NPRM];
+      unsigned int nlabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
+      unsigned int npabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NPABCD];
+      unsigned int idx_Ka = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KA];
+      unsigned int idx_Kb = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KB];
+      unsigned int idx_Kc = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KC];
+      unsigned int idx_Kd = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KD];
 
       const double* Ka = &data[idx_Ka];
       const double* Kb = &data[idx_Kb];
       const double* Kc = &data[idx_Kc];
       const double* Kd = &data[idx_Kd];
 
-      int F_size = Lmax+1;
-      if (Lmax > 0){ F_size += 4*3+5; }
+      int F_size = L+1;
+      if (L > 0){ F_size += 4*3+5; }
  
       unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
-      decode4( plabcd, &nla,&nlb,&nlc,&nld );
-      decode4( ppabcd, &npa,&npb,&npc,&npd );
+      decode4( nlabcd, &nla,&nlb,&nlc,&nld );
+      decode4( npabcd, &npa,&npb,&npc,&npd );
       double* sh_mem = &ABCD[ Og * hrr_blocksize ];
 
-      for ( unsigned i=0; i < hrr_blocksize * nlabcd ; i++ ){
+      int N_cc = nla*nlb*nlc*nld;
+      for ( unsigned i=0; i < hrr_blocksize * N_cc ; i++ ){
          sh_mem[i] = 0.0 ;
       }
-//#pragma omp parallel for
+
       for ( unsigned thread=0; thread < n_prm; thread++ ){
-         unsigned int Of   = Of0 + thread * F_size;
-         unsigned int ipzn = Pm_input_list[(Op + thread)*PM_SIZE+PMA_OFFSET_IPZN ];
+         unsigned int Of   = ( Ov + thread ) * F_size;
+         unsigned int ipzn = PMI[(Ov + thread)*PMI_SIZE+PMI_OFFSET_IPZN ];
          unsigned int ipa,ipb,ipc,ipd;
 
          decode_ipabcd_none( ipzn, &ipa,&ipb,&ipc,&ipd );
 
          double* pr_mem = &AC[ (Ov + thread) * vrr_blocksize ];
 
+         // copies ssss(m) to starting positions
          for( int il=0; il < L+1; il++ ){
             pr_mem[il] = Fm[Of+il];
          }
+
+         // finds precalculated coefficients
          const double* PA = nullptr;
          const double* WP = nullptr;
          const double* QC = nullptr;
@@ -800,15 +791,15 @@ void compute_VRR_batched_low(
          double inv_2z = 0.;
 
          if (L > 0){
-            PA = &Fm[Of+Lmax+1];
-            WP = &Fm[Of+Lmax+4];
-            QC = &Fm[Of+Lmax+7];
-            WQ = &Fm[Of+Lmax+10];
-            inv_2zab = Fm[Of+Lmax+13];
-            min_rho_zab2  = Fm[Of+Lmax+14]; // - rho/zab**2
-            inv_2zcd = Fm[Of+Lmax+15];
-            min_rho_zcd2  = Fm[Of+Lmax+16]; // - rho/zcd**2
-            inv_2z = Fm[Of+Lmax+17];
+            PA = &Fm[Of+L+1];
+            WP = &Fm[Of+L+4];
+            QC = &Fm[Of+L+7];
+            WQ = &Fm[Of+L+10];
+            inv_2zab = Fm[Of+L+13];
+            min_rho_zab2  = Fm[Of+L+14]; // - rho/zab**2
+            inv_2zcd = Fm[Of+L+15];
+            min_rho_zcd2  = Fm[Of+L+16]; // - rho/zcd**2
+            inv_2z = Fm[Of+L+17];
          }
 
          for ( int op=0; op < numVC; op++ ){
@@ -864,12 +855,12 @@ void compute_VRR_batched_low(
 
 
 void compute_VRR_batched(
-      const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& Pm_input_list,
-      const std::vector<unsigned int>& HRR, const std::vector<double>& Fm, const std::vector<double>& data,
+      const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& PMI,
+      const std::vector<unsigned int>& FVH, const std::vector<double>& Fm, const std::vector<double>& data,
       std::vector<double>& AC, std::vector<double>& ABCD, int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
 
    compute_VRR_batched_low(
-      Ncells, plan.data(), Pm_input_list.data(), HRR.data(), Fm.data(),
+      Ncells, plan.data(), PMI.data(), FVH.data(), Fm.data(),
       data.data(), AC.data(), ABCD.data(), vrr_blocksize, hrr_blocksize, L, numV, numVC );
 }
 

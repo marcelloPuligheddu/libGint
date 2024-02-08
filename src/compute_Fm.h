@@ -26,19 +26,18 @@ SOFTWARE.
 #include <vector>
 
 void compute_Fm_batched(
-      const std::vector<unsigned int>& Fm_input_list, const std::vector<unsigned int>& Pm_input_list,
-      const std::vector<double>& data, std::vector<double>& Fm, int NFm, bool periodic, double* cell,
+      const std::vector<unsigned int>& FVH, const std::vector<unsigned int>& PMI,
+      const std::vector<double>& data, std::vector<double>& Fm, int NFm, int L, bool periodic, double* cell,
       const double* const __restrict__ ftable, const int ftable_ld );
 
 __global__ void compute_Fm_batched_low_gpu(
-      unsigned int* __restrict__ Fm_input_list,
-      unsigned int*  __restrict__ Pm_input_list,
+      unsigned int* __restrict__ FVH,
+      unsigned int*  __restrict__ PMI,
       double* __restrict__ data,
       double* __restrict__ Fm,
-      int NFm, bool periodic,
+      int NFm, int L, bool periodic,
       double* __restrict__ cell,
       double* __restrict__ ftable, int ftable_ld );
-
 
 
 #endif // COMPUTE_FM_H_COMPILE_GUARD

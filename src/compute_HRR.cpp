@@ -195,32 +195,33 @@ void execute_HRR2_cpu(
 __global__ void compute_HRR_batched_gpu_low(
       const int Ncells,
       const int* const __restrict__ plan,
-      const unsigned int* const __restrict__ HRR,
+      const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ data,
       double* const __restrict__ ABCD,
       double* const __restrict__ ABCD0,
       int hrr_blocksize, int Nc, int numVC, int numVCH ){
 
    for( int block=blockIdx.x; block < Ncells ; block+=gridDim.x ){
-//      unsigned int Ov     = HRR[block*HRR_SIZE+HRR_OFFSET_OV];
-//      unsigned int n_prm  = HRR[block*HRR_SIZE+HRR_OFFSET_NPRM];
-      unsigned int Og     = HRR[block*HRR_SIZE+HRR_OFFSET_OG];
-      unsigned int Oq     = HRR[block*HRR_SIZE+HRR_OFFSET_OQ];
-      unsigned int idx_AB = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_AB];
-      unsigned int idx_CD = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_CD];
-      unsigned int nlabcd = HRR[block*HRR_SIZE+HRR_OFFSET_NLABCD];
-//      unsigned int plabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PLABCD];
-//      unsigned int ppabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PPABCD];
-//      unsigned int idx_Ka = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KA];
-//      unsigned int idx_Kb = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KB];
-//      unsigned int idx_Kc = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KC];
-//      unsigned int idx_Kd = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KD];
-//      unsigned int Lmax   = HRR[block*HRR_SIZE+HRR_OFFSET_LMAX];
-//      unsigned int Of0    = HRR[block*HRR_SIZE+HRR_OFFSET_OF0];
-//      unsigned int Op     = HRR[block*HRR_SIZE+HRR_OFFSET_OP];
 
-      const double* AB = &data[idx_AB];
-      const double* CD = &data[idx_CD];
+      unsigned int Og     = FVH[block*FVH_SIZE+FVH_OFFSET_OG];
+      unsigned int Oq     = FVH[block*FVH_SIZE+FVH_OFFSET_OQ];
+      unsigned int idx_A  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_A];
+      unsigned int idx_B  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_B];
+      unsigned int idx_C  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_C];
+      unsigned int idx_D  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_D];
+      unsigned int encoded_nlabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
+
+      unsigned int nla,nlb,nlc,nld;
+      decode4( encoded_nlabcd, &nla,&nlb,&nlc,&nld );
+      int nlabcd = nla*nlb*nlc*nld;
+
+      const double * const A =  &data[idx_A];
+      const double * const B =  &data[idx_B];
+      const double AB[3] = { A[0]-B[0], A[1]-B[1], A[2]-B[2] };
+      const double * const C =  &data[idx_C];
+      const double * const D =  &data[idx_D];
+      const double CD[3] = { C[0]-D[0], C[1]-D[1], C[2]-D[2] };
+
       double* sh_mem = &ABCD[ Og * hrr_blocksize ];
 
       for ( unsigned int ilabcd=0 ; ilabcd < nlabcd; ilabcd++ ){
@@ -276,7 +277,7 @@ __global__ void compute_HRR_batched_gpu_low(
 void compute_HRR_batched_low(
       const int Ncells,
       const int* const __restrict__ plan,
-      const unsigned int* const __restrict__ HRR,
+      const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ data,
       double* const __restrict__ ABCD,
       double* const __restrict__ ABCD0,
@@ -284,25 +285,28 @@ void compute_HRR_batched_low(
 
 //#pragma omp target teams num_teams(Ncells) distribute // map(to:plan,HRR,data ) map(tofrom:ABCD) map(from:ABCD0)
    for( int block=0; block < Ncells ; block++ ){
-//      unsigned int Ov     = HRR[block*HRR_SIZE+HRR_OFFSET_OV];
-//      unsigned int n_prm  = HRR[block*HRR_SIZE+HRR_OFFSET_NPRM];
-      unsigned int Og     = HRR[block*HRR_SIZE+HRR_OFFSET_OG];
-      unsigned int Oq     = HRR[block*HRR_SIZE+HRR_OFFSET_OQ];
-      unsigned int idx_AB = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_AB];
-      unsigned int idx_CD = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_CD];
-      unsigned int nlabcd = HRR[block*HRR_SIZE+HRR_OFFSET_NLABCD];
-//      unsigned int plabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PLABCD];
-//      unsigned int ppabcd = HRR[block*HRR_SIZE+HRR_OFFSET_PPABCD];
-//      unsigned int idx_Ka = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KA];
-//      unsigned int idx_Kb = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KB];
-//      unsigned int idx_Kc = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KC];
-//      unsigned int idx_Kd = HRR[block*HRR_SIZE+HRR_OFFSET_IDX_KD];
-//      unsigned int Lmax   = HRR[block*HRR_SIZE+HRR_OFFSET_LMAX];
-//      unsigned int Of0    = HRR[block*HRR_SIZE+HRR_OFFSET_OF0];
-//      unsigned int Op     = HRR[block*HRR_SIZE+HRR_OFFSET_OP];
 
-      const double* AB = &data[idx_AB];
-      const double* CD = &data[idx_CD];
+
+      unsigned int Og     = FVH[block*FVH_SIZE+FVH_OFFSET_OG];
+      unsigned int Oq     = FVH[block*FVH_SIZE+FVH_OFFSET_OQ];
+      unsigned int idx_A  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_A];
+      unsigned int idx_B  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_B];
+      unsigned int idx_C  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_C];
+      unsigned int idx_D  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_D];
+      unsigned int encoded_nlabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
+
+      unsigned int nla,nlb,nlc,nld;
+      decode4( encoded_nlabcd, &nla,&nlb,&nlc,&nld );
+      int nlabcd = nla*nlb*nlc*nld;
+
+
+      const double * const A =  &data[idx_A];
+      const double * const B =  &data[idx_B];
+      const double AB[3] = { A[0]-B[0], A[1]-B[1], A[2]-B[2] };
+      const double * const C =  &data[idx_C];
+      const double * const D =  &data[idx_D];
+      const double CD[3] = { C[0]-D[0], C[1]-D[1], C[2]-D[2] };
+
       double* sh_mem = &ABCD[ Og * hrr_blocksize ];
 
       for ( unsigned int ilabcd=0 ; ilabcd < nlabcd; ilabcd++ ){
@@ -332,7 +336,6 @@ void compute_HRR_batched_low(
                AB, hrr_blocksize, nlabcd );
          } else if ( t == SYBL ){
 //            #pragma omp barrier
-//            __syncthreads();
          }
       }
 
@@ -345,16 +348,17 @@ void compute_HRR_batched_low(
             ABCD0[ s0_st + i ] += sh_mem[ sh_st + i ];
          }
       }
+
    }
 }
 
 
 
 void compute_HRR_batched(
-      const int Ncells, const std::vector<int>& Plan, const std::vector<unsigned int>& HRR, const std::vector<double>& data,
+      const int Ncells, const std::vector<int>& Plan, const std::vector<unsigned int>& FVH, const std::vector<double>& data,
       std::vector<double>& ABCD, std::vector<double>& ABCD0, int hrr_blocksize, int Nc, int numVC, int numVCH ){
    compute_HRR_batched_low(
-      Ncells, Plan.data(), HRR.data(), data.data(),
+      Ncells, Plan.data(), FVH.data(), data.data(),
       ABCD.data(), ABCD0.data(), hrr_blocksize, Nc, numVC, numVCH );
 }
 

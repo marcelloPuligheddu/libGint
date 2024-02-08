@@ -105,8 +105,6 @@ for ( int l = 0 ; l < nbas ; l ++ ){
    int nzc = bas[k*8+2];
    int nzd = bas[l*8+2];
 
-   int Lmax = la_max + lb_max + lc_max + ld_max;
-
    bool set_is_screened = true;
 
    for (int n1=n1_min; n1 <= n1_max ; n1++){
@@ -164,11 +162,19 @@ for ( int l = 0 ; l < nbas ; l ++ ){
                   if (periodic){
                      
                   }
-                  ais.add_prm(iza,izb,izc,izd,Lmax,n123[0],n123[1],n123[2]);
+
+                  ais.add_prm(iza,izb,izc,izd,n123[0],n123[1],n123[2]);
+
                   cell_is_screened = false;
                   set_is_screened = false;
-               }} // za,zb
-            }} // zc,zd
+               }} // zc,zd
+            }} // za,zb
+
+            double* Za = &env[bas[i*8+5]];
+            double* Zb = &env[bas[j*8+5]];
+            double* Zc = &env[bas[k*8+5]];
+            double* Zd = &env[bas[l*8+5]];
+
             if ( not cell_is_screened ) {
                for ( int la = la_min; la <= la_max; la++){
                for ( int lb = lb_min; lb <= lb_max; lb++){
@@ -182,14 +188,10 @@ for ( int l = 0 ; l < nbas ; l ++ ){
                   int nlb = bas[j*8+3];
                   int nlc = bas[k*8+3];
                   int nld = bas[l*8+3];
-                  ais.add_shell(AB,CD,la,lb,lc,ld,Ka,Kb,Kc,Kd, nza,nzb,nzc,nzd, nla,nlb,nlc,nld);
+                  ais.add_shell(la,lb,lc,ld,Ka,Kb,Kc,Kd, RA,RBp,RCp,RDp, Za,Zb,Zc,Zd, nza,nzb,nzc,nzd, nla,nlb,nlc,nld);
                }}}} // la lb lc ld
             }
-            double* Za = &env[bas[i*8+5]];
-            double* Zb = &env[bas[j*8+5]];
-            double* Zc = &env[bas[k*8+5]];
-            double* Zd = &env[bas[l*8+5]];
-            ais.add_cell(RA,RBp,RCp,RDp, Za,Zb,Zc,Zd, nza,nzb,nzc,nzd );
+            ais.add_cell();
          } // R3
       } // R2
    } // R1

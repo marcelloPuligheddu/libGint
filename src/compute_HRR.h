@@ -26,13 +26,13 @@ SOFTWARE.
 #include <vector>
 
 void compute_HRR_batched(
-      const int Ncells, const std::vector<int>& Plan, const std::vector<unsigned int>& HRR, const std::vector<double>& data,
+      const int Ncells, const std::vector<int>& Plan, const std::vector<unsigned int>& FVH, const std::vector<double>& data,
       std::vector<double>& ABCD, std::vector<double>& ABCD0, int hrr_blocksize, int Nc, int numVC, int numVCH );
 
 __global__ void compute_HRR_batched_gpu_low(
       const int Ncells,
       const int* const __restrict__ plan,
-      const unsigned int* const __restrict__ HRR,
+      const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ data,
       double* const __restrict__ ABCD,
       double* const __restrict__ ABCD0,

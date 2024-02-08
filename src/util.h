@@ -35,7 +35,7 @@ __device__ __host__ void decode4(
 unsigned int encodeL( int la, int lb, int lc, int ld );
 __device__ __host__ void decodeL( unsigned int L, int* la, int* lb, int* lc, int* ld );
 
-unsigned int encode_ipabcd_n123( int ipa, int ipb, int ipc, int ipd, int n1, int n2, int n3 );
+unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 );
 
 __device__ __host__ void decode_ipabcd_none(
       unsigned int ipzn,

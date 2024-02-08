@@ -44,15 +44,14 @@ using std::max;
 class AIS {
    public:
    AIS(){}
-   void add_prm ( int ipa, int ipb, int ipc, int ipd,  int Lmax, int n1, int n2, int n3 ) ;
+   void add_prm ( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ) ;
    void add_shell ( 
-      double* AB, double* CD, int la, int lb, int lc, int ld, 
+      int la, int lb, int lc, int ld, 
       double* Ka, double* Kb, double* Kc, double* Kd,
-      int npa, int npb, int npc, int npd, int nla, int nlb, int nlc, int nld );
-   void add_cell(
       double* A, double* B, double* C, double* D, 
       double* Za, double* Zb, double* Zc, double* Zd,
-      int npa, int npb, int npc, int npd );
+      int npa, int npb, int npc, int npd, int nla, int nlb, int nlc, int nld );
+   void add_cell();
    int add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int nld );
    void add_set();
 
@@ -62,19 +61,20 @@ class AIS {
    bool periodic = false;
    void show_state();
 //   private:
-   unsigned int Fm_offset=0;
-   std::vector<unsigned int> Fm_input_list;
-   std::vector<unsigned int> Pm_input_list;
+
+   unsigned int offset_F[NL4] = {0};
+   unsigned int offset_V[NL4] = {0};
    unsigned int offset_G[NL4] = {0};
    unsigned int offset_Q[NL4] = {0};
-   unsigned int offset_V[NL4] = {0};
-   unsigned int NG[NL4] = {0};
+   unsigned int offset_T[NL4] = {0};
 
-   std::vector<unsigned int> HRR[NL4];
+   std::vector<unsigned int> FVH[NL4];
+   std::vector<unsigned int> PMI[NL4];
    std::vector<unsigned int> SPH[NL4];
    std::vector<unsigned int> TRA[NL4];
+
    unsigned int dest=0;
-   std::vector<unsigned int> vrr_tmp_list;
+   std::vector<unsigned int> prm_tmp_list;
    UniqueArray ua;
 //   bool is_gamma = true;
    unsigned int n_set = 0;
@@ -83,18 +83,17 @@ class AIS {
    unsigned int p0 = 0;
    unsigned int cell_in_set = 0;
    PlanCollection plans;
+
+   unsigned int Fm_size[NL4] = {0};
    unsigned int AC_size[NL4] = {0};
    unsigned int ABCD_size[NL4] = {0};
    unsigned int ABCD0_size[NL4] = {0};
    unsigned int SPHER_size[NL4] = {0};
    unsigned int OUT_size[NL4] = {0};
+
    double cell_h[9] = {0};
    double cell_inv_h[9] = {0};
-   std::vector<double> Fm;
-//   std::vector<double> AC;
-//   std::vector<double> ABCD;
-//   std::vector<double> ABCD0;
-//   std::vector<double> SPHER;
+
    std::unordered_set<unsigned int> encoded_moments ;
 };
 

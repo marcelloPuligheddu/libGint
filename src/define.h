@@ -34,30 +34,6 @@ SOFTWARE.
 #define BAS_OFFSET_C 6
 #define BAS_OFFSET_R 7
 
-#define Q_PARA_SLOTS 22
-
-#define Q_IDXS_SLOTS 4
-#define Q_IDXS_OFFSET_KA 0
-#define Q_IDXS_OFFSET_KB 1
-#define Q_IDXS_OFFSET_KC 2
-#define Q_IDXS_OFFSET_KD 3
-
-#define QRT_SIZE 14
-#define QRT_OFFSET_A 0
-#define QRT_OFFSET_B 1
-#define QRT_OFFSET_C 2
-#define QRT_OFFSET_D 3
-#define QRT_OFFSET_PP 4
-#define QRT_OFFSET_PS 5
-#define QRT_OFFSET_NLA 6
-#define QRT_OFFSET_NLB 7
-#define QRT_OFFSET_NLC 8
-#define QRT_OFFSET_NLD 9
-#define QRT_OFFSET_NGA 10
-#define QRT_OFFSET_NGB 11
-#define QRT_OFFSET_NGC 12
-#define QRT_OFFSET_NGD 13
-
 // code for an operation
 #define VRR1 1
 #define VRR2 2
@@ -70,6 +46,7 @@ SOFTWARE.
 #define HRR2 9
 #define SYTM 10
 #define SYBL 11 
+
 // T is the type of an operation. LA,LB,LC,LD are the moments of the results of the operation. 
 // M and H are used for the m index of the operand. H is also used for the priority of the operation
 // M1 to M6 are memory location. M1 is always the result.
@@ -98,49 +75,35 @@ SOFTWARE.
 #define L_BASE (32)
 #define SERIAL_L4(a,b,c,d) ((((a)*L_BASE+(b))*L_BASE+(c))*L_BASE+(d))
 
-
-#define FM_SIZE  11
-#define PM_SIZE  2
-#define VRR_SIZE 3
-#define HRR_SIZE 16
+#define PRM_TMP_SIZE 1
+#define FVH_SIZE 18
+#define PMI_SIZE 2
 #define SPH_SIZE 2
 #define TRA_SIZE 6
 
-#define FMA_OFFSET_LMAX    0
-#define FMA_OFFSET_IDX_A   1
-#define FMA_OFFSET_IDX_B   2
-#define FMA_OFFSET_IDX_C   3
-#define FMA_OFFSET_IDX_D   4
-#define FMA_OFFSET_IDX_ZA  5
-#define FMA_OFFSET_IDX_ZB  6
-#define FMA_OFFSET_IDX_ZC  7
-#define FMA_OFFSET_IDX_ZD  8
-#define FMA_OFFSET_OF0     9
-#define FMA_OFFSET_P0      10
+#define PRM_TMP_OFFSET_IPZN 0
 
-#define PMA_OFFSET_IF      0
-#define PMA_OFFSET_IPZN    1
+#define PMI_OFFSET_OF     0
+#define PMI_OFFSET_IPZN   1
 
-#define VRR_OFFSET_OF      0
-#define VRR_OFFSET_LMAX    1
-#define VRR_OFFSET_IPZN    2
-
-#define HRR_OFFSET_OV      0    
-#define HRR_OFFSET_NPRM    1
-#define HRR_OFFSET_OG      2
-#define HRR_OFFSET_OQ      3
-#define HRR_OFFSET_IDX_AB  4
-#define HRR_OFFSET_IDX_CD  5 
-#define HRR_OFFSET_NLABCD  6
-#define HRR_OFFSET_PLABCD  7
-#define HRR_OFFSET_PPABCD  8
-#define HRR_OFFSET_IDX_KA  9
-#define HRR_OFFSET_IDX_KB  10
-#define HRR_OFFSET_IDX_KC  11
-#define HRR_OFFSET_IDX_KD  12
-#define HRR_OFFSET_LMAX    13
-#define HRR_OFFSET_OF0     14
-#define HRR_OFFSET_OP      15
+#define FVH_OFFSET_OV      0
+#define FVH_OFFSET_OG      1
+#define FVH_OFFSET_OQ      2
+#define FVH_OFFSET_NPRM    3
+#define FVH_OFFSET_IDX_A   4
+#define FVH_OFFSET_IDX_B   5
+#define FVH_OFFSET_IDX_C   6
+#define FVH_OFFSET_IDX_D   7
+#define FVH_OFFSET_IDX_ZA  8
+#define FVH_OFFSET_IDX_ZB  9
+#define FVH_OFFSET_IDX_ZC  10
+#define FVH_OFFSET_IDX_ZD  11
+#define FVH_OFFSET_IDX_KA  12
+#define FVH_OFFSET_IDX_KB  13
+#define FVH_OFFSET_IDX_KC  14
+#define FVH_OFFSET_IDX_KD  15
+#define FVH_OFFSET_NLABCD  16
+#define FVH_OFFSET_NPABCD  17
 
 #define SPH_OFFSET_Q 0
 #define SPH_OFFSET_NLABCD 1

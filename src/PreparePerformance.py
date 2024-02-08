@@ -78,13 +78,13 @@ ijkl = mol_h2o.intor("int2e")
 
 # pyscf randomly fails and returns nan
 while np.isnan(ijkl).any():
-#   print('pyscf failed. retrying. Ignore timer ! ')
+   print('pyscf failed. retrying. Ignore timer ! ')
    ijkl = mol_h2o.intor("int2e")
 
 end_time = time.time()
 
 execution_time = end_time - start_time
-#print( 'Pyscf took ', execution_time*1.e3, "milliseconds" )
+print( 'Pyscf took ', execution_time*1.e3, "milliseconds" )
 
 with open(output_file_name, "w") as output_file_handle:
    output_file_handle.write("P\n")

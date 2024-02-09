@@ -210,7 +210,7 @@ for ( int l = 0 ; l < nbas ; l ++ ){
    }
 
    bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
-   if ( (ais.memory_needed()) > 2.e9 or is_last_qrtt ){
+   if ( (ais.memory_needed()) > 1.e9 or is_last_qrtt ){
 //      cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
 
       ais.dispatch();
@@ -252,7 +252,7 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 
 timer.stop();
 // ais.show_state();
-ais.report_througput();
+if ( mode == 'P' ){ ais.report_througput(); }
 
 return EXIT_SUCCESS;
 }

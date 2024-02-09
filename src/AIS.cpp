@@ -277,7 +277,9 @@ void AIS::reset_indices(){
 
 }
 
-void AIS::dispatch(){
+void AIS::dispatch( ){
+
+   bool skip_cpu = true;
 
    Timer timer;
    Timer timer2;
@@ -365,22 +367,24 @@ void AIS::dispatch(){
 
       timer.start();
 
-      compute_Fm_batched_low(
-         FVH_L, PMI_L, env, Fm, Nprm, labcd, periodic, cell_h, ftable, ftable_ld );
+      if ( not skip_cpu ) {
+         compute_Fm_batched_low(
+            FVH_L, PMI_L, env, Fm, Nprm, labcd, periodic, cell_h, ftable, ftable_ld );
 
-      compute_VRR_batched_low(
-         Ncells, plan_L, PMI_L, FVH_L, Fm, env,
-         AC, ABCD, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
+         compute_VRR_batched_low(
+            Ncells, plan_L, PMI_L, FVH_L, Fm, env,
+            AC, ABCD, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
 
-      compute_HRR_batched_low(
-         Ncells, plan_L, FVH_L, env, ABCD, ABCD0,
-         hrr_blocksize, Nc, numVC, numVCH );
+         compute_HRR_batched_low(
+            Ncells, plan_L, FVH_L, env, ABCD, ABCD0,
+            hrr_blocksize, Nc, numVC, numVCH );
 
-      compute_SPH_batched_low( Nqrtt, la, lb, lc, ld, ABCD0, SPHER, ABCD );
+         compute_SPH_batched_low( Nqrtt, la, lb, lc, ld, ABCD0, SPHER, ABCD );
 
-      for( unsigned int i=0; i < Nqrtt*Ns; i++ ){ SPHER[i] *= corr; }
+         for( unsigned int i=0; i < Nqrtt*Ns; i++ ){ SPHER[i] *= corr; }
 
-      compute_TRA_batched_low( Nshell, la, lb, lc, ld, TRA_L, SPHER, OUT.data() );
+         compute_TRA_batched_low( Nshell, la, lb, lc, ld, TRA_L, SPHER, OUT.data() );
+      }
 
       timer.stop();
 
@@ -544,34 +548,41 @@ void AIS::dispatch(){
    timer2.stop();
 //   cout << "DISPATCH GPU " << timer2.elapsedMilliseconds() << " ms" << endl;
 
-   double diff_sum = 0.0;
-   double adiff_sum = 0.0;
-   int nerrors = 0;
-   int Nval = int(OUT.size());
-   for( int i=0; i < Nval; i++ ){
-      double ref = OUT[i];
-      double val = OUT_from_gpu[i];
-      double diff = ref - val;
-      double adiff = abs(diff);
-      diff_sum += diff;
-      adiff_sum += adiff;
+   if ( not skip_cpu ){
+      double diff_sum = 0.0;
+      double adiff_sum = 0.0;
+      int nerrors = 0;
+      int Nval = int(OUT.size());
+      for( int i=0; i < Nval; i++ ){
+         double ref = OUT[i];
+         double val = OUT_from_gpu[i];
+         double diff = ref - val;
+         double adiff = abs(diff);
+         diff_sum += diff;
+         adiff_sum += adiff;
 
-      if ( adiff > 1.e-12 ){
-         nerrors++;
-         double ratio = 1.0;
-         if ( abs(ref) > 0. ){ ratio = val / ref ; }
-         cout << "CPU - GPU: Error at " << i << " " << ref << " " << val << " " << diff << " " << ratio << " " << endl ;
-         if ( nerrors >= 100 ){
-            cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
-            exit( EXIT_FAILURE );
+         if ( adiff > 1.e-12 ){
+            nerrors++;
+            double ratio = 1.0;
+            if ( abs(ref) > 0. ){ ratio = val / ref ; }
+            cout << "CPU - GPU: Error at " << i << " " << ref << " " << val << " " << diff << " " << ratio << " " << endl ;
+            if ( nerrors >= 100 ){
+               cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
+               exit( EXIT_FAILURE );
+            }
          }
       }
-   }
 
-   if (nerrors != 0 ){
-      cout << "E[ CPU-GPU ] = " <<  diff_sum / Nval << endl;
-      cout << "E[|CPU-GPU|] = " << adiff_sum / Nval << endl;
-      exit( EXIT_FAILURE );
+
+      if (nerrors != 0 ){
+         cout << "E[ CPU-GPU ] = " <<  diff_sum / Nval << endl;
+         cout << "E[|CPU-GPU|] = " << adiff_sum / Nval << endl;
+         exit( EXIT_FAILURE );
+      }
+   } else {
+      // copy gpu to cpu to test later against ref
+      CUDA_GPU_ERR_CHECK( cudaMemcpy(
+         OUT.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
    }
 
    CUBLAS_GPU_ERR_CHECK( cublasDestroy(cublas_handle) );
@@ -602,6 +613,7 @@ T sum( std::vector< T > x ){
 }
 
 void AIS::report_througput(){
+   cout << " la lb lc ld L OUT(MB) CPU_Throughput(GB/s) GPU_Throughput(GB/s) " << endl;
    for ( auto L : all_moments ){
 
       int la,lb,lc,ld,labcd;
@@ -616,11 +628,8 @@ void AIS::report_througput(){
       double avg_thr_gpu = sum_output_size / sum_times_gpu * sizeof(double) / 1.e3;
 
       cout << la << " " << lb << " " << lc << " " << ld << " " << labcd << " " ;
-      cout << sum_output_size / 1.e6 << " MB " ;
-      cout << avg_thr_cpu << " GB/s " << avg_thr_gpu << " GB/s " ;
+      cout << sum_output_size / 1.e6 << " " << avg_thr_cpu << " " << avg_thr_gpu ;
       cout << endl;
-
-      
 
    }
 }

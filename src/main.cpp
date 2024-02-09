@@ -12,7 +12,7 @@ using std::cin;
 int main(int argc, char** argv){
 
 bool skip_cpu = false;
-if (argc > 0 and argv[1][0] == 'G' ){ skip_cpu = true; }
+if (argc > 1 and argv[1][0] == 'G' ){ skip_cpu = true; }
 
 
 Timer timer;

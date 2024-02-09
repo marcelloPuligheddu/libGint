@@ -54,13 +54,26 @@ class AIS {
    void add_cell();
    int add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int nld );
    void add_set();
+   void compute_max_vector_size();
+   size_t memory_needed();
 
    void dispatch();
-   int out_size = 0;
+   size_t out_size = 0;
+
    std::vector<double> OUT;
    bool periodic = false;
    void show_state();
+   void report_througput();
 //   private:
+
+   void reset_indices();
+ 
+   size_t max_integral_scratch_size = 0;
+   size_t max_plan_size = 0;
+   size_t max_PMI_size = 0;
+   size_t max_FVH_size = 0;
+   size_t max_SPH_size = 0;
+   size_t max_TRA_size = 0;
 
    unsigned int offset_F[NL4] = {0};
    unsigned int offset_V[NL4] = {0};
@@ -95,6 +108,12 @@ class AIS {
    double cell_inv_h[9] = {0};
 
    std::unordered_set<unsigned int> encoded_moments ;
+   bool first = true;
+   std::unordered_set<unsigned int> all_moments ;
+   std::vector<size_t> record_of_out_sizes[NL4];
+   std::vector<double> record_of_times_cpu[NL4];
+   std::vector<double> record_of_times_gpu[NL4];
+
 };
 
 #endif // #ifndef AIS_H_COMPILE_GUARD

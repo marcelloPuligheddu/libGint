@@ -200,17 +200,92 @@ __global__ void apply_correction( int N, double* mem_dev, double corr ){
 }
 
 
+void AIS::compute_max_vector_size(){
+
+   max_integral_scratch_size = 0;
+   max_plan_size = 0;
+   max_PMI_size = 0;
+   max_FVH_size = 0;
+   max_SPH_size = 0;
+   max_TRA_size = 0;
+   out_size = 0;
+
+   for ( unsigned int L : encoded_moments ){
+
+      int la,lb,lc,ld;
+      decodeL(L,&la,&lb,&lc,&ld);
+      std::vector<int> * plan = NULL ;
+      unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
+      plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
+
+      size_t integral_scratch_size = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L] ;
+
+      max_integral_scratch_size = max( max_integral_scratch_size, integral_scratch_size );
+      max_plan_size  = max(max_plan_size, plan->size());
+      max_PMI_size   = max(max_PMI_size,  PMI[L].size());
+      max_FVH_size   = max(max_FVH_size,  FVH[L].size());
+      max_SPH_size   = max(max_SPH_size,  SPH[L].size());
+      max_TRA_size   = max(max_TRA_size,  TRA[L].size());
+
+      out_size += OUT_size[L];
+
+   }
+}
+
+size_t AIS::memory_needed( ){
+   compute_max_vector_size();
+   size_t add1 = (max_plan_size + max_PMI_size + max_FVH_size + max_SPH_size + max_TRA_size) * sizeof(unsigned int);
+   size_t add2 = (max_integral_scratch_size + out_size) * sizeof(double);
+   return add1+add2;
+}
+
+void AIS::reset_indices(){
+   max_integral_scratch_size = 0;
+   max_plan_size = 0;
+   max_PMI_size = 0;
+   max_FVH_size = 0;
+   max_SPH_size = 0;
+   max_TRA_size = 0;
+   out_size = 0;
+
+   for ( unsigned int L : encoded_moments ){
+      PMI[L].clear();
+      FVH[L].clear();
+      SPH[L].clear();
+      TRA[L].clear();
+      offset_F[L] = 0;
+      offset_V[L] = 0;
+      offset_G[L] = 0;
+      offset_Q[L] = 0;
+      offset_T[L] = 0;
+      Fm_size[L] = 0;
+      AC_size[L] = 0;
+      ABCD_size[L] = 0;
+      ABCD0_size[L] = 0;
+      SPHER_size[L] = 0;
+      OUT_size[L] = 0;
+   }
+
+   dest=0;
+   n_set = 0;
+   prm_in_set = 0;
+   prm = 0;
+   p0 = 0;
+   cell_in_set = 0;
+
+   encoded_moments.clear();
+
+}
+
 void AIS::dispatch(){
 
    Timer timer;
    Timer timer2;
    timer2.start();
 
-   out_size = 0;
-   for( unsigned int L : encoded_moments ){
-      out_size += OUT_size[L];
-   }
-   cout << "Dispatch: Will compute " << out_size << " values " << endl;
+   compute_max_vector_size();
+
+//   cout << "Dispatch: Will compute " << out_size << " values " << endl;
    OUT.resize(out_size);
 
    int ftable_ld = 0; // ld of table for fgamma
@@ -224,63 +299,43 @@ void AIS::dispatch(){
    int nelem = (itabmax - itabmin + 1 ) * (n+1); // === 121*(n+1) == 121*ftable_ld
    double* ftable = create_md_ftable( nmax, tmin, tmax, tdelta, &ftable_ld);
 
+   size_t tot_mem = 0;
+   tot_mem += OUT.size()*sizeof(double);
+   tot_mem += ua.internal_buffer.size()*sizeof(double) ;
+   tot_mem += sizeof(double)*max_integral_scratch_size;
+   tot_mem += sizeof(int)*max_plan_size          ;
+   tot_mem += sizeof(unsigned int)*max_PMI_size  ; 
+   tot_mem += sizeof(unsigned int)*max_FVH_size  ;
+   tot_mem += sizeof(unsigned int)*max_SPH_size  ;
+   tot_mem += sizeof(unsigned int)*max_TRA_size  ;
+   tot_mem += sizeof(unsigned int)*(9+nelem+245) ;
 
-   unsigned int max_integral_scratch_size = 0;
-   unsigned int max_plan_size = 0;
-   unsigned int max_PMI_size = 0;
-   unsigned int max_FVH_size = 0;
-   unsigned int max_SPH_size = 0;
-   unsigned int max_TRA_size = 0;
-   for ( unsigned int L : encoded_moments ){
-
-      int la,lb,lc,ld;
-      decodeL(L,&la,&lb,&lc,&ld);
-      std::vector<int> * plan = NULL ;
-      unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
-      plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
-
-      int integral_scratch_size = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L] ;
-
-      max_integral_scratch_size = max( max_integral_scratch_size, integral_scratch_size );
-
-      max_plan_size  = max(max_plan_size, (unsigned int) plan->size());
-      max_PMI_size   = max(max_PMI_size,  (unsigned int) PMI[L].size());
-      max_FVH_size   = max(max_FVH_size,  (unsigned int) FVH[L].size());
-      max_SPH_size   = max(max_SPH_size,  (unsigned int) SPH[L].size());
-      max_TRA_size   = max(max_TRA_size,  (unsigned int) TRA[L].size());
+   if ( first ){
+      cout << "Memory use: (MB)" << endl;
+      cout << " OUT DAT SCRT PLAN PMI FVH SPH TRA AUX TOT" << endl;
+      first = false;
    }
-   
-
-   cout << "Memory use: " << endl;
-   cout << " OUT   " << OUT.size()*sizeof(double) *1.e-6 << "MB " << endl;
-   cout << " DAT   " << ua.internal_buffer.size()*sizeof(double) *1.e-6 << "MB " << endl;
-
-   cout << " Scratch " << sizeof(double)*max_integral_scratch_size *1.e-6 << "MB " << endl;
-   cout << " PLAN  " << sizeof(int)*max_plan_size          *1.e-6 << "MB "<< endl;
-
-   cout << " PMI   " << sizeof(unsigned int)*max_PMI_size  *1.e-6 << "MB " << endl; 
-   cout << " FVH   " << sizeof(unsigned int)*max_FVH_size  *1.e-6 << "MB "<< endl;
-   cout << " SPH   " << sizeof(unsigned int)*max_SPH_size  *1.e-6 << "MB "<< endl;
-   cout << " TRA   " << sizeof(unsigned int)*max_TRA_size  *1.e-6 << "MB "<< endl;
-   cout << " AUX   " << sizeof(unsigned int)*(9+nelem+245) *1.e-6 << "MB "<< endl;
-
+   cout << OUT.size()*sizeof(double) *1.e-6 << " ";
+   cout << ua.internal_buffer.size()*sizeof(double) *1.e-6 << " ";
+   cout << sizeof(double)*max_integral_scratch_size *1.e-6 << " ";
+   cout << sizeof(int)*max_plan_size          *1.e-6 << "  ";
+   cout << sizeof(unsigned int)*max_PMI_size  *1.e-6 << "  "; 
+   cout << sizeof(unsigned int)*max_FVH_size  *1.e-6 << "  ";
+   cout << sizeof(unsigned int)*max_SPH_size  *1.e-6 << "  ";
+   cout << sizeof(unsigned int)*max_TRA_size  *1.e-6 << "  ";
+   cout << sizeof(unsigned int)*(9+nelem+245) *1.e-6 << "  "; 
+   cout << tot_mem *1.e-6 << endl;
 
    std::vector<double> integral_scratch(max_integral_scratch_size);
 
    for ( unsigned int L : encoded_moments ){
 
-
-      cout << " L " << L << " | ";
-
       int la,lb,lc,ld,labcd;
       decodeL(L,&la,&lb,&lc,&ld);
-      cout.flush();
-      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
-      cout.flush();
-
       labcd = la+lb+lc+ld;
       int Nc = compute_Nc(la,lb,lc,ld);
       int Ns = compute_Ns(la,lb,lc,ld);
+
       double corr = Lcorrection(la)*Lcorrection(lb)*Lcorrection(lc)*Lcorrection(ld);
 
       std::vector<int> * plan = NULL ;
@@ -304,8 +359,9 @@ void AIS::dispatch(){
       int * plan_L = plan->data();
       double * env = ua.internal_buffer.data();
 
-      cout << "Computing " << Nprm << " prms " << Ncells << " cells" << Nqrtt << " qrtts " << Nshell << " shells ";
-      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
+//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
+//      cout << "Computing " << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << Nshell << " shells ";
+//      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
 
       timer.start();
 
@@ -328,15 +384,18 @@ void AIS::dispatch(){
 
       timer.stop();
 
-      cout << " CPU KRNL " <<  " SL " << labcd << " " ;
-      cout << timer.elapsedMicroseconds() << " us " ;
-      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
-      cout << endl;
+//      cout << " CPU KRNL " <<  " SL " << labcd << " " ;
+//      cout << timer.elapsedMicroseconds() << " us " ;
+//      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
+//      cout << endl;
 
+      all_moments.insert(L);
+      record_of_out_sizes[L].push_back(OUT_size[L]);
+      record_of_times_cpu[L].push_back(timer.elapsedMicroseconds());
    }
 
    timer2.stop();
-   cout << "DISPATCH CPU " << timer2.elapsedMilliseconds() << endl;
+//   cout << "DISPATCH CPU " << timer2.elapsedMilliseconds() << endl;
 
 
    timer2.start();
@@ -350,9 +409,9 @@ void AIS::dispatch(){
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&ftable_dev, sizeof(double)*(nelem) ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&C2S_dev, sizeof(double)*245 ));
    timer.stop();
-   cout << "I Malloc " << timer.elapsedMilliseconds() << " ms " << endl;
+//   cout << "I Malloc " << timer.elapsedMilliseconds() << " ms " << endl;
 
-   cout << "Copying Ua " << sizeof(unsigned int)*(ua.internal_buffer.size()) * 1.e-6 << " MBytes " << endl;
+//   cout << "Copying Ua " << sizeof(unsigned int)*(ua.internal_buffer.size()) * 1.e-6 << " MBytes " << endl;
    timer.start();
    CUDA_GPU_ERR_CHECK( cudaMemcpy(
       data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), cudaMemcpyHostToDevice ));
@@ -366,7 +425,7 @@ void AIS::dispatch(){
    CUDA_GPU_ERR_CHECK( cudaMemcpy(
       C2S_dev, c2s, sizeof(double)*245, cudaMemcpyHostToDevice ));
    timer.stop();
-   cout << "F COPY " << timer.elapsedMilliseconds() << " ms " << endl;
+//   cout << "F COPY " << timer.elapsedMilliseconds() << " ms " << endl;
 
 
    double *integral_scratch_dev;
@@ -381,14 +440,18 @@ void AIS::dispatch(){
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&FVH_dev, sizeof(unsigned int)*max_FVH_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&SPH_dev, sizeof(unsigned int)*max_SPH_size )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&TRA_dev, sizeof(unsigned int)*max_TRA_size )); 
+   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
    timer.stop();
-   cout << "L Malloc " << timer.elapsedMilliseconds() << " ms " << endl;
+//   cout << "L Malloc " << timer.elapsedMilliseconds() << " ms " << endl;
 
    timer.start();
    cublasHandle_t cublas_handle;
    CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
+   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
    timer.stop();
-   cout << "CUBLAS HANDLE CREATE " << timer.elapsedMilliseconds() << " ms " << endl;
+//   cout << "CUBLAS HANDLE CREATE " << timer.elapsedMilliseconds() << " ms " << endl;
   
    for ( unsigned int L : encoded_moments ){
       int la,lb,lc,ld,labcd;
@@ -413,9 +476,9 @@ void AIS::dispatch(){
       double* ABCD0_dev = ABCD_dev  + ABCD_size[L];
       double* SPHER_dev = ABCD0_dev + ABCD0_size[L];
 
-      cout << "Computing " << Ncells << " cells" ;
-      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | " << OUT_size[L] << " | " ;
-      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
+//      cout << "Computing " << Ncells << " cells" ;
+//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | " << OUT_size[L] << " | " ;
+//      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
 
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice ));
@@ -461,22 +524,25 @@ void AIS::dispatch(){
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
       timer.stop();
-      cout << " GPU KRNL " <<  " SL " << labcd << " " ;
-      cout << timer.elapsedMicroseconds() << " us " ;
-      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
-      cout << endl;
+
+//      cout << " GPU KRNL " <<  " SL " << labcd << " " ;
+//      cout << timer.elapsedMicroseconds() << " us " ;
+//      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
+//      cout << endl;
+
+      record_of_times_gpu[L].push_back(timer.elapsedMicroseconds());
+
    }
    timer.start();
    std::vector<double> OUT_from_gpu( OUT.size() );
    CUDA_GPU_ERR_CHECK( cudaMemcpy(
       OUT_from_gpu.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
    timer.stop();
-   cout << "IJKL COPY " << sizeof(double)*(OUT.size()) * 1.e-6 << " MB " << timer.elapsedMilliseconds() << " ms " << endl;
+//   cout << "IJKL COPY " << sizeof(double)*(OUT.size()) * 1.e-6 << " MB " << timer.elapsedMilliseconds() << " ms " << endl;
 
 
    timer2.stop();
-   cout << "DISPATCH GPU " << timer2.elapsedMilliseconds() << " ms" << endl;
-
+//   cout << "DISPATCH GPU " << timer2.elapsedMilliseconds() << " ms" << endl;
 
    double diff_sum = 0.0;
    double adiff_sum = 0.0;
@@ -500,15 +566,62 @@ void AIS::dispatch(){
             exit( EXIT_FAILURE );
          }
       }
-
    }
-   cout << "E[ CPU-GPU ] = " <<  diff_sum / Nval << endl;
-   cout << "E[|CPU-GPU|] = " << adiff_sum / Nval << endl;
 
+   if (nerrors != 0 ){
+      cout << "E[ CPU-GPU ] = " <<  diff_sum / Nval << endl;
+      cout << "E[|CPU-GPU|] = " << adiff_sum / Nval << endl;
+      exit( EXIT_FAILURE );
+   }
 
    CUBLAS_GPU_ERR_CHECK( cublasDestroy(cublas_handle) );
+   CUDA_GPU_ERR_CHECK( cudaFree(OUT_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(data_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(cell_h_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(ftable_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(C2S_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(integral_scratch_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(plan_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(PMI_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(FVH_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(SPH_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(TRA_dev) );
+
+   reset_indices();
 
 }
 
 
+template < class T > 
+T sum( std::vector< T > x ){
+   T ret = (T)0;
+   for( auto i : x ){
+      ret += i;
+   }
+   return ret;
+}
+
+void AIS::report_througput(){
+   for ( auto L : all_moments ){
+
+      int la,lb,lc,ld,labcd;
+      decodeL(L,&la,&lb,&lc,&ld);
+      labcd = la+lb+lc+ld;
+ 
+      size_t sum_output_size = sum( record_of_out_sizes[L] );
+      double sum_times_cpu   = sum( record_of_times_cpu[L] );
+      double sum_times_gpu   = sum( record_of_times_gpu[L] );
+
+      double avg_thr_cpu = sum_output_size / sum_times_cpu * sizeof(double) / 1.e3;
+      double avg_thr_gpu = sum_output_size / sum_times_gpu * sizeof(double) / 1.e3;
+
+      cout << la << " " << lb << " " << lc << " " << ld << " " << labcd << " " ;
+      cout << sum_output_size / 1.e6 << " MB " ;
+      cout << avg_thr_cpu << " GB/s " << avg_thr_gpu << " GB/s " ;
+      cout << endl;
+
+      
+
+   }
+}
 

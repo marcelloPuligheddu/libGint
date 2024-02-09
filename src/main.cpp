@@ -208,47 +208,52 @@ for ( int l = 0 ; l < nbas ; l ++ ){
       }}}}
       ais.add_set();
    }
-}}}} // bas abcd
 
-timer.stop();
-cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
+   bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
+   if ( (ais.memory_needed()) > 2.e9 or is_last_qrtt ){
+//      cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
 
-ais.dispatch();
+      ais.dispatch();
 
-// ais.show_state();
+      if ( mode == 'C' ){
+         int nerrors = 0;
+         double diff_sum = 0.0;
+         double adiff_sum = 0.0;
+         int Nval = int(ais.OUT.size());
 
+         for(int i=0; i < Nval; i++ ){
+            double ref;
+            cin >> ref;
+            double val = ais.OUT[i];
+            double diff = ref - val;
+            double adiff = abs(diff);
+            diff_sum += diff;
+            adiff_sum += adiff;
 
-if ( mode == 'P' ){ return EXIT_SUCCESS; }
-
-int nerrors = 0;
-double diff_sum = 0.0;
-double adiff_sum = 0.0;
-int Nval = int(ais.OUT.size());
-
-for(int i=0; i < Nval; i++ ){
-   double ref;
-   cin >> ref;
-   double val = ais.OUT[i];
-   double diff = ref - val;
-   double adiff = abs(diff);
-   diff_sum += diff;
-   adiff_sum += adiff;
-
-   if ( adiff > 1.e-12 ){
-      nerrors++;
-      double ratio = 1.0;
-      if ( abs(ref) > 0. ){ ratio = val / ref ; }
-      cout << " CPU - REF: Error at " << i << " " << val << " " << ref << " " << diff << " " << ratio << " " << endl ;
-      if ( nerrors >= 100 ){
-         cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
-         return EXIT_FAILURE ;
+            if ( adiff > 1.e-12 ){
+               nerrors++;
+               double ratio = 1.0;
+               if ( abs(ref) > 0. ){ ratio = val / ref ; }
+               cout << " CPU - REF: Error at " << i << " " << val << " " << ref << " " << diff << " " << ratio << " " << endl ;
+               if ( nerrors >= 100 ){
+                  cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
+                  return EXIT_FAILURE ;
+               }
+            }
+         }
+ 
+         cout << "E[ CPU-REF ] " << diff_sum / Nval << endl;
+         cout << "E[|CPU-REF|] " << adiff_sum / Nval << endl;
+         if ( nerrors > 0 ){ return EXIT_FAILURE ; }
       }
    }
 
-}
+}}}} // bas abcd
 
-cout << "E[ CPU-REF ] " << diff_sum / Nval << endl;
-cout << "E[|CPU-REF|] " << adiff_sum / Nval << endl;
+timer.stop();
+// ais.show_state();
+ais.report_througput();
+
 return EXIT_SUCCESS;
 }
 

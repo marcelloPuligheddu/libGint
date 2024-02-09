@@ -277,9 +277,8 @@ void AIS::reset_indices(){
 
 }
 
-void AIS::dispatch( ){
+void AIS::dispatch( bool skip_cpu ){
 
-   bool skip_cpu = true;
 
    Timer timer;
    Timer timer2;

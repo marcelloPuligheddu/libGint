@@ -57,7 +57,7 @@ class AIS {
    void compute_max_vector_size();
    size_t memory_needed();
 
-   void dispatch();
+   void dispatch(bool skip_cpu);
    size_t out_size = 0;
 
    std::vector<double> OUT;

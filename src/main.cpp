@@ -11,9 +11,14 @@ using std::cin;
 
 int main(int argc, char** argv){
 
+bool skip_cpu = false;
+if (argc > 0 and argv[1][0] == 'G' ){ skip_cpu = true; }
+
+
 Timer timer;
 
 timer.start();
+
 int nbas, natom, env_size;
 std::vector<int> bas;
 std::vector<int> atm;
@@ -21,7 +26,9 @@ std::vector<double> env;
 char mode;
 
 cin >> mode ;
-cout << "MODE: " << mode << endl;
+cout << "MODE: " << mode;
+if ( skip_cpu ){ cout << " SKIP "; }
+cout << endl;
 
 cin >> nbas ;
 for (int ibas=0; ibas < nbas; ibas++ ){
@@ -213,7 +220,7 @@ for ( int l = 0 ; l < nbas ; l ++ ){
    if ( (ais.memory_needed()) > 1.e9 or is_last_qrtt ){
 //      cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
 
-      ais.dispatch();
+      ais.dispatch(skip_cpu);
 
       if ( mode == 'C' ){
          int nerrors = 0;

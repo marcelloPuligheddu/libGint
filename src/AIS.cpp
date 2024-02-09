@@ -224,11 +224,8 @@ void AIS::dispatch(){
    int nelem = (itabmax - itabmin + 1 ) * (n+1); // === 121*(n+1) == 121*ftable_ld
    double* ftable = create_md_ftable( nmax, tmin, tmax, tdelta, &ftable_ld);
 
-   unsigned int max_Fm_size = 0;
-   unsigned int max_AC_size = 0;
-   unsigned int max_ABCD_size = 0;
-   unsigned int max_ABCD0_size = 0;
-   unsigned int max_SPHER_size = 0;
+
+   unsigned int max_integral_scratch_size = 0;
    unsigned int max_plan_size = 0;
    unsigned int max_PMI_size = 0;
    unsigned int max_FVH_size = 0;
@@ -242,11 +239,10 @@ void AIS::dispatch(){
       unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
       plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
 
-      max_Fm_size    = max(max_Fm_size,    Fm_size[L]);
-      max_AC_size    = max(max_AC_size,    AC_size[L]);
-      max_ABCD_size  = max(max_ABCD_size,  ABCD_size[L]);
-      max_ABCD0_size = max(max_ABCD0_size, ABCD0_size[L]);
-      max_SPHER_size = max(max_SPHER_size, SPHER_size[L]);
+      int integral_scratch_size = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L] ;
+
+      max_integral_scratch_size = max( max_integral_scratch_size, integral_scratch_size );
+
       max_plan_size  = max(max_plan_size, (unsigned int) plan->size());
       max_PMI_size   = max(max_PMI_size,  (unsigned int) PMI[L].size());
       max_FVH_size   = max(max_FVH_size,  (unsigned int) FVH[L].size());
@@ -256,14 +252,12 @@ void AIS::dispatch(){
    
 
    cout << "Memory use: " << endl;
-   cout << " OUT   " << OUT.size()*sizeof(double) *1.e-6 << "MB " << endl; 
+   cout << " OUT   " << OUT.size()*sizeof(double) *1.e-6 << "MB " << endl;
    cout << " DAT   " << ua.internal_buffer.size()*sizeof(double) *1.e-6 << "MB " << endl;
-   cout << " FM    " << sizeof(double)*max_Fm_size         *1.e-6 << "MB " << endl;
-   cout << " AC    " << sizeof(double)*max_AC_size         *1.e-6 << "MB "<< endl;
-   cout << " ABCD  " << sizeof(double)*max_ABCD_size       *1.e-6 << "MB "<< endl;
-   cout << " ABCD0 " << sizeof(double)*max_ABCD0_size      *1.e-6 << "MB "<< endl;
-   cout << " SPHER " << sizeof(double)*max_SPHER_size      *1.e-6 << "MB "<< endl;
+
+   cout << " Scratch " << sizeof(double)*max_integral_scratch_size *1.e-6 << "MB " << endl;
    cout << " PLAN  " << sizeof(int)*max_plan_size          *1.e-6 << "MB "<< endl;
+
    cout << " PMI   " << sizeof(unsigned int)*max_PMI_size  *1.e-6 << "MB " << endl; 
    cout << " FVH   " << sizeof(unsigned int)*max_FVH_size  *1.e-6 << "MB "<< endl;
    cout << " SPH   " << sizeof(unsigned int)*max_SPH_size  *1.e-6 << "MB "<< endl;
@@ -271,11 +265,7 @@ void AIS::dispatch(){
    cout << " AUX   " << sizeof(unsigned int)*(9+nelem+245) *1.e-6 << "MB "<< endl;
 
 
-   std::vector<double> Fm(max_Fm_size);
-   std::vector<double> AC(max_AC_size);
-   std::vector<double> ABCD(max_ABCD_size);
-   std::vector<double> ABCD0(max_ABCD0_size);
-   std::vector<double> SPHER(max_SPHER_size);
+   std::vector<double> integral_scratch(max_integral_scratch_size);
 
    for ( unsigned int L : encoded_moments ){
 
@@ -302,27 +292,39 @@ void AIS::dispatch(){
       unsigned int Nqrtt  = offset_Q[L];
       unsigned int Nshell = offset_T[L];
 
+      double * Fm    = &integral_scratch[0];
+      double * AC    = Fm    + Fm_size[L];
+      double * ABCD  = AC    + AC_size[L];
+      double * ABCD0 = ABCD  + ABCD_size[L];
+      double * SPHER = ABCD0 + ABCD0_size[L];
+
+      unsigned int * FVH_L = FVH[L].data();
+      unsigned int * PMI_L = PMI[L].data();
+      unsigned int * TRA_L = TRA[L].data();
+      int * plan_L = plan->data();
+      double * env = ua.internal_buffer.data();
+
       cout << "Computing " << Nprm << " prms " << Ncells << " cells" << Nqrtt << " qrtts " << Nshell << " shells ";
       cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
 
       timer.start();
 
-      compute_Fm_batched(
-         FVH[L], PMI[L], ua.internal_buffer, Fm, Nprm, labcd, periodic, cell_h, ftable, ftable_ld );
+      compute_Fm_batched_low(
+         FVH_L, PMI_L, env, Fm, Nprm, labcd, periodic, cell_h, ftable, ftable_ld );
 
-      compute_VRR_batched(
-         Ncells, *plan, PMI[L], FVH[L], Fm, ua.internal_buffer,
+      compute_VRR_batched_low(
+         Ncells, plan_L, PMI_L, FVH_L, Fm, env,
          AC, ABCD, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
 
-      compute_HRR_batched(
-         Ncells, *plan, FVH[L], ua.internal_buffer, ABCD, ABCD0,
+      compute_HRR_batched_low(
+         Ncells, plan_L, FVH_L, env, ABCD, ABCD0,
          hrr_blocksize, Nc, numVC, numVCH );
 
-      compute_SPH_batched( Nqrtt, la, lb, lc, ld, ABCD0, SPHER, ABCD );
+      compute_SPH_batched_low( Nqrtt, la, lb, lc, ld, ABCD0, SPHER, ABCD );
 
       for( unsigned int i=0; i < Nqrtt*Ns; i++ ){ SPHER[i] *= corr; }
 
-      compute_TRA_batched( Nshell, la, lb, lc, ld, TRA[L], SPHER, OUT );
+      compute_TRA_batched_low( Nshell, la, lb, lc, ld, TRA_L, SPHER, OUT.data() );
 
       timer.stop();
 
@@ -366,17 +368,14 @@ void AIS::dispatch(){
    timer.stop();
    cout << "F COPY " << timer.elapsedMilliseconds() << " ms " << endl;
 
-   double *Fm_dev, *AC_dev, *ABCD_dev, *ABCD0_dev, *SPHER_dev;
+
+   double *integral_scratch_dev;
    unsigned int *PMI_dev, *FVH_dev, *SPH_dev, *TRA_dev;
    int *plan_dev;
 
 
    timer.start();
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&Fm_dev,    sizeof(double)*max_Fm_size    ));
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&AC_dev,    sizeof(double)*max_AC_size    ));
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&ABCD_dev,  sizeof(double)*max_ABCD_size  ));
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&ABCD0_dev, sizeof(double)*max_ABCD0_size ));
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&SPHER_dev, sizeof(double)*max_SPHER_size )); 
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&integral_scratch_dev,    sizeof(double)*max_integral_scratch_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&plan_dev,  sizeof(int)*max_plan_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&PMI_dev, sizeof(unsigned int)*max_PMI_size )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&FVH_dev, sizeof(unsigned int)*max_FVH_size ));
@@ -390,22 +389,7 @@ void AIS::dispatch(){
    CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
    timer.stop();
    cout << "CUBLAS HANDLE CREATE " << timer.elapsedMilliseconds() << " ms " << endl;
-
-   cout << "GPU Memory use: " << endl;
-   cout << " OUT   " << OUT.size()*sizeof(double) *1.e-6 << "MB " << endl; 
-   cout << " DAT   " << ua.internal_buffer.size()*sizeof(double) *1.e-6 << "MB " << endl;
-   cout << " FM    " << sizeof(double)*max_Fm_size         *1.e-6 << "MB " << endl;
-   cout << " AC    " << sizeof(double)*max_AC_size         *1.e-6 << "MB "<< endl;
-   cout << " ABCD  " << sizeof(double)*max_ABCD_size       *1.e-6 << "MB "<< endl;
-   cout << " ABCD0 " << sizeof(double)*max_ABCD0_size      *1.e-6 << "MB "<< endl;
-   cout << " SPHER " << sizeof(double)*max_SPHER_size      *1.e-6 << "MB "<< endl;
-   cout << " PLAN  " << sizeof(int)*max_plan_size          *1.e-6 << "MB "<< endl;
-   cout << " PMI   " << sizeof(unsigned int)*max_PMI_size  *1.e-6 << "MB " << endl; 
-   cout << " FVH   " << sizeof(unsigned int)*max_FVH_size  *1.e-6 << "MB "<< endl;
-   cout << " SPH   " << sizeof(unsigned int)*max_SPH_size  *1.e-6 << "MB "<< endl;
-   cout << " TRA   " << sizeof(unsigned int)*max_TRA_size  *1.e-6 << "MB "<< endl;
-   cout << " AUX   " << sizeof(unsigned int)*(9+nelem+245) *1.e-6 << "MB "<< endl;
-   
+  
    for ( unsigned int L : encoded_moments ){
       int la,lb,lc,ld,labcd;
       decodeL(L,&la,&lb,&lc,&ld);
@@ -422,6 +406,12 @@ void AIS::dispatch(){
       unsigned int Ncells = offset_F[L];
       unsigned int Nqrtt  = offset_Q[L];
       unsigned int Nshell = offset_T[L];
+
+      double* Fm_dev    = &integral_scratch_dev[0];
+      double* AC_dev    = Fm_dev    + Fm_size[L];
+      double* ABCD_dev  = AC_dev    + AC_size[L];
+      double* ABCD0_dev = ABCD_dev  + ABCD_size[L];
+      double* SPHER_dev = ABCD0_dev + ABCD0_size[L];
 
       cout << "Computing " << Ncells << " cells" ;
       cout << " L " << la << "" << lb << "" << lc << "" << ld << " | " << OUT_size[L] << " | " ;

@@ -30,6 +30,13 @@ void compute_SPH_batched(
       const int Nqrtt, const int la, const int lb, const int lc, const int ld,
       std::vector<double>& ABCD0, std::vector<double>& SPHER, std::vector<double>& tmp_scratch );
 
+void compute_SPH_batched_low(
+      const int Nqrtt, const int la, const int lb, const int lc, const int ld,
+      double* const __restrict__ ABCD0,
+      double* const __restrict__ SPHER,
+      double* const __restrict__ tmp_scratch );
+
+
 __global__ void compute_SPH_batched_gpu_low(
       const int Nqrtt, const int la, const int lb, const int lc, const int ld,
       double* const __restrict__ ABCD0,

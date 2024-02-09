@@ -30,6 +30,13 @@ void compute_TRA_batched(
    const int Nshells, const int la, const int lb, const int lc, const int ld,
    const std::vector<unsigned int>& TRA, const std::vector<double>& SPHER, std::vector<double>& OUT );
 
+void compute_TRA_batched_low(
+   const int Nshells, const int la, const int lb, const int lc, const int ld,
+   const unsigned int* const __restrict__ TRA,
+   const double* const __restrict__ SPHER,
+   double* const __restrict__ OUT );
+
+
 __global__ void compute_TRA_batched_gpu_low(
    const int Nshells, const int la, const int lb, const int lc, const int ld,
    const unsigned int* const __restrict__ TRA,

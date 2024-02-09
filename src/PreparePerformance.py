@@ -41,9 +41,12 @@ output_file_name = 'performance_test.inp'
 #mol_h2o = pyscf.gto.M(atom = 'O 0 2 0;')
 #mol_h2o = pyscf.gto.M(atom = 'H 0 2 0; H 0.5 0.5 0; H 2 2 0; H 3.5 0.5 0; H 0 0 0 ; H 1 1 1')
 #mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0; O 2 2 2; H 0 4 2; H 0.5 2.5 2')
+mol_h2o = pyscf.gto.M(atom = """
+   O 1 0 0.53; H 1 0.1 0.52; H 1 0.9 0.54; O 2 0 0.64; H 2 0.2 0.21; H 2 0.7 0.41;
+   O 3 0 0.26; H 3 0.2 0.74; H 3 0.5 0.74; O 4 0 0.81; H 4 0.3 0.47; H 4 0.3 0.13""")
 #mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0')
 #mol_h2o = pyscf.gto.M(atom = ' Cr 2 0 0; H 0 2 0; H 0.5 0.5 0')
-mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.1 0.2 0.3; O -0.11 -0.33 -0.22; O 3 2 1; O 3. 3. 3. ')
+#mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.1 0.2 0.3; O -0.11 -0.33 -0.22; O 3 2 1; O 3. 3. 3. ')
 #mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.1 0.2 0.3; O -0.11 -0.33 -0.22; O 3 2 1; O 3. 3. 3.; O 1.23 4.21 0.13; O 2. 4. 0. ')
 #mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0 0 1; O 0 1 0; O 0 1 1; H 1 0 0; H 1 0 1; H 1 1 0; H 1 1 1;')
 #mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0 0 1; O 0 1 0; O 0 1 1; O 1 0 0; O 1 0 1; O 1 1 0; O 1 1 1;')

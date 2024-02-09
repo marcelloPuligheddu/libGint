@@ -38,6 +38,15 @@ __global__ void compute_HRR_batched_gpu_low(
       double* const __restrict__ ABCD0,
       int hrr_blocksize, int Nc, int numVC, int numVCH );
 
+void compute_HRR_batched_low(
+      const int Ncells,
+      const int* const __restrict__ plan,
+      const unsigned int* const __restrict__ FVH,
+      const double* const __restrict__ data,
+      double* const __restrict__ ABCD,
+      double* const __restrict__ ABCD0,
+      int hrr_blocksize, int Nc, int numVC, int numVCH );
+
 
 
 #endif // COMPUTE_HRR_H_COMPILE_GUARD

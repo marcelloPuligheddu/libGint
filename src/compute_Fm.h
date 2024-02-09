@@ -30,6 +30,15 @@ void compute_Fm_batched(
       const std::vector<double>& data, std::vector<double>& Fm, int NFm, int L, bool periodic, double* cell,
       const double* const __restrict__ ftable, const int ftable_ld );
 
+void compute_Fm_batched_low(
+      const unsigned int* const __restrict__ FVH,
+      const unsigned int* const __restrict__ PMI,
+      const double* const __restrict__ data,
+      double* const __restrict__ Fm,
+      int NFm, int L, bool periodic,
+      const double* const __restrict__ cell,
+      const double* const __restrict__ ftable, const int ftable_ld );
+
 __global__ void compute_Fm_batched_low_gpu(
       unsigned int* __restrict__ FVH,
       unsigned int*  __restrict__ PMI,

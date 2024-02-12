@@ -59,6 +59,10 @@ void AIS::setAl( int la_, int nla_, double* Ka_ ){
    all_idx_Ka.push_back( ua.add( Ka_, npa*nla_ ) );
    nnla++;
 }
+void AIS::moveA(double* A_){
+   A = A_;
+   idx_A = ua.add( A_, 3 ); 
+}
 
 void AIS::setB( double* B_, double* Zb_, int npb_ ){
    B = B_;
@@ -78,6 +82,10 @@ void AIS::setBl( int lb_, int nlb_, double* Kb_ ){
    all_nlb.push_back(nlb_);
    all_idx_Kb.push_back( ua.add( Kb_, npb*nlb_ ) );
    nnlb++;
+}
+void AIS::moveB(double* B_){
+   B = B_;
+   idx_B = ua.add( B_, 3 ); 
 }
 
 void AIS::setC( double* C_, double* Zc_, int npc_ ){
@@ -99,6 +107,10 @@ void AIS::setCl( int lc_, int nlc_, double* Kc_ ){
    all_idx_Kc.push_back( ua.add( Kc_, npc*nlc_ ) );
    nnlc++;
 }
+void AIS::moveC(double* C_){
+   C = C_;
+   idx_C = ua.add( C_, 3 ); 
+}
 
 void AIS::setD( double* D_, double* Zd_, int npd_ ){
    D = D_;
@@ -118,6 +130,10 @@ void AIS::setDl( int ld_, int nld_, double* Kd_ ){
    all_nld.push_back(nld_);
    all_idx_Kd.push_back( ua.add( Kd_, npd*nld_ ) );
    nnld++;
+}
+void AIS::moveD(double* D_){
+   D = D_;
+   idx_D = ua.add( D_, 3 ); 
 }
 
 
@@ -383,7 +399,7 @@ void AIS::dispatch( bool skip_cpu ){
 
    compute_max_vector_size();
 
-   cout << "Dispatch: Will compute " << out_size << " values " << endl;
+//   cout << "Dispatch: Will compute " << out_size << " values " << endl;
    OUT.resize(out_size);
 
    int ftable_ld = 0; // ld of table for fgamma

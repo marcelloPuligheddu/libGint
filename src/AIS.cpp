@@ -497,7 +497,7 @@ void AIS::dispatch( bool skip_cpu ){
          for( unsigned int i=0; i < Nqrtt*Ns; i++ ){ SPHER[i] *= corr; }
 
          compute_TRA_batched_low( Nshell, la, lb, lc, ld, TRA_L, SPHER, OUT.data() );
-         cout << " VALs: " << Fm[0] << " " << AC[0] << "  " << OUT[0] << endl;
+//         cout << " VALs: " << Fm[0] << " " << AC[0] << "  " << OUT[0] << endl;
       }
 
       timer.stop();

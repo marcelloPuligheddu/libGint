@@ -119,24 +119,27 @@ for ( int j = 0 ; j < nbas ; j ++ ){
    for ( int l = 0 ; l < nbas ; l ++ ){
 
       double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
-      double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
       int lc_min = bas[k*8+1];
-      int ld_min = bas[l*8+1];
       int lc_max = bas[k*8+1];
-      int ld_max = bas[l*8+1];
       int nzc = bas[k*8+2];
-      int nzd = bas[l*8+2];
       double* Zc = &env[bas[k*8+5]];
-      double* Zd = &env[bas[l*8+5]];
       ais.setC(RC, Zc, nzc );
-      ais.setD(RD, Zd, nzd );
       ais.clearCl();
-      ais.clearDl();
       for ( int lc = lc_min; lc <= lc_max; lc++){
          int nlc = bas[k*8+3];
          double* Kc = &env[bas[k*8+6]];
          ais.setCl( lc, nlc, Kc );
       }
+
+
+      double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
+      int ld_min = bas[l*8+1];
+      int ld_max = bas[l*8+1];
+      int nzd = bas[l*8+2];
+      double* Zd = &env[bas[l*8+5]];
+
+      ais.setD(RD, Zd, nzd );
+      ais.clearDl();
       for ( int ld = ld_min; ld <= ld_max; ld++){
          int nld = bas[l*8+3];
          double* Kd = &env[bas[l*8+6]];
@@ -151,7 +154,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          double RBp[3] = {RB[0]+R1[0], RB[1]+R1[1], RB[2]+R1[2] };
          double AB[3] = {RA[0]-RBp[0], RA[1]-RBp[1], RA[2]-RBp[2]};
 
-         ais.moveA(RA);
+
          ais.moveB(RBp);
 
          for (int n2=n2_min; n2 <= n2_max ; n2++){
@@ -185,25 +188,26 @@ for ( int j = 0 ; j < nbas ; j ++ ){
 
                for( int iza=0; iza < nza ; iza++){
                for( int izb=0; izb < nzb ; izb++){
-                  double za = env[bas[i*8+5]+iza];
-                  double zb = env[bas[j*8+5]+izb];
-                  double zab = za+zb;
-                  double P[3] = {0.,0.,0.};
-                  compute_weighted_distance(P,RA,RBp,za,zb,zab);
+//                  double za = env[bas[i*8+5]+iza];
+//                  double zb = env[bas[j*8+5]+izb];
+//                  double zab = za+zb;
+//                  double P[3] = {0.,0.,0.};
+//                  compute_weighted_distance(P,RA,RBp,za,zb,zab);
 
                   for( int izc=0; izc < nzc ; izc++){
                   for( int izd=0; izd < nzd ; izd++){
-                     double zc = env[bas[k*8+5]+izc];
-                     double zd = env[bas[l*8+5]+izd];
-                     double zcd = zc + zd;
-                     double Q[3] = {0.,0.,0.};
-                     compute_weighted_distance(Q,RCp,RDp,zc,zd,zcd);
+//                     double zc = env[bas[k*8+5]+izc];
+//                     double zd = env[bas[l*8+5]+izd];
+//                     double zcd = zc + zd;
+//                     double Q[3] = {0.,0.,0.};
+//                     compute_weighted_distance(Q,RCp,RDp,zc,zd,zcd);
    //                  double PQ0[3] = {P[0]-Q[0], P[1]-Q[1], P[2]-Q[2]};
 
-                     int n123[3] = {0,0,0};
-                     if (periodic){ }
+//                     int n123[3] = {0,0,0};
+//                     if (periodic){ }
 
-                     ais.add_prm(iza,izb,izc,izd,n123[0],n123[1],n123[2]);
+//                     ais.add_prm(iza,izb,izc,izd,n123[0],n123[1],n123[2]);
+                     ais.add_prm(iza,izb,izc,izd,0,0,0);
 
                      cell_is_screened = false;
                      set_is_screened = false;
@@ -232,7 +236,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
       }
 
       bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
-      if ( (k==0 and l==0 and ais.memory_needed() > 1.e9) or is_last_qrtt ){
+      if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
    //      cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
 
          ais.dispatch(skip_cpu);

@@ -61,6 +61,10 @@ class AIS {
    void setBl( int lb_, int nlb_, double* Kb_  );
    void setCl( int lc_, int nlc_, double* Kc_  );
    void setDl( int ld_, int nld_, double* Kd_  );
+   void moveA( double * A );
+   void moveB( double * B );
+   void moveC( double * C );
+   void moveD( double * D );
    void compute_max_vector_size();
    size_t memory_needed();
 

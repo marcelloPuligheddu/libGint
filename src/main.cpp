@@ -151,8 +151,8 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          double RBp[3] = {RB[0]+R1[0], RB[1]+R1[1], RB[2]+R1[2] };
          double AB[3] = {RA[0]-RBp[0], RA[1]-RBp[1], RA[2]-RBp[2]};
 
-         ais.setA(RA , Za, nza );
-         ais.setB(RBp, Zb, nzb );
+         ais.moveA(RA);
+         ais.moveB(RBp);
 
          for (int n2=n2_min; n2 <= n2_max ; n2++){
 
@@ -180,8 +180,8 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   RDp[2] = RD[2];
                }
                bool cell_is_screened = true;
-               ais.setC(RCp, Zc, nzc );
-               ais.setD(RDp, Zd, nzd );
+               ais.moveC(RCp);
+               ais.moveD(RDp);
 
                for( int iza=0; iza < nza ; iza++){
                for( int izb=0; izb < nzb ; izb++){

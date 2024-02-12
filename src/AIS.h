@@ -45,15 +45,22 @@ class AIS {
    public:
    AIS(){}
    void add_prm ( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ) ;
-   void add_shell ( 
-      int la, int lb, int lc, int ld, 
-      double* Ka, double* Kb, double* Kc, double* Kd,
-      double* A, double* B, double* C, double* D, 
-      double* Za, double* Zb, double* Zc, double* Zd,
-      int npa, int npb, int npc, int npd, int nla, int nlb, int nlc, int nld );
+   void add_shell ();
    void add_cell();
    int add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int nld );
    void add_set();
+   void setA( double* A_,double*Za_,int npa_ );
+   void setB( double* B_,double*Zb_,int npb_ );
+   void setC( double* C_,double*Zc_,int npc_ );
+   void setD( double* D_,double*Zd_,int npd_ );
+   void clearAl();
+   void clearBl();
+   void clearCl();
+   void clearDl();
+   void setAl( int la_, int nla_, double* Ka_  );
+   void setBl( int lb_, int nlb_, double* Kb_  );
+   void setCl( int lc_, int nlc_, double* Kc_  );
+   void setDl( int ld_, int nld_, double* Kd_  );
    void compute_max_vector_size();
    size_t memory_needed();
 
@@ -67,6 +74,16 @@ class AIS {
 //   private:
 
    void reset_indices();
+
+   double *A, *B, *C, *D;
+   double *Za, *Zb, *Zc, *Zd;
+   int npa, npb, npc, npd;
+   int nnla=0, nnlb=0, nnlc=0, nnld=0;
+   unsigned int idx_A, idx_B, idx_C, idx_D;
+   unsigned int idx_Za, idx_Zb, idx_Zc, idx_Zd;
+   std::vector<int> all_la,all_lb,all_lc,all_ld;
+   std::vector<int> all_nla,all_nlb,all_nlc,all_nld;
+   std::vector<unsigned int> all_idx_Ka, all_idx_Kb, all_idx_Kc, all_idx_Kd;
  
    size_t max_integral_scratch_size = 0;
    size_t max_plan_size = 0;
@@ -80,6 +97,8 @@ class AIS {
    unsigned int offset_G[NL4] = {0};
    unsigned int offset_Q[NL4] = {0};
    unsigned int offset_T[NL4] = {0};
+   int all_vrr_blocksize[NL4] = {0};
+   int all_hrr_blocksize[NL4] = {0};
 
    std::vector<unsigned int> FVH[NL4];
    std::vector<unsigned int> PMI[NL4];

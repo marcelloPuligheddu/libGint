@@ -38,13 +38,91 @@ void AIS::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, c
    prm++;
 }
 
-void AIS::add_shell (
-      int la, int lb, int lc, int ld,
-      double* Ka, double* Kb, double* Kc, double* Kd,
-      double* A, double* B, double* C, double* D,
-      double* Za, double* Zb, double* Zc, double* Zd,
-      int npa, int npb, int npc, int npd, int nla, int nlb, int nlc, int nld )
-{
+
+
+void AIS::setA( double* A_, double* Za_, int npa_ ){
+   A = A_;
+   Za = Za_;
+   npa = npa_;
+   idx_A = ua.add( A_, 3 );
+   idx_Za = ua.add( Za_, npa_ );
+}
+void AIS::clearAl(){
+   all_la.clear();
+   all_nla.clear();
+   all_idx_Ka.clear();
+   nnla = 0;
+}
+void AIS::setAl( int la_, int nla_, double* Ka_ ){
+   all_la.push_back(la_);
+   all_nla.push_back(nla_);
+   all_idx_Ka.push_back( ua.add( Ka_, npa*nla_ ) );
+   nnla++;
+}
+
+void AIS::setB( double* B_, double* Zb_, int npb_ ){
+   B = B_;
+   Zb = Zb_;
+   npb = npb_;
+   idx_B = ua.add( B_, 3 );
+   idx_Zb = ua.add( Zb_, npb_ );
+}
+void AIS::clearBl(){
+   all_lb.clear();
+   all_nlb.clear();
+   all_idx_Kb.clear();
+   nnlb = 0;
+}
+void AIS::setBl( int lb_, int nlb_, double* Kb_ ){
+   all_lb.push_back(lb_);
+   all_nlb.push_back(nlb_);
+   all_idx_Kb.push_back( ua.add( Kb_, npb*nlb_ ) );
+   nnlb++;
+}
+
+void AIS::setC( double* C_, double* Zc_, int npc_ ){
+   C = C_;
+   Zc = Zc_;
+   npc = npc_;
+   idx_C = ua.add( C_, 3 );
+   idx_Zc = ua.add( Zc_, npc_ );
+}
+void AIS::clearCl(){
+   all_lc.clear();
+   all_nlc.clear();
+   all_idx_Kc.clear();
+   nnlc = 0;
+}
+void AIS::setCl( int lc_, int nlc_, double* Kc_ ){
+   all_lc.push_back(lc_);
+   all_nlc.push_back(nlc_);
+   all_idx_Kc.push_back( ua.add( Kc_, npc*nlc_ ) );
+   nnlc++;
+}
+
+void AIS::setD( double* D_, double* Zd_, int npd_ ){
+   D = D_;
+   Zd = Zd_;
+   npd = npd_;
+   idx_D = ua.add( D, 3 );
+   idx_Zd = ua.add( Zd, npd );
+}
+void AIS::clearDl(){
+   all_ld.clear();
+   all_nld.clear();
+   all_idx_Kd.clear();
+   nnld = 0;
+}
+void AIS::setDl( int ld_, int nld_, double* Kd_ ){
+   all_ld.push_back(ld_);
+   all_nld.push_back(nld_);
+   all_idx_Kd.push_back( ua.add( Kd_, npd*nld_ ) );
+   nnld++;
+}
+
+
+
+void AIS::add_shell ( ){
 
    unsigned int n_prm = prm_tmp_list.size() / PRM_TMP_SIZE ;
    
@@ -52,81 +130,100 @@ void AIS::add_shell (
       return;
    }
 
-   std::vector<int> * plan = NULL ;
-   unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
-   plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
+   for( int idx_la=0; idx_la < nnla; idx_la++ ){
+      unsigned int idx_Ka = all_idx_Ka[idx_la];
+      int nla = all_nla[idx_la];
+      int la = all_la[idx_la];
+      for( int idx_lb=0; idx_lb < nnlb; idx_lb++ ){
+         unsigned int idx_Kb = all_idx_Kb[idx_lb];
+         int nlb = all_nlb[idx_lb];
+         int lb = all_lb[idx_lb];
+         for( int idx_lc=0; idx_lc < nnlc; idx_lc++ ){
+            unsigned int idx_Kc = all_idx_Kc[idx_lc];
+            int nlc = all_nlc[idx_lc];
+            int lc = all_lc[idx_lc];
 
-   unsigned int idx_Ka = ua.add( Ka, npa*nla );
-   unsigned int idx_Kb = ua.add( Kb, npb*nlb );
-   unsigned int idx_Kc = ua.add( Kc, npc*nlc );
-   unsigned int idx_Kd = ua.add( Kd, npd*nld );
+            for( int idx_ld=0; idx_ld < nnld; idx_ld++ ){
+               unsigned int idx_Kd = all_idx_Kd[idx_ld];
+               int nld = all_nld[idx_ld];
+               int ld = all_ld[idx_ld];
 
-   unsigned int idx_A = ua.add( A, 3 );
-   unsigned int idx_B = ua.add( B, 3 );
-   unsigned int idx_C = ua.add( C, 3 );
-   unsigned int idx_D = ua.add( D, 3 );
+               unsigned int N_cc = nla*nlb*nlc*nld;
+               unsigned int L = encodeL(la,lb,lc,ld);
 
-   unsigned int idx_Za = ua.add( Za, npa*nla );
-   unsigned int idx_Zb = ua.add( Zb, npb*nlb );
-   unsigned int idx_Zc = ua.add( Zc, npc*nlc );
-   unsigned int idx_Zd = ua.add( Zd, npd*nld );
+               unsigned int Of = offset_F[L];
+               unsigned int Ov = offset_V[L];
+               unsigned int Og = offset_G[L];
+               unsigned int Oq = offset_Q[L];
 
-   unsigned int N_cc = nla*nlb*nlc*nld;
-   unsigned int L = encodeL(la,lb,lc,ld);
+               unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
+               unsigned int encoded_npabcd = encode4(npa,npb,npc,npd);
 
-   unsigned int Of = offset_F[L];
-   unsigned int Ov = offset_V[L];
-   unsigned int Og = offset_G[L];
-   unsigned int Oq = offset_Q[L];
+               for( unsigned int pi = 0; pi < n_prm; pi++ ){
+                  unsigned int pm_idxs[PMI_SIZE] = {0};
+                  unsigned int ipabcd_n123 = prm_tmp_list[pi*PRM_TMP_SIZE+PRM_TMP_OFFSET_IPZN];
+                  pm_idxs[PMI_OFFSET_OF] = Of;
+                  pm_idxs[PMI_OFFSET_IPZN] = ipabcd_n123;
+                  PMI[L].insert(PMI[L].end(), pm_idxs, pm_idxs+PMI_SIZE);
+               }
 
-   unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
-   unsigned int encoded_npabcd = encode4(npa,npb,npc,npd);
+               unsigned int fvh_idxs[FVH_SIZE] = {0};
+               fvh_idxs[FVH_OFFSET_OV    ] = Ov;
+               fvh_idxs[FVH_OFFSET_OG    ] = Og;
+               fvh_idxs[FVH_OFFSET_OQ    ] = Oq;
+               fvh_idxs[FVH_OFFSET_NPRM  ] = n_prm;
+               fvh_idxs[FVH_OFFSET_IDX_A ] = idx_A;
+               fvh_idxs[FVH_OFFSET_IDX_B ] = idx_B;
+               fvh_idxs[FVH_OFFSET_IDX_C ] = idx_C;
+               fvh_idxs[FVH_OFFSET_IDX_D ] = idx_D;
+               fvh_idxs[FVH_OFFSET_IDX_ZA] = idx_Za;
+               fvh_idxs[FVH_OFFSET_IDX_ZB] = idx_Zb;
+               fvh_idxs[FVH_OFFSET_IDX_ZC] = idx_Zc;
+               fvh_idxs[FVH_OFFSET_IDX_ZD] = idx_Zd;
+               fvh_idxs[FVH_OFFSET_IDX_KA] = idx_Ka;
+               fvh_idxs[FVH_OFFSET_IDX_KB] = idx_Kb;
+               fvh_idxs[FVH_OFFSET_IDX_KC] = idx_Kc;
+               fvh_idxs[FVH_OFFSET_IDX_KD] = idx_Kd;
+               fvh_idxs[FVH_OFFSET_NLABCD] = encoded_nlabcd;
+               fvh_idxs[FVH_OFFSET_NPABCD] = encoded_npabcd;
+
+//               cout << " R: " << A[0]  << " " << B[1]  << " " << C[1] << "  " << D[2] << endl;
+//               cout << " Z: " << Za[0] << " " << Zb[0] << " " << Zc[0] << "  " << Zd[0] << endl;
+//               cout << " K: " << ua.internal_buffer[idx_Ka] << " " << endl;
+//               cout << " L " << la << " " << lb << " " << lc << " " << ld << endl;
+//               cout << " O " << Ov << " " << Og << " " << Oq << endl;
+//               cout << "NP " << npa << " " << npb << " " << npc << " " << npd << " " << n_prm << endl;
+//               cout << "NL " << nla << " " << nlb << " " << nlc << " " << nld << endl;
+
+               FVH[L].insert(FVH[L].end(), fvh_idxs, fvh_idxs+FVH_SIZE);
+               
+               int labcd = la+lb+lc+ld;
+               Fm_size[L] += (1+labcd) * n_prm;
+               if ( labcd > 0 ){
+                  Fm_size[L] += (4*3+5) * n_prm;
+               }
+
+               if ( all_moments.count(L) == 0 ){
+                  std::vector<int> * plan = NULL ;
+                  unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
+                  plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
+                  all_vrr_blocksize[L] = vrr_blocksize;
+                  all_hrr_blocksize[L] = hrr_blocksize;
+                  all_moments.insert(L);
+               }
 
 
-   for( unsigned int pi = 0; pi < n_prm; pi++ ){
-      unsigned int pm_idxs[PMI_SIZE] = {0};
-      unsigned int ipabcd_n123 = prm_tmp_list[pi*PRM_TMP_SIZE+PRM_TMP_OFFSET_IPZN];
-      pm_idxs[PMI_OFFSET_OF] = Of;
-      pm_idxs[PMI_OFFSET_IPZN] = ipabcd_n123;
-      PMI[L].insert(PMI[L].end(), pm_idxs, pm_idxs+PMI_SIZE);
-   }
+               AC_size[L] += all_vrr_blocksize[L] * n_prm;
+               ABCD_size[L] += all_hrr_blocksize[L] * N_cc;
 
-   unsigned int fvh_idxs[FVH_SIZE] = {0};
-   fvh_idxs[FVH_OFFSET_OV    ] = Ov;
-   fvh_idxs[FVH_OFFSET_OG    ] = Og;
-   fvh_idxs[FVH_OFFSET_OQ    ] = Oq;
-   fvh_idxs[FVH_OFFSET_NPRM  ] = n_prm;
-   fvh_idxs[FVH_OFFSET_IDX_A ] = idx_A;
-   fvh_idxs[FVH_OFFSET_IDX_B ] = idx_B;
-   fvh_idxs[FVH_OFFSET_IDX_C ] = idx_C;
-   fvh_idxs[FVH_OFFSET_IDX_D ] = idx_D;
-   fvh_idxs[FVH_OFFSET_IDX_ZA] = idx_Za;
-   fvh_idxs[FVH_OFFSET_IDX_ZB] = idx_Zb;
-   fvh_idxs[FVH_OFFSET_IDX_ZC] = idx_Zc;
-   fvh_idxs[FVH_OFFSET_IDX_ZD] = idx_Zd;
-   fvh_idxs[FVH_OFFSET_IDX_KA] = idx_Ka;
-   fvh_idxs[FVH_OFFSET_IDX_KB] = idx_Kb;
-   fvh_idxs[FVH_OFFSET_IDX_KC] = idx_Kc;
-   fvh_idxs[FVH_OFFSET_IDX_KD] = idx_Kd;
-   fvh_idxs[FVH_OFFSET_NLABCD] = encoded_nlabcd;
-   fvh_idxs[FVH_OFFSET_NPABCD] = encoded_npabcd;
+//               cout << " S " << AC_size[L] << " " << ABCD_size[L] << endl;
 
-   FVH[L].insert(FVH[L].end(), fvh_idxs, fvh_idxs+FVH_SIZE);
-   
-   int labcd = la+lb+lc+ld;
-   Fm_size[L] += (1+labcd) * n_prm;
-   if ( labcd > 0 ){
-      Fm_size[L] += (4*3+5) * n_prm;
-   }
-   AC_size[L] += vrr_blocksize * n_prm;
-   ABCD_size[L] += hrr_blocksize * N_cc;
+               offset_G[L] += N_cc;
+               offset_V[L] += n_prm;
+               offset_F[L] ++ ;
 
-   offset_G[L] += N_cc;
-   offset_V[L] += n_prm;
-   offset_F[L] ++ ;
-
-   encoded_moments.insert(L);
-
+               encoded_moments.insert(L);
+   }  }  }  }
 }
 
 void AIS::add_cell() {
@@ -286,7 +383,7 @@ void AIS::dispatch( bool skip_cpu ){
 
    compute_max_vector_size();
 
-//   cout << "Dispatch: Will compute " << out_size << " values " << endl;
+   cout << "Dispatch: Will compute " << out_size << " values " << endl;
    OUT.resize(out_size);
 
    int ftable_ld = 0; // ld of table for fgamma
@@ -367,6 +464,7 @@ void AIS::dispatch( bool skip_cpu ){
       timer.start();
 
       if ( not skip_cpu ) {
+
          compute_Fm_batched_low(
             FVH_L, PMI_L, env, Fm, Nprm, labcd, periodic, cell_h, ftable, ftable_ld );
 
@@ -383,6 +481,7 @@ void AIS::dispatch( bool skip_cpu ){
          for( unsigned int i=0; i < Nqrtt*Ns; i++ ){ SPHER[i] *= corr; }
 
          compute_TRA_batched_low( Nshell, la, lb, lc, ld, TRA_L, SPHER, OUT.data() );
+         cout << " VALs: " << Fm[0] << " " << AC[0] << "  " << OUT[0] << endl;
       }
 
       timer.stop();
@@ -392,7 +491,7 @@ void AIS::dispatch( bool skip_cpu ){
 //      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
 //      cout << endl;
 
-      all_moments.insert(L);
+
       record_of_out_sizes[L].push_back(OUT_size[L]);
       record_of_times_cpu[L].push_back(timer.elapsedMicroseconds());
    }

@@ -30,10 +30,10 @@ void AIS::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, c
 //   cout << "Adding prm " << prm_in_set << " " << prm << " " << ipd << endl ;
    unsigned int piabcdxyz = encode_ipabcd_n123(ipa,ipb,ipc,ipd,n1,n2,n3);
 
-   unsigned int prm_tmp_list_idxs[PRM_TMP_SIZE] = {0};
-   prm_tmp_list_idxs[PRM_TMP_OFFSET_IPZN] = piabcdxyz;
-   prm_tmp_list.insert(prm_tmp_list.end(), prm_tmp_list_idxs, prm_tmp_list_idxs+PRM_TMP_SIZE);
-
+//   unsigned int prm_tmp_list_idxs[PRM_TMP_SIZE] = {0};
+//   prm_tmp_list_idxs[PRM_TMP_OFFSET_IPZN] = piabcdxyz;
+//   prm_tmp_list.insert(prm_tmp_list.end(), prm_tmp_list_idxs, prm_tmp_list_idxs+PRM_TMP_SIZE);
+   prm_tmp_list.push_back( piabcdxyz );
    prm_in_set++;
    prm++;
 }
@@ -176,32 +176,34 @@ void AIS::add_shell ( ){
                unsigned int encoded_npabcd = encode4(npa,npb,npc,npd);
 
                for( unsigned int pi = 0; pi < n_prm; pi++ ){
-                  unsigned int pm_idxs[PMI_SIZE] = {0};
+//                  unsigned int pm_idxs[PMI_SIZE] = {0};
                   unsigned int ipabcd_n123 = prm_tmp_list[pi*PRM_TMP_SIZE+PRM_TMP_OFFSET_IPZN];
-                  pm_idxs[PMI_OFFSET_OF] = Of;
-                  pm_idxs[PMI_OFFSET_IPZN] = ipabcd_n123;
-                  PMI[L].insert(PMI[L].end(), pm_idxs, pm_idxs+PMI_SIZE);
+//                  pm_idxs[PMI_OFFSET_OF] = Of;
+//                  pm_idxs[PMI_OFFSET_IPZN] = ipabcd_n123;
+                  PMI[L].push_back( Of );
+                  PMI[L].push_back( ipabcd_n123 );
+//                  PMI[L].insert(PMI[L].end(), pm_idxs, pm_idxs+PMI_SIZE);
                }
 
-               unsigned int fvh_idxs[FVH_SIZE] = {0};
-               fvh_idxs[FVH_OFFSET_OV    ] = Ov;
-               fvh_idxs[FVH_OFFSET_OG    ] = Og;
-               fvh_idxs[FVH_OFFSET_OQ    ] = Oq;
-               fvh_idxs[FVH_OFFSET_NPRM  ] = n_prm;
-               fvh_idxs[FVH_OFFSET_IDX_A ] = idx_A;
-               fvh_idxs[FVH_OFFSET_IDX_B ] = idx_B;
-               fvh_idxs[FVH_OFFSET_IDX_C ] = idx_C;
-               fvh_idxs[FVH_OFFSET_IDX_D ] = idx_D;
-               fvh_idxs[FVH_OFFSET_IDX_ZA] = idx_Za;
-               fvh_idxs[FVH_OFFSET_IDX_ZB] = idx_Zb;
-               fvh_idxs[FVH_OFFSET_IDX_ZC] = idx_Zc;
-               fvh_idxs[FVH_OFFSET_IDX_ZD] = idx_Zd;
-               fvh_idxs[FVH_OFFSET_IDX_KA] = idx_Ka;
-               fvh_idxs[FVH_OFFSET_IDX_KB] = idx_Kb;
-               fvh_idxs[FVH_OFFSET_IDX_KC] = idx_Kc;
-               fvh_idxs[FVH_OFFSET_IDX_KD] = idx_Kd;
-               fvh_idxs[FVH_OFFSET_NLABCD] = encoded_nlabcd;
-               fvh_idxs[FVH_OFFSET_NPABCD] = encoded_npabcd;
+//               unsigned int fvh_idxs[FVH_SIZE] = {0};
+//               fvh_idxs[FVH_OFFSET_OV    ] = Ov;
+//               fvh_idxs[FVH_OFFSET_OG    ] = Og;
+//               fvh_idxs[FVH_OFFSET_OQ    ] = Oq;
+//               fvh_idxs[FVH_OFFSET_NPRM  ] = n_prm;
+//               fvh_idxs[FVH_OFFSET_IDX_A ] = idx_A;
+//               fvh_idxs[FVH_OFFSET_IDX_B ] = idx_B;
+//               fvh_idxs[FVH_OFFSET_IDX_C ] = idx_C;
+//               fvh_idxs[FVH_OFFSET_IDX_D ] = idx_D;
+//               fvh_idxs[FVH_OFFSET_IDX_ZA] = idx_Za;
+//               fvh_idxs[FVH_OFFSET_IDX_ZB] = idx_Zb;
+//               fvh_idxs[FVH_OFFSET_IDX_ZC] = idx_Zc;
+//               fvh_idxs[FVH_OFFSET_IDX_ZD] = idx_Zd;
+//               fvh_idxs[FVH_OFFSET_IDX_KA] = idx_Ka;
+//               fvh_idxs[FVH_OFFSET_IDX_KB] = idx_Kb;
+//               fvh_idxs[FVH_OFFSET_IDX_KC] = idx_Kc;
+//               fvh_idxs[FVH_OFFSET_IDX_KD] = idx_Kd;
+//               fvh_idxs[FVH_OFFSET_NLABCD] = encoded_nlabcd;
+//               fvh_idxs[FVH_OFFSET_NPABCD] = encoded_npabcd;
 
 //               cout << " R: " << A[0]  << " " << B[1]  << " " << C[1] << "  " << D[2] << endl;
 //               cout << " Z: " << Za[0] << " " << Zb[0] << " " << Zc[0] << "  " << Zd[0] << endl;
@@ -211,7 +213,25 @@ void AIS::add_shell ( ){
 //               cout << "NP " << npa << " " << npb << " " << npc << " " << npd << " " << n_prm << endl;
 //               cout << "NL " << nla << " " << nlb << " " << nlc << " " << nld << endl;
 
-               FVH[L].insert(FVH[L].end(), fvh_idxs, fvh_idxs+FVH_SIZE);
+//               FVH[L].insert(FVH[L].end(), fvh_idxs, fvh_idxs+FVH_SIZE);
+               FVH[L].push_back( Ov );
+               FVH[L].push_back( Og );
+               FVH[L].push_back( Oq );
+               FVH[L].push_back( n_prm );
+               FVH[L].push_back( idx_A );
+               FVH[L].push_back( idx_B );
+               FVH[L].push_back( idx_C );
+               FVH[L].push_back( idx_D );
+               FVH[L].push_back( idx_Za );
+               FVH[L].push_back( idx_Zb );
+               FVH[L].push_back( idx_Zc );
+               FVH[L].push_back( idx_Zd );
+               FVH[L].push_back( idx_Ka );
+               FVH[L].push_back( idx_Kb );
+               FVH[L].push_back( idx_Kc );
+               FVH[L].push_back( idx_Kd );         
+               FVH[L].push_back( encoded_nlabcd );
+               FVH[L].push_back( encoded_npabcd );
                
                int labcd = la+lb+lc+ld;
                Fm_size[L] += (1+labcd) * n_prm;

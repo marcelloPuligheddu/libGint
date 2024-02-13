@@ -235,6 +235,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          ais.add_set();
       }
 
+
       bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
       if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
    //      cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;

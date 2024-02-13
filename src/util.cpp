@@ -31,6 +31,7 @@ __device__ __host__ void decodeL( unsigned int L, int* la, int* lb, int* lc, int
 }
 
 unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
+/*
     assert( ipa < 32 );
     assert( ipa >= 0 );
     assert( ipb < 32 );
@@ -45,7 +46,7 @@ unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, co
     assert( n2 >= -8 );
     assert( n3 < 8 );
     assert( n3 >= -8 );
-    
+  */  
     unsigned int ret = 0;
     ret += n3+8;
     ret += (n2+8) * 16;

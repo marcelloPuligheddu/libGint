@@ -31,7 +31,7 @@ class UniqueArray {
    std::vector<double> internal_buffer;
    std::unordered_map<size_t,size_t> hm ;
    UniqueArray();
-   unsigned int add( double* values, int size );
+   unsigned int add( const double* const values, const int & size );
    void show_ia();
 };
 

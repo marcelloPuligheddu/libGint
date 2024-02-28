@@ -29,21 +29,23 @@ bool linear_search( const std::vector<double>& data, double* values, int size, i
    return false;
 }
 
-size_t hash_double( const double& x ){
-   long int i = (long int ) (x*1.e6) ;
-   return std::hash<long int>{}(i);
+
+__inline__ size_t hash_combine( size_t lhs, size_t rhs ) {
+  return lhs ^ ( rhs + 0x517cc1b727220a95 + (lhs << 6) + (lhs >> 2) );
 }
 
-size_t hash_combine( size_t lhs, size_t rhs ) {
-  lhs ^= rhs + 0x517cc1b727220a95 + (lhs << 6) + (lhs >> 2);
-  return lhs;
+size_t hash_3doubles( const double* const x ){
+   size_t hash = std::hash<double>{}(x[0]);
+   hash = hash_combine( hash, std::hash<double>{}(x[1]) );
+   hash = hash_combine( hash, std::hash<double>{}(x[2]) );
+   return hash;
 }
 
-size_t hash_doubles( double* x, size_t l ){
+size_t hash_doubles( const double* const x, size_t l ){
    size_t hash_x = 0;
    for( size_t i=0; i < l; i++ ){
-       size_t hash_i = hash_double( x[i] );
-       hash_x = hash_combine( hash_x, hash_i );
+      size_t hash_i = std::hash<double>{}(x[i]);
+      hash_x = hash_combine( hash_x, hash_i );
    }
    return hash_x;
 }
@@ -54,9 +56,14 @@ UniqueArray::UniqueArray(){
 }
 
 // First horrible inefficient implementation
-unsigned int UniqueArray::add( double* values, int size ){
+unsigned int UniqueArray::add( const double* const values, const int & size ){
 
-      size_t h = hash_doubles(values, size);
+      size_t h;
+      if ( size == 3 ){
+         h = hash_3doubles(values);
+      } else {
+         h = hash_doubles(values, size);
+      }
       auto search = hm.find(h);
       if ( search != hm.end() ) { return search->second; }
 

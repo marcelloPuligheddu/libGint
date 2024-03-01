@@ -80,6 +80,7 @@ SOFTWARE.
 #define PMI_SIZE 2
 #define SPH_SIZE 2
 #define TRA_SIZE 6
+#define KS_SIZE  8
 
 #define PRM_TMP_OFFSET_IPZN 0
 
@@ -121,6 +122,14 @@ SOFTWARE.
 #define NL3 ((NL2*NL))
 #define NL4 ((NL2*NL2))
 
+#define KS_OFFSET_IDXFAC  0
+#define KS_OFFSET_INLABCD 1
+#define KS_OFFSET_LDABCD  2
+#define KS_OFFSET_OFFAC   3
+#define KS_OFFSET_OFFAD   4
+#define KS_OFFSET_OFFBC   5
+#define KS_OFFSET_OFFBD   6
+#define KS_OFFSET_TALL    7 
 
 #include<stdio.h>
 #include <cuda.h>

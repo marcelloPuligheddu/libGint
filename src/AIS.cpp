@@ -311,6 +311,27 @@ int AIS::add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int
    return -1;
 }
 
+void AIS::add_qrtt(
+      double symm_fac, int la, int lb, int lc, int ld, 
+      int inla, int inlb, int inlc, int inld,
+      int ld_ac, int ld_ad, int ld_bc, int ld_bd, 
+      unsigned int offset_ac_L_set, unsigned int offset_ad_L_set, 
+      unsigned int offset_bc_L_set, unsigned int offset_bd_L_set, 
+      bool Tac, bool Tad, bool Tbc, bool Tbd ){
+   unsigned int idx_fac = ua.add( &symm_fac, 1 );
+   unsigned int L = encodeL(la,lb,lc,ld);
+   unsigned int KS_idxs[KS_SIZE] = {0};
+   KS_idxs[KS_OFFSET_IDXFAC ] = idx_fac;
+   KS_idxs[KS_OFFSET_INLABCD] = encode4(  inla, inlb, inlc, inld );
+   KS_idxs[KS_OFFSET_LDABCD ] = encode4( ld_ac,ld_ad,ld_bc,ld_bd );
+   KS_idxs[KS_OFFSET_OFFAC  ] = offset_ac_L_set;
+   KS_idxs[KS_OFFSET_OFFAD  ] = offset_ad_L_set;
+   KS_idxs[KS_OFFSET_OFFBC  ] = offset_bc_L_set;
+   KS_idxs[KS_OFFSET_OFFBD  ] = offset_bd_L_set;
+   KS_idxs[KS_OFFSET_TALL   ] = encode4(  (int)Tac, (int)Tad, (int)Tbc, (int)Tbd );
+   KS[L].insert( KS[L].end(), KS_idxs, KS_idxs+KS_SIZE );
+}
+
 void AIS::add_set(){
    prm_in_set = 0;
    n_set += 1;
@@ -340,6 +361,7 @@ void AIS::compute_max_vector_size(){
    max_PMI_size = 0;
    max_FVH_size = 0;
    max_SPH_size = 0;
+   max_KS_size  = 0;
    max_TRA_size = 0;
    out_size = 0;
 
@@ -358,6 +380,7 @@ void AIS::compute_max_vector_size(){
       max_PMI_size   = max(max_PMI_size,  PMI[L].size());
       max_FVH_size   = max(max_FVH_size,  FVH[L].size());
       max_SPH_size   = max(max_SPH_size,  SPH[L].size());
+      max_KS_size    = max( max_KS_size,   KS[L].size());
       max_TRA_size   = max(max_TRA_size,  TRA[L].size());
 
       out_size += OUT_size[L];
@@ -367,9 +390,32 @@ void AIS::compute_max_vector_size(){
 
 size_t AIS::memory_needed( ){
    compute_max_vector_size();
-   size_t add1 = (max_plan_size + max_PMI_size + max_FVH_size + max_SPH_size + max_TRA_size) * sizeof(unsigned int);
+   size_t tmp = (max_plan_size + max_PMI_size + max_FVH_size + max_SPH_size + max_KS_size + max_TRA_size);
+   size_t add1 = tmp * sizeof(unsigned int);
    size_t add2 = (max_integral_scratch_size + out_size) * sizeof(double);
-   return add1+add2;
+   size_t add3 = 2 * FP_size * sizeof(double);
+   return add1+add2+add3;
+}
+
+void AIS::set_P( std::vector<double> & P_ ){
+   P = P_.data();
+   FP_size = P_.size();
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&P_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( P_dev, P_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
+}
+
+void AIS::set_K( std::vector<double> & K_ ){
+   K = K_.data();
+   FP_size = K_.size();
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&K_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_dev, K_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
+   K_from_dev.resize( FP_size, 0.0 );
+}
+
+std::vector<double> AIS::get_K( ){
+   K_from_dev.resize( FP_size, 0.0 );
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_from_dev.data(), K_dev, sizeof(double)*FP_size, cudaMemcpyDeviceToHost ));
+   return K_from_dev;
 }
 
 void AIS::reset_indices(){
@@ -441,12 +487,14 @@ void AIS::dispatch( bool skip_cpu ){
    tot_mem += sizeof(unsigned int)*max_PMI_size  ; 
    tot_mem += sizeof(unsigned int)*max_FVH_size  ;
    tot_mem += sizeof(unsigned int)*max_SPH_size  ;
+   tot_mem += sizeof(unsigned int)*max_KS_size  ;
    tot_mem += sizeof(unsigned int)*max_TRA_size  ;
    tot_mem += sizeof(unsigned int)*(9+nelem+245) ;
+   tot_mem += 2 * sizeof(double)*(FP_size) ;
 
    if ( first ){
       cout << "Memory use: (MB)" << endl;
-      cout << " OUT DAT SCRT PLAN PMI FVH SPH TRA AUX TOT" << endl;
+      cout << " OUT DAT SCRT PLAN PMI FVH SPH KS TRA AUX FK TOT" << endl;
       first = false;
    }
    cout << OUT.size()*sizeof(double) *1.e-6 << " ";
@@ -456,8 +504,10 @@ void AIS::dispatch( bool skip_cpu ){
    cout << sizeof(unsigned int)*max_PMI_size  *1.e-6 << "  "; 
    cout << sizeof(unsigned int)*max_FVH_size  *1.e-6 << "  ";
    cout << sizeof(unsigned int)*max_SPH_size  *1.e-6 << "  ";
+   cout << sizeof(unsigned int)*max_KS_size   *1.e-6 << "  ";
    cout << sizeof(unsigned int)*max_TRA_size  *1.e-6 << "  ";
    cout << sizeof(unsigned int)*(9+nelem+245) *1.e-6 << "  "; 
+   cout << 2 * sizeof(double)*(FP_size)       *1.e-6 << "  "; 
    cout << tot_mem *1.e-6 << endl;
 
    std::vector<double> integral_scratch(max_integral_scratch_size);
@@ -490,6 +540,8 @@ void AIS::dispatch( bool skip_cpu ){
       unsigned int * FVH_L = FVH[L].data();
       unsigned int * PMI_L = PMI[L].data();
       unsigned int * TRA_L = TRA[L].data();
+      unsigned int * KS_L  =  KS[L].data();
+
       int * plan_L = plan->data();
       double * env = ua.internal_buffer.data();
 
@@ -516,8 +568,11 @@ void AIS::dispatch( bool skip_cpu ){
 
          for( unsigned int i=0; i < Nqrtt*Ns; i++ ){ SPHER[i] *= corr; }
 
+         compute_KS( Nqrtt, KS_L, la,lb,lc,ld, P, SPHER, K, env );
+
          compute_TRA_batched_low( Nshell, la, lb, lc, ld, TRA_L, SPHER, OUT.data() );
 //         cout << " VALs: " << Fm[0] << " " << AC[0] << "  " << OUT[0] << endl;
+
       }
 
       timer.stop();
@@ -567,7 +622,7 @@ void AIS::dispatch( bool skip_cpu ){
 
 
    double *integral_scratch_dev;
-   unsigned int *PMI_dev, *FVH_dev, *SPH_dev, *TRA_dev;
+   unsigned int *PMI_dev, *FVH_dev, *SPH_dev, *KS_dev, *TRA_dev;
    int *plan_dev;
 
 
@@ -577,6 +632,7 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&PMI_dev, sizeof(unsigned int)*max_PMI_size )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&FVH_dev, sizeof(unsigned int)*max_FVH_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&SPH_dev, sizeof(unsigned int)*max_SPH_size )); 
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&KS_dev , sizeof(unsigned int)*max_KS_size  )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&TRA_dev, sizeof(unsigned int)*max_TRA_size )); 
    CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
@@ -625,6 +681,8 @@ void AIS::dispatch( bool skip_cpu ){
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          FVH_dev, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()), cudaMemcpyHostToDevice ));
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
+          KS_dev,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()), cudaMemcpyHostToDevice )); 
+      CUDA_GPU_ERR_CHECK( cudaMemcpy(
          TRA_dev, TRA[L].data(), sizeof(unsigned int)*(TRA[L].size()), cudaMemcpyHostToDevice ));
 
       timer.start();
@@ -657,6 +715,8 @@ void AIS::dispatch( bool skip_cpu ){
       int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
       apply_correction<<<corrNB,corrBS>>>( Nqrtt*Ns, SPHER_dev, corr );
 
+      compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_dev, SPHER_dev, K_dev, data_dev );
+
       compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
 
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
@@ -667,6 +727,7 @@ void AIS::dispatch( bool skip_cpu ){
 //      cout << timer.elapsedMicroseconds() << " us " ;
 //      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
 //      cout << endl;
+//      cout.flush();
 
       record_of_times_gpu[L].push_back(timer.elapsedMicroseconds());
 
@@ -675,6 +736,12 @@ void AIS::dispatch( bool skip_cpu ){
    std::vector<double> OUT_from_gpu( OUT.size() );
    CUDA_GPU_ERR_CHECK( cudaMemcpy(
       OUT_from_gpu.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
+   timer.stop();
+
+   timer.start();
+   std::vector<double> F_from_gpu( FP_size );
+   CUDA_GPU_ERR_CHECK( cudaMemcpy(
+      F_from_gpu.data(), K_dev, sizeof(double)*(FP_size), cudaMemcpyDeviceToHost ));
    timer.stop();
 //   cout << "IJKL COPY " << sizeof(double)*(OUT.size()) * 1.e-6 << " MB " << timer.elapsedMilliseconds() << " ms " << endl;
 
@@ -699,7 +766,8 @@ void AIS::dispatch( bool skip_cpu ){
             nerrors++;
             double ratio = 1.0;
             if ( abs(ref) > 0. ){ ratio = val / ref ; }
-            cout << "CPU - GPU: Error at " << i << " " << ref << " " << val << " " << diff << " " << ratio << " " << endl ;
+            cout << "I: CPU - GPU: Error at " << i << " " << ref << " " << val 
+                 << " " << diff << " " << ratio << " " << endl ;
             if ( nerrors >= 100 ){
                cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
                exit( EXIT_FAILURE );
@@ -718,6 +786,46 @@ void AIS::dispatch( bool skip_cpu ){
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          OUT.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
    }
+
+   if ( not skip_cpu ){
+      double diff_sum = 0.0;
+      double adiff_sum = 0.0;
+      int nerrors = 0;
+      int Nval = int(FP_size);
+      for( int i=0; i < Nval; i++ ){
+         double ref = K[i];
+         double val = F_from_gpu[i];
+         double diff = ref - val;
+         double adiff = abs(diff);
+         diff_sum += diff;
+         adiff_sum += adiff;
+
+         if ( adiff > 1.e-12 ){
+            nerrors++;
+            double ratio = 1.0;
+            if ( abs(ref) > 0. ){ ratio = val / ref ; }
+            cout << "F: CPU - GPU: Error at " << i << " " << ref << " " << val 
+                 << " " << diff << " " << ratio << " " << endl ;
+            if ( nerrors >= 100 ){
+               cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
+               exit( EXIT_FAILURE );
+            }
+         }
+      }
+
+
+      if (nerrors != 0 ){
+         cout << "E[ CPU-GPU ] = " <<  diff_sum / Nval << endl;
+         cout << "E[|CPU-GPU|] = " << adiff_sum / Nval << endl;
+         exit( EXIT_FAILURE );
+      }
+   } else {
+   // no point in copying a partial F matrix from this batch
+//      // copy gpu to cpu to test later against ref
+//      CUDA_GPU_ERR_CHECK( cudaMemcpy(
+//         F.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
+   }
+
 
    CUBLAS_GPU_ERR_CHECK( cublasDestroy(cublas_handle) );
    CUDA_GPU_ERR_CHECK( cudaFree(OUT_dev) );

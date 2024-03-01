@@ -2,12 +2,24 @@
 #include "AIS.h"
 #include "util.h"
 #include "timer.h"
+#include <cassert>
+#include <unordered_map>
+#include <tuple>
 
 
 using std::cout;
 using std::cerr;
 using std::cout;
 using std::cin;
+
+// A hash function used to hash a tuple 
+struct hash_tuple { 
+    size_t operator()( const std::tuple<int,int,int,int>& x) const{ 
+        return ((std::get<0>(x)*1024 + std::get<1>(x))*1024 + std::get<2>(x)) * 1024 + std::get<3>(x);
+    } 
+};
+
+
 
 int main(int argc, char** argv){
 
@@ -64,6 +76,70 @@ for (int ienv=0; ienv < env_size; ienv++ ){
    env.push_back(tmp);
 }
 
+// TODO FIXME
+//int MAX_SET = 16;
+//int MAX_ATM = 8;
+typedef std::tuple<int,int,int,int> four_ints;
+std::unordered_map< four_ints, unsigned int, hash_tuple > offset_set;
+std::unordered_map< four_ints, unsigned int, hash_tuple > ld_set;
+//unsigned int offset_set[MAX_SET][MAX_SET][MAX_ATM][MAX_ATM];
+//unsigned int ld_set[MAX_SET][MAX_SET][MAX_ATM][MAX_ATM];
+
+std::vector<double> SpDm;
+std::vector<double> SpKS;
+std::vector<double> DeDm;
+std::vector<double> F_from_pyscf;
+std::vector<double> my_F;
+
+if ( mode == 'C' ){
+   int len_offset;
+   cin >> len_offset;
+   for ( int uff=0; uff < len_offset; uff++ ){
+      int set_i, set_j, atom_i,atom_j;
+      unsigned int off,ld;
+      cin >> set_i >> set_j >> atom_i >> atom_j >> off >> ld ;
+//      assert( set_i < MAX_SET );
+//      assert( set_j < MAX_SET );
+//      assert( atom_i < MAX_ATM );
+//      assert( atom_j < MAX_ATM );
+      offset_set[four_ints(set_i,set_j,atom_i,atom_j)] = off;
+      ld_set[four_ints(set_i,set_j,atom_i,atom_j)] = ld; 
+//      offset_set[set_i][set_j][atom_i][atom_j] = off;
+//      ld_set[set_i][set_j][atom_i][atom_j] = ld;
+   }
+
+   int len_SpDm;
+   cin >> len_SpDm;
+   for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
+      double dm;
+      cin >> dm;
+      SpDm.push_back(dm);
+   }
+
+   int len_SpKS;
+   cin >> len_SpKS;
+   for( int idx_SpKS=0; idx_SpKS < len_SpKS; idx_SpKS++ ){
+      double ks;
+      cin >> ks;
+      SpKS.push_back(ks);
+   }
+
+   int len_DeDm;
+   cin >> len_DeDm;
+   for( int idx_DeDm=0; idx_DeDm < len_DeDm*len_DeDm; idx_DeDm++ ){
+      double dm;
+      cin >> dm;
+      DeDm.push_back(dm);
+   }
+
+   for( int idx=0; idx < len_DeDm*len_DeDm; idx++ ){
+      double dm;
+      cin >> dm;
+      F_from_pyscf.push_back(dm);
+   }
+}
+
+
 int int_size;
 cin >> int_size ;
 
@@ -81,6 +157,11 @@ double PCells[3] = {0.,0.,0.};
 bool periodic = false;
 
 AIS ais;
+ais.set_P ( SpDm );
+// Since we all always adding to F, it is important that it starts from a value of zero
+my_F.resize( SpKS.size(), 0.0 );
+ais.set_K ( my_F );
+
 ais.show_state();
 ais.periodic = periodic;
 for( int uff=0; uff < 9 ; uff++){
@@ -131,7 +212,6 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          ais.setCl( lc, nlc, Kc );
       }
 
-
       double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
       int ld_min = bas[l*8+1];
       int ld_max = bas[l*8+1];
@@ -144,6 +224,88 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          int nld = bas[l*8+3];
          double* Kd = &env[bas[l*8+6]];
          ais.setDl( ld, nld, Kd );
+      }
+
+      int atom_i = bas[i*8+0];
+      int atom_j = bas[j*8+0];
+      int atom_k = bas[k*8+0];
+      int atom_l = bas[l*8+0];
+      bool screened_by_symm = false;
+      if ( atom_i > atom_j ){ screened_by_symm = true; }
+      if ( atom_k > atom_l ){ screened_by_symm = true; }
+      if ( not ( (atom_k+atom_l) <= (atom_i+atom_j)) ){ screened_by_symm = true; }
+      if ( ((atom_i + atom_j) == (atom_k + atom_l)) and (atom_k < atom_i) ){ screened_by_symm = true; }
+
+      int offset_ac_atom = 0; // should be given by the dbscr system. We just use a big set,set,atom,atom matrix for simplicity
+      int offset_ad_atom = 0;
+      int offset_bc_atom = 0;
+      int offset_bd_atom = 0;
+
+      int ikind = atom_i; // no real kind in pyscf, use atom index as proxy
+      int jkind = atom_j;
+      int kkind = atom_k;
+      int lkind = atom_l;
+
+      double symm_fac = 0.5;
+
+      if (atom_i == atom_j) { symm_fac *= 2.0; }
+      if (atom_k == atom_l) { symm_fac *= 2.0; }
+      if (atom_i == atom_k and atom_j == atom_l and atom_i != atom_j and atom_k != atom_l) { symm_fac *= 2.0; }
+      if (atom_i == atom_k and atom_i == atom_j and atom_k == atom_l ) { symm_fac *= 2.0; }
+      symm_fac = 1.0/symm_fac;
+      if ( screened_by_symm ) { symm_fac = 0.0; }
+
+      unsigned int offset_bd_L_set, offset_bc_L_set, offset_ad_L_set, offset_ac_L_set;
+      int ld_bd_set, ld_bc_set, ld_ad_set, ld_ac_set;
+      int Tbd, Tbc, Tad, Tac;
+      // bd
+
+      if ( atom_j >= atom_l ){
+         four_ints set_atom(j,l,jkind,lkind);
+         offset_bd_L_set = offset_bd_atom + offset_set[set_atom]; // ## no multi L set in pyscf
+         ld_bd_set = ld_set[set_atom];
+         Tbd = false;
+      } else { 
+         four_ints set_atom(l,j,lkind,jkind);
+         offset_bd_L_set = offset_bd_atom + offset_set[set_atom];
+         ld_bd_set = ld_set[set_atom];
+         Tbd = true;
+      }
+      // bc
+      if ( atom_j >= atom_k ){
+         four_ints set_atom(j,k,jkind,kkind);
+         offset_bc_L_set = offset_bc_atom + offset_set[set_atom];
+         ld_bc_set = ld_set[set_atom];
+         Tbc = false;
+      } else {
+         four_ints set_atom(k,j,kkind,jkind);
+         offset_bc_L_set = offset_bc_atom + offset_set[set_atom];
+         ld_bc_set = ld_set[set_atom];
+         Tbc = true;
+      }
+      // ad
+      if ( atom_i >= atom_l ){
+         four_ints set_atom(i,l,ikind,lkind);
+         offset_ad_L_set = offset_ad_atom + offset_set[set_atom];
+         ld_ad_set = ld_set[set_atom];
+         Tad = false;
+      } else {
+         four_ints set_atom(l,i,lkind,ikind);
+         offset_ad_L_set = offset_ad_atom + offset_set[set_atom];
+         ld_ad_set = ld_set[set_atom];
+         Tad = true;
+      }
+      // ac
+      if ( atom_i >= atom_k ){
+         four_ints set_atom(i,k,ikind,kkind);
+         offset_ac_L_set = offset_ac_atom + offset_set[set_atom];
+         ld_ac_set = ld_set[set_atom];
+         Tac = false;
+      } else {
+         four_ints set_atom(k,i,kkind,ikind);
+         offset_ac_L_set = offset_ac_atom + offset_set[set_atom];
+         ld_ac_set = ld_set[set_atom];
+         Tac = true;
       }
 
       bool set_is_screened = true;
@@ -231,10 +393,21 @@ for ( int j = 0 ; j < nbas ; j ++ ){
             int nlc = bas[k*8+3];
             int nld = bas[l*8+3];
             ais.add_qrt(la,lb,lc,ld, nla,nlb,nlc,nld );
+            for( int inla = 0 ; inla < nla; inla++ ){
+            for( int inlb = 0 ; inlb < nlb; inlb++ ){
+            for( int inlc = 0 ; inlc < nlc; inlc++ ){
+            for( int inld = 0 ; inld < nld; inld++ ){
+               ais.add_qrtt(
+                  symm_fac, la,lb,lc,ld, 
+                  inla,inlb,inlc,inld,
+                  ld_ac_set,ld_ad_set,ld_bc_set,ld_bd_set, 
+                  offset_ac_L_set,offset_ad_L_set,
+                  offset_bc_L_set,offset_bd_L_set,
+                  Tac,Tad,Tbc,Tbd );
+            }}}}
          }}}}
          ais.add_set();
       }
-
 
       bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
       if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
@@ -261,7 +434,8 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   nerrors++;
                   double ratio = 1.0;
                   if ( abs(ref) > 0. ){ ratio = val / ref ; }
-                  cout << " CPU - REF: Error at " << i << " " << val << " " << ref << " " << diff << " " << ratio << " " << endl ;
+                  cout << " I: CPU - REF: Error at " << i << " " << val << " " << ref 
+                       << " " << diff << " " << ratio << " " << endl ;
                   if ( nerrors >= 100 ){
                      cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
                      return EXIT_FAILURE ;
@@ -269,8 +443,8 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                }
             }
     
-            cout << "E[ CPU-REF ] " << diff_sum / Nval << endl;
-            cout << "E[|CPU-REF|] " << adiff_sum / Nval << endl;
+            cout << "I: E[ CPU-REF ] " << diff_sum / Nval << endl;
+            cout << "I: E[|CPU-REF|] " << adiff_sum / Nval << endl;
             if ( nerrors > 0 ){ return EXIT_FAILURE ; }
          }
       }
@@ -279,6 +453,86 @@ for ( int j = 0 ; j < nbas ; j ++ ){
 }} // bas ab
 
 timer.stop();
+
+// gets the KS
+std::vector<double> my_final_F = ais.get_K( );
+// stupid symmetry operator(s)
+for ( int iset = 0 ; iset < nbas ; iset ++ ){
+for ( int jset = 0 ; jset < nbas ; jset ++ ){
+   int atom_i = bas[iset*8+0];
+   int atom_j = bas[jset*8+0];
+   if ( atom_i == atom_j ){
+      int li = bas[iset*8+1];
+      int nli = bas[iset*8+3];
+      int di = (2*li+1)*nli;
+            
+      int lj = bas[jset*8+1];
+      int nlj = bas[jset*8+3];
+      int dj = (2*lj+1)*nlj;
+            
+      int i = offset_set[four_ints(iset,jset,atom_i,atom_j)];
+      for ( int ma = 0; ma < di; ma++ ){
+         int j = offset_set[four_ints(jset,iset,atom_j,atom_i)] + ma;
+         for ( int mb = 0; mb < dj; mb++ ){
+            if ( i > j ){
+               my_final_F[i] = my_final_F[i] + my_final_F[j];
+               my_final_F[j] = my_final_F[i];
+            }
+            i += 1;
+            j += di;
+         }
+      }
+   }
+}}
+// Applies a 0.5 factor to off-diagonal elements by multiplying by 0.5 and then doubling the diagonal
+for ( int i=0; i < my_final_F.size() ; i++ ){ my_final_F[i] *= 0.5; }
+for ( int iset = 0 ; iset < nbas ; iset ++ ){
+   int atom_i = bas[iset*8+0];
+   int li = bas[iset*8+1];
+   int nli = bas[iset*8+3];
+   int di = (2*li+1) * nli;
+   int i0 = offset_set[four_ints(iset,iset,atom_i,atom_i)];
+   for ( int ma = 0; ma < di; ma++ ){
+      int i = i0 + ma * di + ma;
+      my_final_F[i] *= 2.;
+   }
+}
+
+
+if ( mode == 'C' ){
+   cout << " Testing KS " << endl;
+   cout.flush();
+   int nerrors = 0;
+   double diff_sum = 0.0;
+   double adiff_sum = 0.0;
+   int Nval = int( my_final_F.size());
+   for(int i=0; i < Nval; i++ ){
+      double ref = SpKS[i];
+      double val = my_final_F[i];
+      double diff = ref - val;
+      double adiff = abs(diff);
+      diff_sum += diff;
+      adiff_sum += adiff;
+
+      if ( adiff > 1.e-12 ){
+         nerrors++;
+         double ratio = 1.0;
+         if ( abs(ref) > 0. ){ ratio = val / ref ; }
+         cout << " F: CPU - REF: Error at " << i << " " << val << " " << ref
+              << " " << diff << " " << ratio << " " << endl ;
+         if ( nerrors >= 100 ){
+            cout << " F: TOO MANY ERRORS ! EXITING NOW " << endl;
+            return EXIT_FAILURE ;
+         }
+      }
+   }
+
+   cout << "F: E[ CPU-REF ] " << diff_sum / Nval << endl;
+   cout << "F: E[|CPU-REF|] " << adiff_sum / Nval << endl;
+   if ( nerrors > 0 ){ return EXIT_FAILURE ; }
+
+}
+
 // ais.show_state();
 if ( mode == 'P' ){ ais.report_througput(); }
 

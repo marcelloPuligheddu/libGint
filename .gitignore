@@ -1,0 +1,12 @@
+src/*.o
+src/*.out
+src/*.nsys-rep
+
+
+src/perf.data
+src/perf.data.old
+src/performance_test.inp
+src/reference.dat
+src/test_libGint
+
+

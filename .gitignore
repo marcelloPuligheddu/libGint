@@ -1,7 +1,7 @@
 src/*.o
 src/*.out
 src/*.nsys-rep
-
+src/*.sqlite
 
 src/perf.data
 src/perf.data.old

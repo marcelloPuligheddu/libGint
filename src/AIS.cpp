@@ -497,18 +497,18 @@ void AIS::dispatch( bool skip_cpu ){
       cout << " OUT DAT SCRT PLAN PMI FVH SPH KS TRA AUX FK TOT" << endl;
       first = false;
    }
-   cout << OUT.size()*sizeof(double) *1.e-6 << " ";
-   cout << ua.internal_buffer.size()*sizeof(double) *1.e-6 << " ";
-   cout << sizeof(double)*max_integral_scratch_size *1.e-6 << " ";
-   cout << sizeof(int)*max_plan_size          *1.e-6 << "  ";
-   cout << sizeof(unsigned int)*max_PMI_size  *1.e-6 << "  "; 
-   cout << sizeof(unsigned int)*max_FVH_size  *1.e-6 << "  ";
-   cout << sizeof(unsigned int)*max_SPH_size  *1.e-6 << "  ";
-   cout << sizeof(unsigned int)*max_KS_size   *1.e-6 << "  ";
-   cout << sizeof(unsigned int)*max_TRA_size  *1.e-6 << "  ";
-   cout << sizeof(unsigned int)*(9+nelem+245) *1.e-6 << "  "; 
-   cout << 2 * sizeof(double)*(FP_size)       *1.e-6 << "  "; 
-   cout << tot_mem *1.e-6 << endl;
+   cout << int( OUT.size()*sizeof(double) *1.e-6 ) << " ";
+   cout << int( ua.internal_buffer.size()*sizeof(double) *1.e-6 ) << " ";
+   cout << int( sizeof(double)*max_integral_scratch_size *1.e-6 ) << " ";
+   cout << int( sizeof(int)*max_plan_size          *1.e-6 ) << "  ";
+   cout << int( sizeof(unsigned int)*max_PMI_size  *1.e-6 ) << "  "; 
+   cout << int( sizeof(unsigned int)*max_FVH_size  *1.e-6 ) << "  ";
+   cout << int( sizeof(unsigned int)*max_SPH_size  *1.e-6 ) << "  ";
+   cout << int( sizeof(unsigned int)*max_KS_size   *1.e-6 ) << "  ";
+   cout << int( sizeof(unsigned int)*max_TRA_size  *1.e-6 ) << "  ";
+   cout << int( sizeof(unsigned int)*(9+nelem+245) *1.e-6 ) << "  "; 
+   cout << int( 2 * sizeof(double)*(FP_size)       *1.e-6 ) << "  "; 
+   cout << int( tot_mem *1.e-6 ) << endl;
 
    std::vector<double> integral_scratch(max_integral_scratch_size);
 
@@ -854,8 +854,10 @@ T sum( std::vector< T > x ){
    return ret;
 }
 
-void AIS::report_througput(){
-   cout << " la lb lc ld L OUT(MB) CPU_Throughput(GB/s) GPU_Throughput(GB/s) " << endl;
+void AIS::report_througput(bool skip_cpu){
+   cout << " la lb lc ld L OUT(MB) ";
+   if ( not skip_cpu ) { cout << "CPU_Throughput(GB/s) " ; }
+   cout << " GPU_Throughput(GB/s) " << endl;
    for ( auto L : all_moments ){
 
       int la,lb,lc,ld,labcd;
@@ -870,7 +872,9 @@ void AIS::report_througput(){
       double avg_thr_gpu = sum_output_size / sum_times_gpu * sizeof(double) / 1.e3;
 
       cout << la << " " << lb << " " << lc << " " << ld << " " << labcd << " " ;
-      cout << sum_output_size / 1.e6 << " " << avg_thr_cpu << " " << avg_thr_gpu ;
+      cout << sum_output_size / 1.e6 << " " ;
+      if ( not skip_cpu ) { cout << avg_thr_cpu << " " ; }
+      cout << avg_thr_gpu ;
       cout << endl;
 
    }

@@ -102,12 +102,43 @@ with open(output_file_name, "w") as output_file_handle:
    np.savetxt(output_file_handle, np.array([len(mol_h2o._env)]), fmt="%i")
    np.savetxt(output_file_handle, mol_h2o._env, fmt="%.30f")
 
-#   np.savetxt(output_file_handle, np.array([len(ijkl.flatten())]), fmt="%i")
+   offset_set = defaultdict(int)
+   lda_set = defaultdict(int)
+   bas = mol_h2o._bas
+   istart = 0
+   curr_offset = 0
 
+   for set_i in range(len(bas)):
+       atom_a = bas[set_i][0]
+       li = bas[set_i][1]
+       nli = bas[set_i][3]
+       di = (2*li+1) * nli
+       ifinish = istart + di
+       jstart = 0
+       for set_j in range(len(bas)):
+           atom_b = bas[set_j][0]
+           lj = bas[set_j][1]
+           nlj = bas[set_j][3]
+           dj = (2*lj+1) * nlj
+           jfinish = jstart + dj
+           if atom_a >= atom_b:
+               offset_set[set_i, set_j, atom_a, atom_b] = curr_offset
+               lda_set[set_i, set_j, atom_a, atom_b] = dj
+               curr_offset += di*dj
+           jstart += dj
+       istart += di
 
+   ## prints the structure of the density matrix
+   np.savetxt(output_file_handle, np.array([len(offset_set)]), fmt="%i")
+   for set_i, set_j, atom_a, atom_b in offset_set:
+      off = offset_set[set_i, set_j, atom_a, atom_b]
+      ld = lda_set[set_i, set_j, atom_a, atom_b]
+      output_file_handle.write( " ".join( [ str(x) for x in [set_i, set_j, atom_a, atom_b, off, ld]] ) )
+      output_file_handle.write( "\n" )
 
+   np.savetxt(output_file_handle, np.array([curr_offset]), fmt="%i")
 
-
+   np.savetxt(output_file_handle, np.array([len(bas)**4]), fmt="%i")
 
 
 

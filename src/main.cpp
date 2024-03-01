@@ -5,7 +5,8 @@
 #include <cassert>
 #include <unordered_map>
 #include <tuple>
-
+#include <cstdlib>
+#include <ctime>
 
 using std::cout;
 using std::cerr;
@@ -76,40 +77,29 @@ for (int ienv=0; ienv < env_size; ienv++ ){
    env.push_back(tmp);
 }
 
-// TODO FIXME
-//int MAX_SET = 16;
-//int MAX_ATM = 8;
 typedef std::tuple<int,int,int,int> four_ints;
 std::unordered_map< four_ints, unsigned int, hash_tuple > offset_set;
 std::unordered_map< four_ints, unsigned int, hash_tuple > ld_set;
-//unsigned int offset_set[MAX_SET][MAX_SET][MAX_ATM][MAX_ATM];
-//unsigned int ld_set[MAX_SET][MAX_SET][MAX_ATM][MAX_ATM];
 
 std::vector<double> SpDm;
 std::vector<double> SpKS;
-std::vector<double> DeDm;
-std::vector<double> F_from_pyscf;
 std::vector<double> my_F;
 
-if ( mode == 'C' ){
-   int len_offset;
-   cin >> len_offset;
-   for ( int uff=0; uff < len_offset; uff++ ){
-      int set_i, set_j, atom_i,atom_j;
-      unsigned int off,ld;
-      cin >> set_i >> set_j >> atom_i >> atom_j >> off >> ld ;
-//      assert( set_i < MAX_SET );
-//      assert( set_j < MAX_SET );
-//      assert( atom_i < MAX_ATM );
-//      assert( atom_j < MAX_ATM );
-      offset_set[four_ints(set_i,set_j,atom_i,atom_j)] = off;
-      ld_set[four_ints(set_i,set_j,atom_i,atom_j)] = ld; 
-//      offset_set[set_i][set_j][atom_i][atom_j] = off;
-//      ld_set[set_i][set_j][atom_i][atom_j] = ld;
-   }
 
-   int len_SpDm;
-   cin >> len_SpDm;
+int len_offset;
+cin >> len_offset;
+for ( int uff=0; uff < len_offset; uff++ ){
+   int set_i, set_j, atom_i,atom_j;
+   unsigned int off,ld;
+   cin >> set_i >> set_j >> atom_i >> atom_j >> off >> ld ;
+   offset_set[four_ints(set_i,set_j,atom_i,atom_j)] = off;
+   ld_set[four_ints(set_i,set_j,atom_i,atom_j)] = ld; 
+}
+
+int len_SpDm;
+cin >> len_SpDm;
+
+if ( mode == 'C' ){
    for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
       double dm;
       cin >> dm;
@@ -123,19 +113,13 @@ if ( mode == 'C' ){
       cin >> ks;
       SpKS.push_back(ks);
    }
+}
 
-   int len_DeDm;
-   cin >> len_DeDm;
-   for( int idx_DeDm=0; idx_DeDm < len_DeDm*len_DeDm; idx_DeDm++ ){
-      double dm;
-      cin >> dm;
-      DeDm.push_back(dm);
-   }
-
-   for( int idx=0; idx < len_DeDm*len_DeDm; idx++ ){
-      double dm;
-      cin >> dm;
-      F_from_pyscf.push_back(dm);
+if ( mode == 'P' ){
+   std::srand(std::time(nullptr));
+   for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
+      SpDm.push_back( std::rand() / (RAND_MAX + 1u) );
+      SpKS.push_back( std::rand() / (RAND_MAX + 1u) );
    }
 }
 
@@ -534,7 +518,7 @@ if ( mode == 'C' ){
 }
 
 // ais.show_state();
-if ( mode == 'P' ){ ais.report_througput(); }
+if ( mode == 'P' ){ ais.report_througput(skip_cpu); }
 
 return EXIT_SUCCESS;
 }

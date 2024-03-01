@@ -64,8 +64,8 @@ mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0; O 2 2 2; H 0 4 2; H
 #mol_h2o.basis = {'O': [[0,[1.,1.]], [2,[1.,1.]]]}
 #mol_h2o.basis = {'O': [[4,[1.,1.]], [2,[1.5,1.],[0.5,0.5]], [3,[1.,1.],[0.1,0.1]]],'H': [[1,[2.5,1.]], [0,[2.,1.],[0.1,1.0],[1.4,0.7]]] }
 #mol_h2o.basis = {'O': [[2,[1.,1.],[0.5,0.5],[0.3,0.3]]], 'H': [[0,[1.,1.],[.5,.5]]] }
-#mol_h2o.basis = '631++g**'
-mol_h2o.basis = '631g'
+mol_h2o.basis = '631++g**'
+#mol_h2o.basis = '631g'
 #mol_h2o.basis = 'ccpvdz'
 mol_h2o.build()
 
@@ -144,12 +144,12 @@ with open(output_file_name, "w") as output_file_handle:
    np.savetxt(output_file_handle, np.array([len(SparseFock)]), fmt="%i")
    np.savetxt(output_file_handle, SparseFock, fmt="%.30f")
 
-   ## Prints the dense density from pyscf
-   np.savetxt(output_file_handle, np.array([P_from_pyscf.shape[0]]), fmt="%i")
-   np.savetxt(output_file_handle, P_from_pyscf.flatten(), fmt="%.30f")
+#   ## Prints the dense density from pyscf
+#   np.savetxt(output_file_handle, np.array([P_from_pyscf.shape[0]]), fmt="%i")
+#   np.savetxt(output_file_handle, P_from_pyscf.flatten(), fmt="%.30f")
 
-   ## Prints the dense Fock from pyscf
-   np.savetxt(output_file_handle, F_from_pyscf.flatten(), fmt="%.30f")
+#   ## Prints the dense Fock from pyscf
+#   np.savetxt(output_file_handle, F_from_pyscf.flatten(), fmt="%.30f")
 
    ## now write the integrals
    np.savetxt(output_file_handle, np.array([len(ijkl.flatten())]), fmt="%i")

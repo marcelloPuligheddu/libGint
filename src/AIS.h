@@ -82,7 +82,7 @@ class AIS {
    std::vector<double> OUT;
    bool periodic = false;
    void show_state();
-   void report_througput();
+   void report_througput(bool skip_gpu);
 //   private:
 
    void reset_indices();

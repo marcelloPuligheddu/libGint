@@ -153,62 +153,84 @@ for( int uff=0; uff < 9 ; uff++){
 }
 
 for ( int i = 0 ; i < nbas ; i ++ ){
-for ( int j = 0 ; j < nbas ; j ++ ){
-
    double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
-   double* RB = &env[ atm[ bas[j*8+0]*6+1 ]];
    int la_min = bas[i*8+1];
-   int lb_min = bas[j*8+1];
    int la_max = bas[i*8+1];
-   int lb_max = bas[j*8+1];
    int nza = bas[i*8+2];
-   int nzb = bas[j*8+2];
    double* Za = &env[bas[i*8+5]];
-   double* Zb = &env[bas[j*8+5]];
-   ais.setA(RA,Za,nza);
-   ais.setB(RB,Zb,nzb);
-   ais.clearAl();
-   ais.clearBl();
+   ais.setA(i, RA, Za, nza);
    for ( int la = la_min; la <= la_max; la++){
       int nla = bas[i*8+3];
       double* Ka = &env[bas[i*8+6]];
-      ais.setAl( la, nla, Ka );
+      ais.setAl(i, la, nla, Ka );
    }
+}
+
+for ( int j = 0 ; j < nbas ; j ++ ){
+   double* RB = &env[ atm[ bas[j*8+0]*6+1 ]];
+   int lb_min = bas[j*8+1];
+   int lb_max = bas[j*8+1];
+   int nzb = bas[j*8+2];
+   double* Zb = &env[bas[j*8+5]];
+   ais.setB(j, RB, Zb, nzb);
    for ( int lb = lb_min; lb <= lb_max; lb++){
       int nlb = bas[j*8+3];
       double* Kb = &env[bas[j*8+6]];
-      ais.setBl( lb, nlb, Kb );
+      ais.setBl(j, lb, nlb, Kb );
    }
+}
 
-   for ( int k = 0 ; k < nbas ; k ++ ){
-   for ( int l = 0 ; l < nbas ; l ++ ){
+for ( int k = 0 ; k < nbas ; k ++ ){
+   double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
+   int lc_min = bas[k*8+1];
+   int lc_max = bas[k*8+1];
+   int nzc = bas[k*8+2];
+   double* Zc = &env[bas[k*8+5]];
+   ais.setC(k, RC, Zc, nzc );
+   for ( int lc = lc_min; lc <= lc_max; lc++){
+      int nlc = bas[k*8+3];
+      double* Kc = &env[bas[k*8+6]];
+      ais.setCl(k, lc, nlc, Kc );
+   }
+}
 
-      double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
-      int lc_min = bas[k*8+1];
-      int lc_max = bas[k*8+1];
-      int nzc = bas[k*8+2];
-      double* Zc = &env[bas[k*8+5]];
-      ais.setC(RC, Zc, nzc );
-      ais.clearCl();
-      for ( int lc = lc_min; lc <= lc_max; lc++){
-         int nlc = bas[k*8+3];
-         double* Kc = &env[bas[k*8+6]];
-         ais.setCl( lc, nlc, Kc );
-      }
+for ( int l = 0 ; l < nbas ; l ++ ){
+   double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
+   int ld_min = bas[l*8+1];
+   int ld_max = bas[l*8+1];
+   int nzd = bas[l*8+2];
+   double* Zd = &env[bas[l*8+5]];
+   ais.setD(l, RD, Zd, nzd );
+   for ( int ld = ld_min; ld <= ld_max; ld++){
+      int nld = bas[l*8+3];
+      double* Kd = &env[bas[l*8+6]];
+      ais.setDl(l, ld, nld, Kd );
+   }
+}
 
-      double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
-      int ld_min = bas[l*8+1];
-      int ld_max = bas[l*8+1];
-      int nzd = bas[l*8+2];
-      double* Zd = &env[bas[l*8+5]];
+for ( int i = 0 ; i < nbas ; i ++ ){
+   double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
+   int la_min = bas[i*8+1];
+   int la_max = bas[i*8+1];
+   int nza = bas[i*8+2];
+for ( int j = 0 ; j < nbas ; j ++ ){
+   double* RB = &env[ atm[ bas[j*8+0]*6+1 ]];
+   int lb_min = bas[j*8+1];
+   int lb_max = bas[j*8+1];
+   int nzb = bas[j*8+2];
+for ( int k = 0 ; k < nbas ; k ++ ){
+   double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
+   int lc_min = bas[k*8+1];
+   int lc_max = bas[k*8+1];
+   int nzc = bas[k*8+2];
+for ( int l = 0 ; l < nbas ; l ++ ){
+   double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
+   int ld_min = bas[l*8+1];
+   int ld_max = bas[l*8+1];
+   int nzd = bas[l*8+2];
 
-      ais.setD(RD, Zd, nzd );
-      ais.clearDl();
-      for ( int ld = ld_min; ld <= ld_max; ld++){
-         int nld = bas[l*8+3];
-         double* Kd = &env[bas[l*8+6]];
-         ais.setDl( ld, nld, Kd );
-      }
+
+      // TODO: split the calculation of symm k, Tbd offset and ld to functions
 
       int atom_i = bas[i*8+0];
       int atom_j = bas[j*8+0];
@@ -300,8 +322,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          double RBp[3] = {RB[0]+R1[0], RB[1]+R1[1], RB[2]+R1[2] };
          double AB[3] = {RA[0]-RBp[0], RA[1]-RBp[1], RA[2]-RBp[2]};
 
-
-         ais.moveB(RBp);
+//         ais.moveB(RBp);
 
          for (int n2=n2_min; n2 <= n2_max ; n2++){
 
@@ -328,32 +349,33 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   RDp[1] = RD[1];
                   RDp[2] = RD[2];
                }
-               bool cell_is_screened = true;
-               ais.moveC(RCp);
-               ais.moveD(RDp);
 
+//               ais.moveC(RCp);
+//               ais.moveD(RDp);
+
+               bool cell_is_screened = true;
                for( int iza=0; iza < nza ; iza++){
                for( int izb=0; izb < nzb ; izb++){
-//                  double za = env[bas[i*8+5]+iza];
-//                  double zb = env[bas[j*8+5]+izb];
-//                  double zab = za+zb;
-//                  double P[3] = {0.,0.,0.};
-//                  compute_weighted_distance(P,RA,RBp,za,zb,zab);
+                  double za = env[bas[i*8+5]+iza];
+                  double zb = env[bas[j*8+5]+izb];
+                  double zab = za+zb;
+                  double P[3] = {0.,0.,0.};
+                  compute_weighted_distance(P,RA,RBp,za,zb,zab);
 
                   for( int izc=0; izc < nzc ; izc++){
                   for( int izd=0; izd < nzd ; izd++){
-//                     double zc = env[bas[k*8+5]+izc];
-//                     double zd = env[bas[l*8+5]+izd];
-//                     double zcd = zc + zd;
-//                     double Q[3] = {0.,0.,0.};
-//                     compute_weighted_distance(Q,RCp,RDp,zc,zd,zcd);
-   //                  double PQ0[3] = {P[0]-Q[0], P[1]-Q[1], P[2]-Q[2]};
+                     double zc = env[bas[k*8+5]+izc];
+                     double zd = env[bas[l*8+5]+izd];
+                     double zcd = zc + zd;
+                     double Q[3] = {0.,0.,0.};
+                     compute_weighted_distance(Q,RCp,RDp,zc,zd,zcd);
+                     double PQ0[3] = {P[0]-Q[0], P[1]-Q[1], P[2]-Q[2]};
 
-//                     int n123[3] = {0,0,0};
+//                     int shift[3] = {0,0,0};
 //                     if (periodic){ }
 
-//                     ais.add_prm(iza,izb,izc,izd,n123[0],n123[1],n123[2]);
-                     ais.add_prm(iza,izb,izc,izd,0,0,0);
+//                     ais.add_prm(iza,izb,izc,izd,shift[0],[1],[2]);
+                     ais.add_prm(iza,izb,izc,izd,n3,0,0);
 
                      cell_is_screened = false;
                      set_is_screened = false;
@@ -361,7 +383,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                }} // za,zb
 
                if ( not cell_is_screened ) {
-                  ais.add_shell();
+                  ais.add_shell(i,j,k,l,n1,n2);
                }
                ais.add_cell();
             } // R3
@@ -376,7 +398,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
             int nlb = bas[j*8+3];
             int nlc = bas[k*8+3];
             int nld = bas[l*8+3];
-            ais.add_qrt(la,lb,lc,ld, nla,nlb,nlc,nld );
+            ais.add_qrt(la,lb,lc,ld, nla,nlb,nlc,nld);
             for( int inla = 0 ; inla < nla; inla++ ){
             for( int inlb = 0 ; inlb < nlb; inlb++ ){
             for( int inlc = 0 ; inlc < nlc; inlc++ ){

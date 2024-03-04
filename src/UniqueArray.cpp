@@ -53,11 +53,18 @@ size_t hash_doubles( const double* const x, size_t l ){
 UniqueArray::UniqueArray(){
    internal_buffer = std::vector<double>() ;
    hm = std::unordered_map<size_t,size_t>();
+   count = 0;
 }
 
 // First horrible inefficient implementation
-unsigned int UniqueArray::add( const double* const values, const int & size ){
+unsigned int UniqueArray::add( const double* const __restrict__ values, const int & size ){
 
+      if ( count % 1 == 0 ){
+         cout << " Add iter # " << count ;
+         for( int i=0; i < size; i++ ){ cout << " " << values[i] ; }
+         cout << endl;
+      }
+      count++;
       size_t h;
       if ( size == 3 ){
          h = hash_3doubles(values);
@@ -70,6 +77,7 @@ unsigned int UniqueArray::add( const double* const values, const int & size ){
       unsigned int prev_size = (unsigned int) internal_buffer.size();
       hm.insert({ h, prev_size });
       internal_buffer.insert(internal_buffer.end(), values, values+size );
+
       return prev_size;
 /*
       unsigned int prev_size = (unsigned int) internal_buffer.size();

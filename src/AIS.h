@@ -46,7 +46,7 @@ class AIS {
    public:
    AIS(){}
    void add_prm ( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ) ;
-   void add_shell ();
+   void add_shell (int i, int j , int k, int l, int n1, int n2);
    void add_cell();
    int add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int nld );
    void add_qrtt(
@@ -57,22 +57,18 @@ class AIS {
          unsigned int offset_bc_L_set, unsigned int offset_bd_L_set, 
          bool Tac, bool Tad, bool Tbc, bool Tbd );
    void add_set();
-   void setA( double* A_,double*Za_,int npa_ );
-   void setB( double* B_,double*Zb_,int npb_ );
-   void setC( double* C_,double*Zc_,int npc_ );
-   void setD( double* D_,double*Zd_,int npd_ );
+   void setA( int i, double* A_,double*Za_,int npa_ );
+   void setB( int i,  double* B_,double*Zb_,int npb_ );
+   void setC( int k, double* C_,double*Zc_,int npc_ );
+   void setD( int l, double* D_,double*Zd_,int npd_ );
    void clearAl();
    void clearBl();
    void clearCl();
    void clearDl();
-   void setAl( int la_, int nla_, double* Ka_  );
-   void setBl( int lb_, int nlb_, double* Kb_  );
-   void setCl( int lc_, int nlc_, double* Kc_  );
-   void setDl( int ld_, int nld_, double* Kd_  );
-   void moveA( double * A );
-   void moveB( double * B );
-   void moveC( double * C );
-   void moveD( double * D );
+   void setAl( int i, int la_, int nla_, double* Ka_  );
+   void setBl( int j, int lb_, int nlb_, double* Kb_  );
+   void setCl( int k, int lc_, int nlc_, double* Kc_  );
+   void setDl( int l, int ld_, int nld_, double* Kd_  );
    void compute_max_vector_size();
    size_t memory_needed();
 
@@ -87,15 +83,12 @@ class AIS {
 
    void reset_indices();
 
-   double *A, *B, *C, *D;
-   double *Za, *Zb, *Zc, *Zd;
-   int npa, npb, npc, npd;
-   int nnla=0, nnlb=0, nnlc=0, nnld=0;
-   unsigned int idx_A, idx_B, idx_C, idx_D;
-   unsigned int idx_Za, idx_Zb, idx_Zc, idx_Zd;
-   std::vector<int> all_la,all_lb,all_lc,all_ld;
-   std::vector<int> all_nla,all_nlb,all_nlc,all_nld;
-   std::vector<unsigned int> all_idx_Ka, all_idx_Kb, all_idx_Kc, all_idx_Kd;
+   std::vector<int> npa, npb, npc, npd;
+   std::vector<unsigned int> idx_A, idx_B, idx_C, idx_D;
+   std::vector<unsigned int> idx_Za, idx_Zb, idx_Zc, idx_Zd;
+   std::vector<std::vector<int> > all_la,all_lb,all_lc,all_ld;
+   std::vector<std::vector<int> > all_nla,all_nlb,all_nlc,all_nld;
+   std::vector<std::vector< unsigned int>> all_idx_Ka, all_idx_Kb, all_idx_Kc, all_idx_Kd;
 
    double * K; // not owned by AIS
    double * P; // not owned by AIS

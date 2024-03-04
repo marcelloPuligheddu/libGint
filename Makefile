@@ -7,11 +7,11 @@ CXX := nvc++
 PY := python3
 
 # Compiler flags
-PROFLAGS := -p -pg
+#PROFLAGS := -p -pg
 ERRFLAGS := -Wall -Wextra -Werror -Wshadow -Wformat
 INCFLAGS := -I /usr/include/mkl/
 LIBFLAGS := -lcudart -lcublas -lblas -lmkl_rt
-CXXFLAGS := -O3 -std=c++14 -gpu=ccnative  -cuda $(PROFLAGS) $(ERRFLAGS) $(INCFLAGS) $(LIBFLAGS)
+CXXFLAGS := -O3 -tp=native -std=c++14 -gpu=ccnative  -cuda $(PROFLAGS) $(ERRFLAGS) $(INCFLAGS) $(LIBFLAGS)
 
 # CUDA architecture
 ARCH := -arch=sm_75
@@ -34,8 +34,8 @@ CU_OBJ := $(patsubst $(SRC_DIR)/%.cu,$(OBJ_DIR)/%.o,$(CU_SRC))
 TARGET := $(BIN_DIR)/ERI_TEST
 
 # Reference file generated using pyscf in script/CreateReference.py
-REFERENCE_FILE := reference.dat
-PERFORMANCE_FILE := performance_test.dat
+REFERENCE_FILE := $(SCP_DIR)/reference.dat
+PERFORMANCE_FILE := $(SCP_DIR)/performance_test.dat
 
 # Rule to compile C++ source files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp

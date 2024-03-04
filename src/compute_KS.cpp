@@ -75,6 +75,8 @@ void compute_KS(
 }
 
 
+__constant__ double symm_factors[5] = {2.0, 1.0, 0.5, 0.25, 0.0 };
+
 __global__ void compute_KS_gpu(
       const int Nqrtt,
       const unsigned int * const __restrict__ KS,
@@ -110,7 +112,8 @@ __global__ void compute_KS_gpu(
       decode4( Tall   , &Tac,  &Tad,  &Tbc,  &Tbd  );
 
       const int Oq = block * nsabcd ;
-      const double fac = data[idx_fac];
+      const double fac = symm_factors[idx_fac];
+      
       
       for ( int t = threadIdx.x ; t < nsabcd; t += blockDim.x ){
          const int isa =   t / nsbcd;

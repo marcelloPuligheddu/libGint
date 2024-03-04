@@ -14,6 +14,8 @@
 #include "fgamma.h"
 #include "AIS.h"
 #include "c2s.h"
+
+
 using std::max;
 
 void AIS::show_state(){
@@ -36,109 +38,119 @@ void AIS::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, c
    prm_tmp_list.push_back( piabcdxyz );
    prm_in_set++;
    prm++;
+
 }
 
+////////// A ////////
+void AIS::setA( int i, double* A_, double* Za_, int npa_ ){
+   if ( i >= idx_A.size() ){ idx_A.resize(i+1); }
+   if ( i >= idx_Za.size() ){ idx_Za.resize(i+1); }
+   if ( i >= npa.size() ){ npa.resize(i+1); }
 
-
-void AIS::setA( double* A_, double* Za_, int npa_ ){
-   A = A_;
-   Za = Za_;
-   npa = npa_;
-   idx_A = ua.add( A_, 3 );
-   idx_Za = ua.add( Za_, npa_ );
+   unsigned int tmp_idx_A = ua.add( A_, 3 );
+   unsigned int tmp_idx_Za = ua.add( Za_, npa_ );
+   idx_A[i] = tmp_idx_A;
+   idx_Za[i] = tmp_idx_Za;
+   npa[i] = npa_;
 }
+
 void AIS::clearAl(){
    all_la.clear();
    all_nla.clear();
    all_idx_Ka.clear();
-   nnla = 0;
-}
-void AIS::setAl( int la_, int nla_, double* Ka_ ){
-   all_la.push_back(la_);
-   all_nla.push_back(nla_);
-   all_idx_Ka.push_back( ua.add( Ka_, npa*nla_ ) );
-   nnla++;
-}
-void AIS::moveA(double* A_){
-   A = A_;
-   idx_A = ua.add( A_, 3 ); 
 }
 
-void AIS::setB( double* B_, double* Zb_, int npb_ ){
-   B = B_;
-   Zb = Zb_;
-   npb = npb_;
-   idx_B = ua.add( B_, 3 );
-   idx_Zb = ua.add( Zb_, npb_ );
+void AIS::setAl( int i, int la_, int nla_, double* Ka_ ){
+   if ( i >= all_la.size()     ){ all_la.resize( i+1 ); }
+   if ( i >= all_nla.size()    ){ all_nla.resize( i+1 ); }
+   if ( i >= all_idx_Ka.size() ){ all_idx_Ka.resize( i+1 ); }
+   all_la[i].push_back(la_);
+   all_nla[i].push_back(nla_);
+   all_idx_Ka[i].push_back( ua.add( Ka_, npa[i]*nla_ ) );
 }
+////////// B ////////
+void AIS::setB( int j, double* B_, double* Zb_, int npb_ ){
+   if ( j >= idx_B.size() ){ idx_B.resize( j+1 ); }
+   if ( j >= idx_Zb.size() ){ idx_Zb.resize( j+1 ); }
+   if ( j >= npb.size() ){ npb.resize( j+1 ); }
+   unsigned int tmp_idx_B = ua.add( B_, 3 );
+   unsigned int tmp_idx_Zb = ua.add( Zb_, npb_ );
+   idx_B[j] = tmp_idx_B;
+   idx_Zb[j] = tmp_idx_Zb;
+   npb[j] = npb_;
+}
+
 void AIS::clearBl(){
    all_lb.clear();
    all_nlb.clear();
    all_idx_Kb.clear();
-   nnlb = 0;
-}
-void AIS::setBl( int lb_, int nlb_, double* Kb_ ){
-   all_lb.push_back(lb_);
-   all_nlb.push_back(nlb_);
-   all_idx_Kb.push_back( ua.add( Kb_, npb*nlb_ ) );
-   nnlb++;
-}
-void AIS::moveB(double* B_){
-   B = B_;
-   idx_B = ua.add( B_, 3 ); 
 }
 
-void AIS::setC( double* C_, double* Zc_, int npc_ ){
-   C = C_;
-   Zc = Zc_;
-   npc = npc_;
-   idx_C = ua.add( C_, 3 );
-   idx_Zc = ua.add( Zc_, npc_ );
+void AIS::setBl( int j, int lb_, int nlb_, double* Kb_ ){
+   if ( j >= all_lb.size()     ){ all_lb.resize( j+1 ); }
+   if ( j >= all_nlb.size()    ){ all_nlb.resize( j+1 ); }
+   if ( j >= all_idx_Kb.size() ){ all_idx_Kb.resize( j+1 ); }
+   all_lb[j].push_back(lb_);
+   all_nlb[j].push_back(nlb_);
+   all_idx_Kb[j].push_back( ua.add( Kb_, npb[j]*nlb_ ) );
 }
+
+////////// C ////////
+void AIS::setC( int k, double* C_, double* Zc_, int npc_ ){
+   if ( k >= idx_C.size() ){ idx_C.resize( k+1 ); }
+   if ( k >= idx_Zc.size() ){ idx_Zc.resize( k+1 ); }
+   if ( k >= npc.size() ){ npc.resize( k+1 ); }
+   unsigned int tmp_idx_C = ua.add( C_, 3 );
+   unsigned int tmp_idx_Zc = ua.add( Zc_, npc_ );
+   idx_C[k] = tmp_idx_C;
+   idx_Zc[k] = tmp_idx_Zc;
+   npc[k] = npc_;
+}
+
 void AIS::clearCl(){
    all_lc.clear();
    all_nlc.clear();
    all_idx_Kc.clear();
-   nnlc = 0;
-}
-void AIS::setCl( int lc_, int nlc_, double* Kc_ ){
-   all_lc.push_back(lc_);
-   all_nlc.push_back(nlc_);
-   all_idx_Kc.push_back( ua.add( Kc_, npc*nlc_ ) );
-   nnlc++;
-}
-void AIS::moveC(double* C_){
-   C = C_;
-   idx_C = ua.add( C_, 3 ); 
 }
 
-void AIS::setD( double* D_, double* Zd_, int npd_ ){
-   D = D_;
-   Zd = Zd_;
-   npd = npd_;
-   idx_D = ua.add( D, 3 );
-   idx_Zd = ua.add( Zd, npd );
+void AIS::setCl( int k, int lc_, int nlc_, double* Kc_ ){
+   if ( k >= all_lc.size()     ){ all_lc.resize( k+1 ); }
+   if ( k >= all_nlc.size()    ){ all_nlc.resize( k+1 ); }
+   if ( k >= all_idx_Kc.size() ){ all_idx_Kc.resize( k+1 ); }
+   all_lc[k].push_back(lc_);
+   all_nlc[k].push_back(nlc_);
+   all_idx_Kc[k].push_back( ua.add( Kc_, npc[k]*nlc_ ) );
 }
+
+////////// D ////////
+void AIS::setD( int l, double* D_, double* Zd_, int npd_ ){
+   if ( l >= idx_D.size() ){ idx_D.resize( l+1 ); }
+   if ( l >= idx_Zd.size() ){ idx_Zd.resize( l+1 ); }
+   if ( l >= npd.size() ){ npd.resize( l+1 ); }
+   unsigned int tmp_idx_D = ua.add( D_, 3 );
+   unsigned int tmp_idx_Zd = ua.add( Zd_, npd_ );
+   idx_D[l] = tmp_idx_D;
+   idx_Zd[l] = tmp_idx_Zd;
+   npd[l] = npd_;
+}
+
 void AIS::clearDl(){
    all_ld.clear();
    all_nld.clear();
    all_idx_Kd.clear();
-   nnld = 0;
-}
-void AIS::setDl( int ld_, int nld_, double* Kd_ ){
-   all_ld.push_back(ld_);
-   all_nld.push_back(nld_);
-   all_idx_Kd.push_back( ua.add( Kd_, npd*nld_ ) );
-   nnld++;
-}
-void AIS::moveD(double* D_){
-   D = D_;
-   idx_D = ua.add( D_, 3 ); 
 }
 
+void AIS::setDl( int l, int ld_, int nld_, double* Kd_ ){
+   if ( l >= all_ld.size()     ){ all_ld.resize( l+1 ); }
+   if ( l >= all_nld.size()    ){ all_nld.resize( l+1 ); }
+   if ( l >= all_idx_Kd.size() ){ all_idx_Kd.resize( l+1 ); }
+   all_ld[l].push_back(ld_);
+   all_nld[l].push_back(nld_);
+   all_idx_Kd[l].push_back( ua.add( Kd_, npd[l]*nld_ ) );
+}
+///////////////////////
 
-
-void AIS::add_shell ( ){
+void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
 
    unsigned int n_prm = prm_tmp_list.size() / PRM_TMP_SIZE ;
    
@@ -146,23 +158,28 @@ void AIS::add_shell ( ){
       return;
    }
 
+   int nnla = all_la[i].size();
+   int nnlb = all_lb[j].size();
+   int nnlc = all_lc[k].size();
+   int nnld = all_ld[l].size();
+
    for( int idx_la=0; idx_la < nnla; idx_la++ ){
-      unsigned int idx_Ka = all_idx_Ka[idx_la];
-      int nla = all_nla[idx_la];
-      int la = all_la[idx_la];
+      unsigned int idx_Ka = all_idx_Ka[i][idx_la];
+      int nla = all_nla[i][idx_la];
+      int la = all_la[i][idx_la];
       for( int idx_lb=0; idx_lb < nnlb; idx_lb++ ){
-         unsigned int idx_Kb = all_idx_Kb[idx_lb];
-         int nlb = all_nlb[idx_lb];
-         int lb = all_lb[idx_lb];
+         unsigned int idx_Kb = all_idx_Kb[j][idx_lb];
+         int nlb = all_nlb[j][idx_lb];
+         int lb = all_lb[j][idx_lb];
          for( int idx_lc=0; idx_lc < nnlc; idx_lc++ ){
-            unsigned int idx_Kc = all_idx_Kc[idx_lc];
-            int nlc = all_nlc[idx_lc];
-            int lc = all_lc[idx_lc];
+            unsigned int idx_Kc = all_idx_Kc[k][idx_lc];
+            int nlc = all_nlc[k][idx_lc];
+            int lc = all_lc[k][idx_lc];
 
             for( int idx_ld=0; idx_ld < nnld; idx_ld++ ){
-               unsigned int idx_Kd = all_idx_Kd[idx_ld];
-               int nld = all_nld[idx_ld];
-               int ld = all_ld[idx_ld];
+               unsigned int idx_Kd = all_idx_Kd[l][idx_ld];
+               int nld = all_nld[l][idx_ld];
+               int ld = all_ld[l][idx_ld];
 
                unsigned int N_cc = nla*nlb*nlc*nld;
                unsigned int L = encodeL(la,lb,lc,ld);
@@ -173,63 +190,30 @@ void AIS::add_shell ( ){
                unsigned int Oq = offset_Q[L];
 
                unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
-               unsigned int encoded_npabcd = encode4(npa,npb,npc,npd);
+               unsigned int encoded_npabcd = encode4(npa[i],npb[j],npc[k],npd[l]);
 
                for( unsigned int pi = 0; pi < n_prm; pi++ ){
-//                  unsigned int pm_idxs[PMI_SIZE] = {0};
                   unsigned int ipabcd_n123 = prm_tmp_list[pi*PRM_TMP_SIZE+PRM_TMP_OFFSET_IPZN];
-//                  pm_idxs[PMI_OFFSET_OF] = Of;
-//                  pm_idxs[PMI_OFFSET_IPZN] = ipabcd_n123;
                   PMI[L].push_back( Of );
                   PMI[L].push_back( ipabcd_n123 );
-//                  PMI[L].insert(PMI[L].end(), pm_idxs, pm_idxs+PMI_SIZE);
                }
 
-//               unsigned int fvh_idxs[FVH_SIZE] = {0};
-//               fvh_idxs[FVH_OFFSET_OV    ] = Ov;
-//               fvh_idxs[FVH_OFFSET_OG    ] = Og;
-//               fvh_idxs[FVH_OFFSET_OQ    ] = Oq;
-//               fvh_idxs[FVH_OFFSET_NPRM  ] = n_prm;
-//               fvh_idxs[FVH_OFFSET_IDX_A ] = idx_A;
-//               fvh_idxs[FVH_OFFSET_IDX_B ] = idx_B;
-//               fvh_idxs[FVH_OFFSET_IDX_C ] = idx_C;
-//               fvh_idxs[FVH_OFFSET_IDX_D ] = idx_D;
-//               fvh_idxs[FVH_OFFSET_IDX_ZA] = idx_Za;
-//               fvh_idxs[FVH_OFFSET_IDX_ZB] = idx_Zb;
-//               fvh_idxs[FVH_OFFSET_IDX_ZC] = idx_Zc;
-//               fvh_idxs[FVH_OFFSET_IDX_ZD] = idx_Zd;
-//               fvh_idxs[FVH_OFFSET_IDX_KA] = idx_Ka;
-//               fvh_idxs[FVH_OFFSET_IDX_KB] = idx_Kb;
-//               fvh_idxs[FVH_OFFSET_IDX_KC] = idx_Kc;
-//               fvh_idxs[FVH_OFFSET_IDX_KD] = idx_Kd;
-//               fvh_idxs[FVH_OFFSET_NLABCD] = encoded_nlabcd;
-//               fvh_idxs[FVH_OFFSET_NPABCD] = encoded_npabcd;
-
-//               cout << " R: " << A[0]  << " " << B[1]  << " " << C[1] << "  " << D[2] << endl;
-//               cout << " Z: " << Za[0] << " " << Zb[0] << " " << Zc[0] << "  " << Zd[0] << endl;
-//               cout << " K: " << ua.internal_buffer[idx_Ka] << " " << endl;
-//               cout << " L " << la << " " << lb << " " << lc << " " << ld << endl;
-//               cout << " O " << Ov << " " << Og << " " << Oq << endl;
-//               cout << "NP " << npa << " " << npb << " " << npc << " " << npd << " " << n_prm << endl;
-//               cout << "NL " << nla << " " << nlb << " " << nlc << " " << nld << endl;
-
-//               FVH[L].insert(FVH[L].end(), fvh_idxs, fvh_idxs+FVH_SIZE);
                FVH[L].push_back( Ov );
                FVH[L].push_back( Og );
                FVH[L].push_back( Oq );
                FVH[L].push_back( n_prm );
-               FVH[L].push_back( idx_A );
-               FVH[L].push_back( idx_B );
-               FVH[L].push_back( idx_C );
-               FVH[L].push_back( idx_D );
-               FVH[L].push_back( idx_Za );
-               FVH[L].push_back( idx_Zb );
-               FVH[L].push_back( idx_Zc );
-               FVH[L].push_back( idx_Zd );
+               FVH[L].push_back( idx_A[i] );
+               FVH[L].push_back( idx_B[j] );
+               FVH[L].push_back( idx_C[k] );
+               FVH[L].push_back( idx_D[l] );
+               FVH[L].push_back( idx_Za[i] );
+               FVH[L].push_back( idx_Zb[j] );
+               FVH[L].push_back( idx_Zc[k] );
+               FVH[L].push_back( idx_Zd[l] );
                FVH[L].push_back( idx_Ka );
                FVH[L].push_back( idx_Kb );
                FVH[L].push_back( idx_Kc );
-               FVH[L].push_back( idx_Kd );         
+               FVH[L].push_back( idx_Kd );
                FVH[L].push_back( encoded_nlabcd );
                FVH[L].push_back( encoded_npabcd );
                
@@ -247,7 +231,6 @@ void AIS::add_shell ( ){
                   all_hrr_blocksize[L] = hrr_blocksize;
                   all_moments.insert(L);
                }
-
 
                AC_size[L] += all_vrr_blocksize[L] * n_prm;
                ABCD_size[L] += all_hrr_blocksize[L] * N_cc;
@@ -318,7 +301,19 @@ void AIS::add_qrtt(
       unsigned int offset_ac_L_set, unsigned int offset_ad_L_set, 
       unsigned int offset_bc_L_set, unsigned int offset_bd_L_set, 
       bool Tac, bool Tad, bool Tbc, bool Tbd ){
-   unsigned int idx_fac = ua.add( &symm_fac, 1 );
+
+  
+
+   unsigned int idx_fac ;
+   // The symm_fac can be only 2,1,0.5 or 0.25 (or 0 in dev version). We assign them to 0,1,2 and 3 (and 4) respectively
+   // We encode it here, decode it inside compute_KS
+
+   if ( symm_fac < 0.1  ){ idx_fac = 4 ; }
+   else if ( symm_fac < 0.3  ){ idx_fac = 3 ; }
+   else if ( symm_fac < 0.75 ){ idx_fac = 2 ; }
+   else if ( symm_fac < 1.5  ){ idx_fac = 1 ; }
+   else { idx_fac = 0 ; }
+
    unsigned int L = encodeL(la,lb,lc,ld);
    unsigned int KS_idxs[KS_SIZE] = {0};
    KS_idxs[KS_OFFSET_IDXFAC ] = idx_fac;

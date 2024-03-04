@@ -10,7 +10,7 @@ set -x
 accellerator=
 #CPPFLAGS="-mp=$accellerator -Minfo=accel -O2 -pg -lblas"
 #CPP=nvc++
-CPPFLAGS="-O3 -gpu=ccnative -Wall -pedantic -lcudart -I /usr/include/mkl/ -lblas " # -lmkl_rt"
+CPPFLAGS="-O3 -gpu=ccnative -Wall -pedantic -lcudart -I /usr/include/mkl/ -lblas -lmkl_rt"
 CPP=nvc++
 
 rm compute_Fm.o compute_VRR.o compute_HRR.o compute_TRA.o compute_SPH.o 

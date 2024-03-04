@@ -1,12 +1,12 @@
-src/*.o
-src/*.out
-src/*.nsys-rep
-src/*.sqlite
+obj/*
 
-src/perf.data
-src/perf.data.old
-src/performance_test.inp
-src/reference.dat
-src/test_libGint
+tests/*.out
+tests/*.nsys-rep
+tests/*.sqlite
+tests/perf.data
+tests/perf.data.old
+tests/performance_test.inp
+tests/reference.dat
+bin/test_libGint
 
 

@@ -405,10 +405,10 @@ for ( int j = 0 ; j < nbas ; j ++ ){
             double adiff_sum = 0.0;
             int Nval = int(ais.OUT.size());
 
-            for(int i=0; i < Nval; i++ ){
+            for(int ival=0; ival < Nval; ival++ ){
                double ref;
                cin >> ref;
-               double val = ais.OUT[i];
+               double val = ais.OUT[ival];
                double diff = ref - val;
                double adiff = abs(diff);
                diff_sum += diff;
@@ -418,7 +418,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   nerrors++;
                   double ratio = 1.0;
                   if ( abs(ref) > 0. ){ ratio = val / ref ; }
-                  cout << " I: CPU - REF: Error at " << i << " " << val << " " << ref 
+                  cout << " I: CPU - REF: Error at " << ival << " " << val << " " << ref 
                        << " " << diff << " " << ratio << " " << endl ;
                   if ( nerrors >= 100 ){
                      cout << " TOO MANY ERRORS ! EXITING NOW " << endl;

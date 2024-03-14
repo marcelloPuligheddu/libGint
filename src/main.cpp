@@ -15,7 +15,7 @@ using std::cin;
 
 // A hash function used to hash a tuple 
 struct hash_tuple { 
-    size_t operator()( const std::tuple<int,int,int,int>& x) const{ 
+    inline size_t operator()( const std::tuple<int,int,int,int>& x) const{ 
         return ((std::get<0>(x)*1024 + std::get<1>(x))*1024 + std::get<2>(x)) * 1024 + std::get<3>(x);
     } 
 };
@@ -29,7 +29,7 @@ if (argc > 1 and argv[1][0] == 'G' ){ skip_cpu = true; }
 
 
 Timer timer;
-
+//Timer timer_shell;
 timer.start();
 
 int nbas, natom, env_size;
@@ -37,9 +37,14 @@ std::vector<int> bas;
 std::vector<int> atm;
 std::vector<double> env;
 char mode;
+int nspin;
+
 
 cin >> mode ;
 cout << "MODE: " << mode;
+cin >> nspin ;
+cout << "NSPIN: " << nspin;
+
 if ( skip_cpu ){ cout << " SKIP "; }
 cout << endl;
 
@@ -81,11 +86,15 @@ typedef std::tuple<int,int,int,int> four_ints;
 std::unordered_map< four_ints, unsigned int, hash_tuple > offset_set;
 std::unordered_map< four_ints, unsigned int, hash_tuple > ld_set;
 
-std::vector<double> SpDm;
-std::vector<double> SpKS;
-std::vector<double> my_F;
+std::vector<double> SpDm_a;
+std::vector<double> SpKS_a;
+std::vector<double> my_F_a;
 
+std::vector<double> SpDm_b;
+std::vector<double> SpKS_b;
+std::vector<double> my_F_b;
 
+// reads the structure of the density matrix
 int len_offset;
 cin >> len_offset;
 for ( int uff=0; uff < len_offset; uff++ ){
@@ -96,30 +105,50 @@ for ( int uff=0; uff < len_offset; uff++ ){
    ld_set[four_ints(set_i,set_j,atom_i,atom_j)] = ld; 
 }
 
+
 int len_SpDm;
 cin >> len_SpDm;
 
 if ( mode == 'C' ){
+   // reads the actual sparse density matrix
    for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
       double dm;
       cin >> dm;
-      SpDm.push_back(dm);
+      SpDm_a.push_back(dm);
    }
-
+   if ( nspin == 2 ){
+      for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
+         double dm;
+         cin >> dm;
+         SpDm_b.push_back(dm);
+      } 
+   }
+   // reads the actual sparse fock matrix
    int len_SpKS;
    cin >> len_SpKS;
    for( int idx_SpKS=0; idx_SpKS < len_SpKS; idx_SpKS++ ){
       double ks;
       cin >> ks;
-      SpKS.push_back(ks);
+      SpKS_a.push_back(ks);
+   }
+   if ( nspin == 2 ){
+      for( int idx_SpKS=0; idx_SpKS < len_SpKS; idx_SpKS++ ){
+         double ks;
+         cin >> ks;
+         SpKS_b.push_back(ks);
+      }
    }
 }
 
 if ( mode == 'P' ){
    std::srand(std::time(nullptr));
    for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
-      SpDm.push_back( std::rand() / (RAND_MAX + 1u) );
-      SpKS.push_back( std::rand() / (RAND_MAX + 1u) );
+      SpDm_a.push_back( std::rand() / (RAND_MAX + 1u) );
+      SpKS_a.push_back( std::rand() / (RAND_MAX + 1u) );
+   }
+   if ( nspin == 2 ){
+      SpDm_a.push_back( std::rand() / (RAND_MAX + 1u) );
+      SpKS_a.push_back( std::rand() / (RAND_MAX + 1u) );  
    }
 }
 
@@ -141,10 +170,19 @@ double PCells[3] = {0.,0.,0.};
 bool periodic = false;
 
 AIS ais;
-ais.set_P ( SpDm );
 // Since we all always adding to F, it is important that it starts from a value of zero
-my_F.resize( SpKS.size(), 0.0 );
-ais.set_K ( my_F );
+if ( nspin == 1 ){
+   ais.set_P ( SpDm_a );
+   my_F_a.resize( SpKS_a.size(), 0.0 );
+   ais.set_K ( my_F_a );
+} else {
+   // polarized
+   ais.set_P ( SpDm_a, SpDm_b );
+   my_F_a.resize( SpKS_a.size(), 0.0 );
+   my_F_b.resize( SpKS_b.size(), 0.0 );
+   ais.set_K ( my_F_a, my_F_b );
+}
+
 
 ais.show_state();
 ais.periodic = periodic;
@@ -208,21 +246,26 @@ for ( int l = 0 ; l < nbas ; l ++ ){
    }
 }
 
+ais.set_max_n_prm( 1 );
+ais.set_L();
 for ( int i = 0 ; i < nbas ; i ++ ){
    double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
    int la_min = bas[i*8+1];
    int la_max = bas[i*8+1];
    int nza = bas[i*8+2];
+
 for ( int j = 0 ; j < nbas ; j ++ ){
    double* RB = &env[ atm[ bas[j*8+0]*6+1 ]];
    int lb_min = bas[j*8+1];
    int lb_max = bas[j*8+1];
    int nzb = bas[j*8+2];
+
 for ( int k = 0 ; k < nbas ; k ++ ){
    double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
    int lc_min = bas[k*8+1];
    int lc_max = bas[k*8+1];
    int nzc = bas[k*8+2];
+
 for ( int l = 0 ; l < nbas ; l ++ ){
    double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
    int ld_min = bas[l*8+1];
@@ -264,8 +307,8 @@ for ( int l = 0 ; l < nbas ; l ++ ){
       unsigned int offset_bd_L_set, offset_bc_L_set, offset_ad_L_set, offset_ac_L_set;
       int ld_bd_set, ld_bc_set, ld_ad_set, ld_ac_set;
       int Tbd, Tbc, Tad, Tac;
-      // bd
 
+      // bd
       if ( atom_j >= atom_l ){
          four_ints set_atom(j,l,jkind,lkind);
          offset_bd_L_set = offset_bd_atom + offset_set[set_atom]; // ## no multi L set in pyscf
@@ -374,13 +417,13 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 //                     int shift[3] = {0,0,0};
 //                     if (periodic){ }
 
-//                     ais.add_prm(iza,izb,izc,izd,shift[0],[1],[2]);
-                     ais.add_prm(iza,izb,izc,izd,n3,0,0);
+                     ais.add_prm(iza,izb,izc,izd,n1,n2,n3);
 
                      cell_is_screened = false;
                      set_is_screened = false;
                   }} // zc,zd
                }} // za,zb
+
 
                if ( not cell_is_screened ) {
                   ais.add_shell(i,j,k,l,n1,n2);
@@ -389,6 +432,7 @@ for ( int l = 0 ; l < nbas ; l ++ ){
             } // R3
          } // R2
       } // R1
+
       if ( not set_is_screened ){
          for ( int la = la_min; la <= la_max; la++){
          for ( int lb = lb_min; lb <= lb_max; lb++){
@@ -415,11 +459,17 @@ for ( int l = 0 ; l < nbas ; l ++ ){
          ais.add_set();
       }
 
+
       bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
       if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
-   //      cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
+         cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
+         timer.stop();
 
+         timer.start();
          ais.dispatch(skip_cpu);
+         timer.stop();
+         cout << " Dispatch step: " << timer.elapsedMilliseconds() << endl;
+
 
          if ( mode == 'C' ){
             int nerrors = 0;
@@ -453,6 +503,7 @@ for ( int l = 0 ; l < nbas ; l ++ ){
             cout << "I: E[|CPU-REF|] " << adiff_sum / Nval << endl;
             if ( nerrors > 0 ){ return EXIT_FAILURE ; }
          }
+         timer.start();
       }
 
    }} // bas cd
@@ -461,7 +512,16 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 timer.stop();
 
 // gets the KS
-std::vector<double> my_final_F = ais.get_K( );
+
+std::vector<double> my_final_F_a( my_F_a.size() );
+std::vector<double> my_final_F_b( my_F_b.size() );
+
+if ( nspin == 1 ){
+   ais.get_K( my_final_F_a );
+} else {
+   ais.get_K( my_final_F_a,  my_final_F_b );
+}
+
 // stupid symmetry operator(s)
 for ( int iset = 0 ; iset < nbas ; iset ++ ){
 for ( int jset = 0 ; jset < nbas ; jset ++ ){
@@ -481,8 +541,12 @@ for ( int jset = 0 ; jset < nbas ; jset ++ ){
          int j = offset_set[four_ints(jset,iset,atom_j,atom_i)] + ma;
          for ( int mb = 0; mb < dj; mb++ ){
             if ( i > j ){
-               my_final_F[i] = my_final_F[i] + my_final_F[j];
-               my_final_F[j] = my_final_F[i];
+               my_final_F_a[i] = my_final_F_a[i] + my_final_F_a[j];
+               my_final_F_a[j] = my_final_F_a[i];
+               if ( nspin == 2 ){
+                  my_final_F_b[i] = my_final_F_b[i] + my_final_F_b[j];
+                  my_final_F_b[j] = my_final_F_b[i];                
+               }
             }
             i += 1;
             j += di;
@@ -490,8 +554,13 @@ for ( int jset = 0 ; jset < nbas ; jset ++ ){
       }
    }
 }}
-// Applies a 0.5 factor to off-diagonal elements by multiplying by 0.5 and then doubling the diagonal
-for ( int i=0; i < my_final_F.size() ; i++ ){ my_final_F[i] *= 0.5; }
+
+// Applies a 0.5 factor to off-diagonal elements by multiplying everything by 0.5 and then doubling the diagonal
+for ( int i=0; i < my_final_F_a.size() ; i++ ){ my_final_F_a[i] *= 0.5; }
+if ( nspin == 2 ){
+   for ( int i=0; i < my_final_F_b.size() ; i++ ){ my_final_F_b[i] *= 0.5; }
+}
+
 for ( int iset = 0 ; iset < nbas ; iset ++ ){
    int atom_i = bas[iset*8+0];
    int li = bas[iset*8+1];
@@ -500,7 +569,10 @@ for ( int iset = 0 ; iset < nbas ; iset ++ ){
    int i0 = offset_set[four_ints(iset,iset,atom_i,atom_i)];
    for ( int ma = 0; ma < di; ma++ ){
       int i = i0 + ma * di + ma;
-      my_final_F[i] *= 2.;
+      my_final_F_a[i] *= 2.;
+      if ( nspin == 2 ){
+         my_final_F_b[i] *= 2;
+      }
    }
 }
 
@@ -511,10 +583,11 @@ if ( mode == 'C' ){
    int nerrors = 0;
    double diff_sum = 0.0;
    double adiff_sum = 0.0;
-   int Nval = int( my_final_F.size());
+   int Nval = int( my_final_F_a.size());
    for(int i=0; i < Nval; i++ ){
-      double ref = SpKS[i];
-      double val = my_final_F[i];
+
+      double ref = SpKS_a[i];
+      double val = my_final_F_a[i];
       double diff = ref - val;
       double adiff = abs(diff);
       diff_sum += diff;
@@ -529,6 +602,26 @@ if ( mode == 'C' ){
          if ( nerrors >= 100 ){
             cout << " F: TOO MANY ERRORS ! EXITING NOW " << endl;
             return EXIT_FAILURE ;
+         }
+      }
+      if ( nspin == 2 ){
+         ref = SpKS_b[i];
+         val = my_final_F_b[i];
+         diff = ref - val;
+         adiff = abs(diff);
+         diff_sum += diff;
+         adiff_sum += adiff;
+
+         if ( adiff > 1.e-12 ){
+            nerrors++;
+            double ratio = 1.0;
+            if ( abs(ref) > 0. ){ ratio = val / ref ; }
+            cout << " Fb: CPU - REF: Error at " << i << " " << val << " " << ref
+                 << " " << diff << " " << ratio << " " << endl ;
+            if ( nerrors >= 100 ){
+               cout << " Fb: TOO MANY ERRORS ! EXITING NOW " << endl;
+               return EXIT_FAILURE ;
+            }
          }
       }
    }

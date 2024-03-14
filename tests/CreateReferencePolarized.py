@@ -37,36 +37,11 @@ def NLsp(L):
 
 output_file_name = 'reference.dat'
 
-#mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.0 0.0 1.1 ')
-#mol_h2o = pyscf.gto.M(atom = 'O 0 0 0;')
-#mol_h2o = pyscf.gto.M(atom = 'H 0 2 0; H 0.5 0.5 0; H 2 2 0; H 3.5 0.5 0; H 0 0 0 ; H 1 1 1')
-mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0; O 2 2 2; H 0 4 2; H 0.5 2.5 2')
-#mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0')
-#mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0.1 0.2 0.3; O -0.11 -0.33 -0.22; O 3 2 1 ')
-#mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0 0 1; O 0 1 0; O 0 1 1; H 1 0 0; H 1 0 1; H 1 1 0; H 1 1 1;')
-#mol_h2o = pyscf.gto.M(atom = 'O 0 0 0; O 0 0 1; O 0 1 0; O 0 1 1; O 1 0 0; O 1 0 1; O 1 1 0; O 1 1 1;')
-#mol_h2o = pyscf.gto.M(atom=' O 2 0 0; H 2 0 1; H 2 1 0; O 2 1 1; H 2 0 0; H 2 0 1; O 2 1 0; H 2 1 1; H 3 0 0;')
-#mol_h2o = pyscf.gto.M(atom = 'O 0 0 0;')
 
-# basis = {atom_type1:[[angular_momentum
-#                       (GTO-exp1, contract-coeff11, contract-coeff12),
-#mol_h2o.basis = {'H': [ [0,[1.,1.]]]}
-#mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]]]}
-#mol_h2o.basis = {'O': [ [0,[1.,1.],[0.5,0.5]], [1,[1.,1.],[0.5,0.5]] ]}
-#mol_h2o.basis = {'H': [ [1,[1.,1.],[2.,2.]] ]}
-#mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]], [1,[1.,1.]] ]}
-#mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]], [1,[1.,1.]], [2,[1.,1.]] ]}
-#mol_h2o.basis = {'H': [ [0,[1.,1.],[0.9,0.9]], [1,[1.,1.]], [2,[1.,1.]], [3,[1.,1.]] ]}
-#mol_h2o.basis = {'O': [[0,[1.,1.]]]}
-#mol_h2o.basis = {'O': [[1,[1.,1.],[0.5,0.5]]]}
-#mol_h2o.basis = {'O': [[1,[1.,1.]]]}
-#mol_h2o.basis = {'O': [[2,[1.,1.]]]}
-#mol_h2o.basis = {'O': [[0,[1.,1.]], [2,[1.,1.]]]}
-#mol_h2o.basis = {'O': [[4,[1.,1.]], [2,[1.5,1.],[0.5,0.5]], [3,[1.,1.],[0.1,0.1]]],'H': [[1,[2.5,1.]], [0,[2.,1.],[0.1,1.0],[1.4,0.7]]] }
-#mol_h2o.basis = {'O': [[2,[1.,1.],[0.5,0.5],[0.3,0.3]]], 'H': [[0,[1.,1.],[.5,.5]]] }
+
+
+mol_h2o = pyscf.gto.M(atom = 'O 2 0 0; H 0 2 0; H 0.5 0.5 0; O 2 2 2; H 0 4 2; H 0.5 2.5 2; H 0 0 0 ', charge = 0, spin = + 1)
 mol_h2o.basis = '631++g**'
-#mol_h2o.basis = '631g'
-#mol_h2o.basis = 'ccpvdz'
 mol_h2o.build()
 
 start_time = time.time()
@@ -83,7 +58,7 @@ execution_time = end_time - start_time
 
 with open(output_file_name, "w") as output_file_handle:
    output_file_handle.write("C\n")
-   output_file_handle.write("1\n")
+   output_file_handle.write("2\n")
    nbas = len(mol_h2o._bas)
 
    ## Prints the bas, atm and env vectors
@@ -97,13 +72,18 @@ with open(output_file_name, "w") as output_file_handle:
    np.savetxt(output_file_handle, mol_h2o._env, fmt="%.30f")
 
    ## Solve the RHF problem and get the density
-   mol_h2o_rhf = pyscf.scf.RHF(mol_h2o)
-   mol_h2o_rhf.kernel()
-   P_from_pyscf = mol_h2o_rhf.make_rdm1() 
-   F_from_pyscf = - np.einsum('ij,ikjl',P_from_pyscf, ijkl)
+   mol_h2o_uhf = pyscf.scf.UHF(mol_h2o)
+   mol_h2o_uhf.kernel()
+   Pa_from_pyscf, Pb_from_pyscf = mol_h2o_uhf.make_rdm1()
+   Fa_from_pyscf = - np.einsum('ij,ikjl',Pa_from_pyscf, ijkl)
+   Fb_from_pyscf = - np.einsum('ij,ikjl',Pb_from_pyscf, ijkl)
+
    ## Computes the sparse transform of the density matrix
-   SparseDens = np.empty(0)
-   SparseFock = np.empty(0)
+   SparseDensA = np.empty(0)
+   SparseFockA = np.empty(0)
+   SparseDensB = np.empty(0)
+   SparseFockB = np.empty(0)
+
    offset_set = defaultdict(int)
    lda_set = defaultdict(int)
    bas = mol_h2o._bas
@@ -122,10 +102,12 @@ with open(output_file_name, "w") as output_file_handle:
            dj = (2*lj+1) * nlj
            jfinish = jstart + dj
            if atom_a >= atom_b:
-               offset_set[set_i, set_j, atom_a, atom_b] = len( SparseDens )
+               offset_set[set_i, set_j, atom_a, atom_b] = len( SparseDensA )
                lda_set[set_i, set_j, atom_a, atom_b] = dj
-               SparseDens = np.concatenate( (SparseDens, P_from_pyscf[istart:ifinish, jstart:jfinish].flatten()) )
-               SparseFock = np.concatenate( (SparseFock, F_from_pyscf[istart:ifinish, jstart:jfinish].flatten()) )
+               SparseDensA = np.concatenate( (SparseDensA, Pa_from_pyscf[istart:ifinish, jstart:jfinish].flatten()) )
+               SparseFockA = np.concatenate( (SparseFockA, Fa_from_pyscf[istart:ifinish, jstart:jfinish].flatten()) )
+               SparseDensB = np.concatenate( (SparseDensB, Pb_from_pyscf[istart:ifinish, jstart:jfinish].flatten()) )
+               SparseFockB = np.concatenate( (SparseFockB, Fb_from_pyscf[istart:ifinish, jstart:jfinish].flatten()) ) 
            jstart += dj
        istart += di
 
@@ -138,12 +120,15 @@ with open(output_file_name, "w") as output_file_handle:
       output_file_handle.write( "\n" )
 
    ## Prints the actual sparse density matrix
-   np.savetxt(output_file_handle, np.array([len(SparseDens)]), fmt="%i")
-   np.savetxt(output_file_handle, SparseDens, fmt="%.30f")
+   np.savetxt(output_file_handle, np.array([len(SparseDensA)]), fmt="%i")
+   np.savetxt(output_file_handle, SparseDensA, fmt="%.30f")
+   np.savetxt(output_file_handle, SparseDensB, fmt="%.30f")
 
    ## Prints the actual sparse fock matrix
-   np.savetxt(output_file_handle, np.array([len(SparseFock)]), fmt="%i")
-   np.savetxt(output_file_handle, SparseFock, fmt="%.30f")
+   np.savetxt(output_file_handle, np.array([len(SparseFockA)]), fmt="%i")
+   np.savetxt(output_file_handle, SparseFockA, fmt="%.30f")
+   np.savetxt(output_file_handle, SparseFockB, fmt="%.30f")
+
 
 #   ## Prints the dense density from pyscf
 #   np.savetxt(output_file_handle, np.array([P_from_pyscf.shape[0]]), fmt="%i")

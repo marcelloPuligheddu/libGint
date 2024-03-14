@@ -69,6 +69,8 @@ class AIS {
    void setBl( int j, int lb_, int nlb_, double* Kb_  );
    void setCl( int k, int lc_, int nlc_, double* Kc_  );
    void setDl( int l, int ld_, int nld_, double* Kd_  );
+   void set_max_n_prm( int max_n3 );
+   void set_L( );
    void compute_max_vector_size();
    size_t memory_needed();
 
@@ -90,15 +92,26 @@ class AIS {
    std::vector<std::vector<int> > all_nla,all_nlb,all_nlc,all_nld;
    std::vector<std::vector< unsigned int>> all_idx_Ka, all_idx_Kb, all_idx_Kc, all_idx_Kd;
 
-   double * K; // not owned by AIS
-   double * P; // not owned by AIS
-   double * K_dev; // owned and managed by AIS
-   double * P_dev; // owned and managed by AIS
+
+   int nspin = 0 ;
+   double * K_a; // not owned by AIS
+   double * P_a; // not owned by AIS 
+   double * K_a_dev; // owned and managed by AIS
+   double * P_a_dev; // owned and managed by AIS
+
+   double * K_b; // not owned by AIS
+   double * P_b; // not owned by AIS 
+   double * K_b_dev; // owned and managed by AIS
+   double * P_b_dev; // owned and managed by AIS
+ 
    size_t FP_size;
-   std::vector<double> K_from_dev; // owned and managed by AIS
    void set_P( std::vector<double> & P );
-   void set_K( std::vector<double> & P );
-   std::vector<double> get_K( );
+   void set_K( std::vector<double> & K );
+   void set_P( std::vector<double> & P_a, std::vector<double> & P_b );
+   void set_K( std::vector<double> & K_a, std::vector<double> & K_b );
+
+   void get_K( std::vector<double> & K );
+   void get_K( std::vector<double> & K_a, std::vector<double> & K_b );
  
    size_t max_integral_scratch_size = 0;
    size_t max_plan_size = 0;
@@ -128,7 +141,8 @@ class AIS {
 //   bool is_gamma = true;
    unsigned int n_set = 0;
    unsigned int prm_in_set = 0;
-   unsigned int prm = 0;
+   unsigned int n_prm = 0;
+   int max_n_prm;
    unsigned int p0 = 0;
    unsigned int cell_in_set = 0;
    PlanCollection plans;

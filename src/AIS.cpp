@@ -28,17 +28,50 @@ void AIS::show_state(){
 
 }
 
+inline unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
+    unsigned int ret = 0;
+    ret +=  n3+8;
+    ret += (n2+8)* 16;
+    ret += (n1+8)* 16 * 16;
+    ret += (ipd) * 16 * 16 * 16;
+    ret += (ipc) * 16 * 16 * 16 * 32;
+    ret += (ipb) * 16 * 16 * 16 * 32 * 32;
+    ret += (ipa) * 16 * 16 * 16 * 32 * 32 * 32;    
+    return ret;
+}
+
+int max( std::vector<int> x ){
+   if ( x.size() == 0 ){ return 0; };
+   int ret = x[0];
+   for( int idx=1; idx<x.size(); idx++ ){
+      ret = max(ret, x[idx]);
+   }
+   return ret;
+}
+
+void AIS::set_max_n_prm( int max_n3 ){
+   max_n_prm  = max_n3;
+   max_n_prm *= max( npa );
+   max_n_prm *= max( npb );
+   max_n_prm *= max( npc );
+   max_n_prm *= max( npd );
+   prm_tmp_list.resize( PRM_TMP_SIZE * max_n_prm );
+}
+
+void AIS::set_L(){
+   for( int la=0; la <= 2; la++ ){
+   for( int lb=0; lb <= 2; lb++ ){
+   for( int lc=0; lc <= 2; lc++ ){
+   for( int ld=0; ld <= 2; ld++ ){
+      int L = encodeL( la,lb,lc,ld );
+      PMI[L].reserve( 100000 );
+   }}}}
+}
+
 void AIS::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
-//   cout << "Adding prm " << prm_in_set << " " << prm << " " << ipd << endl ;
    unsigned int piabcdxyz = encode_ipabcd_n123(ipa,ipb,ipc,ipd,n1,n2,n3);
-
-//   unsigned int prm_tmp_list_idxs[PRM_TMP_SIZE] = {0};
-//   prm_tmp_list_idxs[PRM_TMP_OFFSET_IPZN] = piabcdxyz;
-//   prm_tmp_list.insert(prm_tmp_list.end(), prm_tmp_list_idxs, prm_tmp_list_idxs+PRM_TMP_SIZE);
-   prm_tmp_list.push_back( piabcdxyz );
-   prm_in_set++;
-   prm++;
-
+   prm_tmp_list[ n_prm * PRM_TMP_SIZE + PRM_TMP_OFFSET_IPZN] = piabcdxyz;
+   n_prm++;
 }
 
 ////////// A ////////
@@ -151,9 +184,10 @@ void AIS::setDl( int l, int ld_, int nld_, double* Kd_ ){
 ///////////////////////
 
 void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
-
-   unsigned int n_prm = prm_tmp_list.size() / PRM_TMP_SIZE ;
    
+//   Timer timer;
+//   Timer timer2;
+
    if (n_prm == 0){
       return;
    }
@@ -163,61 +197,64 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
    int nnlc = all_lc[k].size();
    int nnld = all_ld[l].size();
 
-   for( int idx_la=0; idx_la < nnla; idx_la++ ){
+   int idx_la = 0;
+   int idx_lb = 0;
+   int idx_lc = 0;
+   int idx_ld = 0;
+
+
+//   for( int idx_la=0; idx_la < nnla; idx_la++ ){
       unsigned int idx_Ka = all_idx_Ka[i][idx_la];
       int nla = all_nla[i][idx_la];
       int la = all_la[i][idx_la];
-      for( int idx_lb=0; idx_lb < nnlb; idx_lb++ ){
+//      for( int idx_lb=0; idx_lb < nnlb; idx_lb++ ){
          unsigned int idx_Kb = all_idx_Kb[j][idx_lb];
          int nlb = all_nlb[j][idx_lb];
          int lb = all_lb[j][idx_lb];
-         for( int idx_lc=0; idx_lc < nnlc; idx_lc++ ){
+//         for( int idx_lc=0; idx_lc < nnlc; idx_lc++ ){
             unsigned int idx_Kc = all_idx_Kc[k][idx_lc];
             int nlc = all_nlc[k][idx_lc];
             int lc = all_lc[k][idx_lc];
 
-            for( int idx_ld=0; idx_ld < nnld; idx_ld++ ){
+//            for( int idx_ld=0; idx_ld < nnld; idx_ld++ ){
                unsigned int idx_Kd = all_idx_Kd[l][idx_ld];
                int nld = all_nld[l][idx_ld];
                int ld = all_ld[l][idx_ld];
 
-               unsigned int N_cc = nla*nlb*nlc*nld;
-               unsigned int L = encodeL(la,lb,lc,ld);
+               const unsigned int N_cc = nla*nlb*nlc*nld;
+               const unsigned int L = encodeL(la,lb,lc,ld);
 
-               unsigned int Of = offset_F[L];
-               unsigned int Ov = offset_V[L];
-               unsigned int Og = offset_G[L];
-               unsigned int Oq = offset_Q[L];
+               const unsigned int Of = offset_F[L];
+               const unsigned int Ov = offset_V[L];
+               const unsigned int Og = offset_G[L];
+               const unsigned int Oq = offset_Q[L];
 
-               unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
-               unsigned int encoded_npabcd = encode4(npa[i],npb[j],npc[k],npd[l]);
+               const unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
+               const unsigned int encoded_npabcd = encode4(npa[i],npb[j],npc[k],npd[l]);
 
-               for( unsigned int pi = 0; pi < n_prm; pi++ ){
-                  unsigned int ipabcd_n123 = prm_tmp_list[pi*PRM_TMP_SIZE+PRM_TMP_OFFSET_IPZN];
-                  PMI[L].push_back( Of );
-                  PMI[L].push_back( ipabcd_n123 );
+               while ( PMI[L].size() < (1 + Ov + n_prm) * PMI_SIZE ) {
+//                  cout << " Realloc " << la<<lb<<lc<<ld << " " << PMI[L].size() << endl ;
+                  PMI[L].resize( (1 + Ov + n_prm) * PMI_SIZE + 2 * PMI[L].capacity() );
                }
 
-               FVH[L].push_back( Ov );
-               FVH[L].push_back( Og );
-               FVH[L].push_back( Oq );
-               FVH[L].push_back( n_prm );
-               FVH[L].push_back( idx_A[i] );
-               FVH[L].push_back( idx_B[j] );
-               FVH[L].push_back( idx_C[k] );
-               FVH[L].push_back( idx_D[l] );
-               FVH[L].push_back( idx_Za[i] );
-               FVH[L].push_back( idx_Zb[j] );
-               FVH[L].push_back( idx_Zc[k] );
-               FVH[L].push_back( idx_Zd[l] );
-               FVH[L].push_back( idx_Ka );
-               FVH[L].push_back( idx_Kb );
-               FVH[L].push_back( idx_Kc );
-               FVH[L].push_back( idx_Kd );
-               FVH[L].push_back( encoded_nlabcd );
-               FVH[L].push_back( encoded_npabcd );
-               
-               int labcd = la+lb+lc+ld;
+               unsigned int * pmi_l = & (PMI[L][Ov*PMI_SIZE]) ;
+
+               for( unsigned int prm_idx = 0; prm_idx < n_prm; prm_idx++ ){
+                  pmi_l[ prm_idx * PMI_SIZE + PMI_OFFSET_OF  ] = Of;
+                  pmi_l[ prm_idx * PMI_SIZE + PMI_OFFSET_IPZN] = prm_tmp_list[prm_idx];
+               }
+//                    PMI[L].push_back(Of);
+//                    PMI[L].push_back(prm_tmp_list[prm_idx]);
+//               }
+
+               const unsigned int tmp[FVH_SIZE] = {
+                  Ov, Og, Oq, n_prm, idx_A[i], idx_B[j], idx_C[k], idx_D[l],
+                  idx_Za[i], idx_Zb[j], idx_Zc[k], idx_Zd[l], idx_Ka, idx_Kb, idx_Kc, idx_Kd,
+                  encoded_nlabcd, encoded_npabcd
+               };
+               FVH[L].insert( FVH[L].end(), tmp, tmp+18 );
+
+               const int labcd = la+lb+lc+ld;
                Fm_size[L] += (1+labcd) * n_prm;
                if ( labcd > 0 ){
                   Fm_size[L] += (4*3+5) * n_prm;
@@ -235,63 +272,59 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                AC_size[L] += all_vrr_blocksize[L] * n_prm;
                ABCD_size[L] += all_hrr_blocksize[L] * N_cc;
 
-//               cout << " S " << AC_size[L] << " " << ABCD_size[L] << endl;
-
                offset_G[L] += N_cc;
                offset_V[L] += n_prm;
                offset_F[L] ++ ;
 
                encoded_moments.insert(L);
-   }  }  }  }
+//}}}}
+
 }
 
 void AIS::add_cell() {
-
-   unsigned int n_prm = prm_tmp_list.size() / PRM_TMP_SIZE ;
 
    if (n_prm == 0){
       return;
    }
 
    cell_in_set++;
-   prm_tmp_list.clear();
+   n_prm = 0;
+
 }
 
 int AIS::add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int nld ){
    unsigned int nlabcd = nla*nlb*nlc*nld;
+   unsigned int L = encodeL(la,lb,lc,ld);
 
-   if (prm_in_set > 0 ){
-      unsigned int L = encodeL(la,lb,lc,ld);
+   unsigned int SPH_idxs[SPH_SIZE] = {0} ;
+   SPH_idxs[SPH_OFFSET_Q     ] = offset_Q[L];
+   SPH_idxs[SPH_OFFSET_NLABCD] = nlabcd;
+   SPH[L].insert(SPH[L].end(), SPH_idxs, SPH_idxs+SPH_SIZE);
 
-      unsigned int SPH_idxs[SPH_SIZE] = {0} ;
-      SPH_idxs[SPH_OFFSET_Q     ] = offset_Q[L];
-      SPH_idxs[SPH_OFFSET_NLABCD] = nlabcd;
-      SPH[L].insert(SPH[L].end(), SPH_idxs, SPH_idxs+SPH_SIZE);
+   unsigned int nla_as_uint = (unsigned int) nla ;
+   unsigned int nlb_as_uint = (unsigned int) nlb ;
+   unsigned int nlc_as_uint = (unsigned int) nlc ;
+   unsigned int nld_as_uint = (unsigned int) nld ;
+   unsigned int TRA_idxs[TRA_SIZE] = {0};
+   TRA_idxs[TRA_OFFSET_Q   ] = offset_Q[L];
+   TRA_idxs[TRA_OFFSET_NLA ] = nla_as_uint;
+   TRA_idxs[TRA_OFFSET_NLB ] = nlb_as_uint;
+   TRA_idxs[TRA_OFFSET_NLC ] = nlc_as_uint;
+   TRA_idxs[TRA_OFFSET_NLD ] = nld_as_uint;
+   TRA_idxs[TRA_OFFSET_DEST] = dest;
+   TRA[L].insert(TRA[L].end(), TRA_idxs, TRA_idxs+TRA_SIZE );
 
-      unsigned int nla_as_uint = (unsigned int) nla ;
-      unsigned int nlb_as_uint = (unsigned int) nlb ;
-      unsigned int nlc_as_uint = (unsigned int) nlc ;
-      unsigned int nld_as_uint = (unsigned int) nld ;
-      unsigned int TRA_idxs[TRA_SIZE] = {0};
-      TRA_idxs[TRA_OFFSET_Q   ] = offset_Q[L];
-      TRA_idxs[TRA_OFFSET_NLA ] = nla_as_uint;
-      TRA_idxs[TRA_OFFSET_NLB ] = nlb_as_uint;
-      TRA_idxs[TRA_OFFSET_NLC ] = nlc_as_uint;
-      TRA_idxs[TRA_OFFSET_NLD ] = nld_as_uint;
-      TRA_idxs[TRA_OFFSET_DEST] = dest;
-      TRA[L].insert(TRA[L].end(), TRA_idxs, TRA_idxs+TRA_SIZE );
+   ABCD0_size[L] += compute_Nc(la,lb,lc,ld) * nlabcd ;
+   SPHER_size[L] += compute_Ns(la,lb,lc,ld) * nlabcd ;
+   OUT_size[L] += compute_Ns(la,lb,lc,ld) * nlabcd ; 
+   offset_Q[L] += nlabcd ;
+   offset_T[L] += 1 ;
 
-      ABCD0_size[L] += compute_Nc(la,lb,lc,ld) * nlabcd ;
-      SPHER_size[L] += compute_Ns(la,lb,lc,ld) * nlabcd ;
-      OUT_size[L] += compute_Ns(la,lb,lc,ld) * nlabcd ; 
-      offset_Q[L] += nlabcd ;
-      offset_T[L] += 1 ;
+   unsigned int prev_dest = dest;
+   dest += compute_Ns(la,lb,lc,ld) * nlabcd ;
+   return prev_dest;
 
-      unsigned int prev_dest = dest;
-      dest += compute_Ns(la,lb,lc,ld) * nlabcd ;
-      return prev_dest;
-   }
-   return -1;
+
 }
 
 void AIS::add_qrtt(
@@ -325,6 +358,8 @@ void AIS::add_qrtt(
    KS_idxs[KS_OFFSET_OFFBD  ] = offset_bd_L_set;
    KS_idxs[KS_OFFSET_TALL   ] = encode4(  (int)Tac, (int)Tad, (int)Tbc, (int)Tbd );
    KS[L].insert( KS[L].end(), KS_idxs, KS_idxs+KS_SIZE );
+
+
 }
 
 void AIS::add_set(){
@@ -372,7 +407,7 @@ void AIS::compute_max_vector_size(){
 
       max_integral_scratch_size = max( max_integral_scratch_size, integral_scratch_size );
       max_plan_size  = max(max_plan_size, plan->size());
-      max_PMI_size   = max(max_PMI_size,  PMI[L].size());
+      max_PMI_size   = max(max_PMI_size,  (size_t)PMI_SIZE * (1+offset_V[L]) );
       max_FVH_size   = max(max_FVH_size,  FVH[L].size());
       max_SPH_size   = max(max_SPH_size,  SPH[L].size());
       max_KS_size    = max( max_KS_size,   KS[L].size());
@@ -381,6 +416,7 @@ void AIS::compute_max_vector_size(){
       out_size += OUT_size[L];
 
    }
+
 }
 
 size_t AIS::memory_needed( ){
@@ -393,25 +429,58 @@ size_t AIS::memory_needed( ){
 }
 
 void AIS::set_P( std::vector<double> & P_ ){
-   P = P_.data();
+   cout << " Setting P with size " << P_.size() << endl ;
+   nspin = 1;
+   P_a = P_.data();
    FP_size = P_.size();
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&P_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( cudaMemcpy( P_dev, P_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&P_a_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( P_a_dev, P_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
+}
+
+void AIS::set_P( std::vector<double> & P_a_, std::vector<double> & P_b_ ){
+   cout << " Setting P Polarized with size " << P_a_.size() << " " << P_b_.size() << endl ;
+   nspin = 2;
+   P_a = P_a_.data();
+   P_b = P_b_.data();
+   FP_size = P_a_.size();
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&P_a_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( P_a_dev, P_a_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&P_b_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( P_b_dev, P_b_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
 }
 
 void AIS::set_K( std::vector<double> & K_ ){
-   K = K_.data();
+   cout << " Setting K with size " << K_.size() << endl ;
+   assert( nspin == 1 );
+   K_a = K_.data();
    FP_size = K_.size();
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&K_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_dev, K_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
-   K_from_dev.resize( FP_size, 0.0 );
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_a_dev, K_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
 }
 
-std::vector<double> AIS::get_K( ){
-   K_from_dev.resize( FP_size, 0.0 );
-   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_from_dev.data(), K_dev, sizeof(double)*FP_size, cudaMemcpyDeviceToHost ));
-   return K_from_dev;
+void AIS::set_K( std::vector<double> & K_a_, std::vector<double> & K_b_ ){
+   cout << " Setting K Polarized with size " << K_a_.size() << " " << K_b_.size() << endl ;
+   assert( nspin == 2 );
+   K_a = K_a_.data();
+   K_b = K_b_.data();
+   FP_size = K_a_.size();
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_a_dev, K_a_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&K_b_dev, sizeof(double)*FP_size ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_b_dev, K_b_.data(), sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
 }
+
+void AIS::get_K( std::vector<double> & K_a_ ){
+   assert( nspin == 1 );
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_a_.data(), K_a_dev, sizeof(double)*FP_size, cudaMemcpyDeviceToHost ));
+}
+
+void AIS::get_K( std::vector<double> & K_a_,  std::vector<double> & K_b_ ){
+   assert( nspin == 2 );
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_a_.data(), K_a_dev, sizeof(double)*FP_size, cudaMemcpyDeviceToHost ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( K_b_.data(), K_b_dev, sizeof(double)*FP_size, cudaMemcpyDeviceToHost ));
+}
+
 
 void AIS::reset_indices(){
    max_integral_scratch_size = 0;
@@ -443,7 +512,7 @@ void AIS::reset_indices(){
    dest=0;
    n_set = 0;
    prm_in_set = 0;
-   prm = 0;
+   n_prm = 0;
    p0 = 0;
    cell_in_set = 0;
 
@@ -540,7 +609,7 @@ void AIS::dispatch( bool skip_cpu ){
       int * plan_L = plan->data();
       double * env = ua.internal_buffer.data();
 
-//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
+///      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
 //      cout << "Computing " << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << Nshell << " shells ";
 //      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
 
@@ -563,7 +632,8 @@ void AIS::dispatch( bool skip_cpu ){
 
          for( unsigned int i=0; i < Nqrtt*Ns; i++ ){ SPHER[i] *= corr; }
 
-         compute_KS( Nqrtt, KS_L, la,lb,lc,ld, P, SPHER, K, env );
+         compute_KS( Nqrtt, KS_L, la,lb,lc,ld, P_a, SPHER, K_a, env );
+         if ( nspin == 2 ){ compute_KS( Nqrtt, KS_L, la,lb,lc,ld, P_b, SPHER, K_b, env ); }
 
          compute_TRA_batched_low( Nshell, la, lb, lc, ld, TRA_L, SPHER, OUT.data() );
 //         cout << " VALs: " << Fm[0] << " " << AC[0] << "  " << OUT[0] << endl;
@@ -668,11 +738,12 @@ void AIS::dispatch( bool skip_cpu ){
 //      cout << "Computing " << Ncells << " cells" ;
 //      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | " << OUT_size[L] << " | " ;
 //      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
-
+//      cout << " <<< " << Fm_numblocks << "," << Fm_blocksize << " >>> " ;
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice ));
+//      cout << endl << sizeof(unsigned int)*(PMI_SIZE*Nprm) << " " << sizeof(unsigned int)*max_PMI_size << endl;
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
-         PMI_dev, PMI[L].data(), sizeof(unsigned int)*(PMI[L].size()), cudaMemcpyHostToDevice )); 
+         PMI_dev, PMI[L].data(), sizeof(unsigned int)*(PMI_SIZE*Nprm), cudaMemcpyHostToDevice )); 
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          FVH_dev, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()), cudaMemcpyHostToDevice ));
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
@@ -685,7 +756,8 @@ void AIS::dispatch( bool skip_cpu ){
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
       int Fm_blocksize = 256;
-      int Fm_numblocks = (prm+Fm_blocksize-1)/Fm_blocksize;
+      int Fm_numblocks = (Nprm+Fm_blocksize-1)/Fm_blocksize;
+
       compute_Fm_batched_low_gpu<<<Fm_numblocks,Fm_blocksize>>>(
          FVH_dev, PMI_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, ftable_dev, ftable_ld );
@@ -710,7 +782,10 @@ void AIS::dispatch( bool skip_cpu ){
       int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
       apply_correction<<<corrNB,corrBS>>>( Nqrtt*Ns, SPHER_dev, corr );
 
-      compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_dev, SPHER_dev, K_dev, data_dev );
+      compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_a_dev, SPHER_dev, K_a_dev, data_dev );
+      if ( nspin == 2 ){
+         compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_b_dev, SPHER_dev, K_b_dev, data_dev );
+      }
 
       compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
 
@@ -729,14 +804,17 @@ void AIS::dispatch( bool skip_cpu ){
    }
    timer.start();
    std::vector<double> OUT_from_gpu( OUT.size() );
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      OUT_from_gpu.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( OUT_from_gpu.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
    timer.stop();
 
    timer.start();
-   std::vector<double> F_from_gpu( FP_size );
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      F_from_gpu.data(), K_dev, sizeof(double)*(FP_size), cudaMemcpyDeviceToHost ));
+   std::vector<double> F_a_from_gpu( FP_size );
+   std::vector<double> F_b_from_gpu( FP_size );
+   CUDA_GPU_ERR_CHECK( cudaMemcpy( F_a_from_gpu.data(), K_a_dev, sizeof(double)*(FP_size), cudaMemcpyDeviceToHost ));
+   if ( nspin == 2 ){
+      CUDA_GPU_ERR_CHECK( cudaMemcpy( F_b_from_gpu.data(), K_b_dev, sizeof(double)*(FP_size), cudaMemcpyDeviceToHost ));
+   }
+
    timer.stop();
 //   cout << "IJKL COPY " << sizeof(double)*(OUT.size()) * 1.e-6 << " MB " << timer.elapsedMilliseconds() << " ms " << endl;
 
@@ -788,8 +866,8 @@ void AIS::dispatch( bool skip_cpu ){
       int nerrors = 0;
       int Nval = int(FP_size);
       for( int i=0; i < Nval; i++ ){
-         double ref = K[i];
-         double val = F_from_gpu[i];
+         double ref = K_a[i];
+         double val = F_a_from_gpu[i];
          double diff = ref - val;
          double adiff = abs(diff);
          diff_sum += diff;
@@ -806,6 +884,28 @@ void AIS::dispatch( bool skip_cpu ){
                exit( EXIT_FAILURE );
             }
          }
+
+         if ( nspin == 2 ){
+            ref = K_b[i];
+            val = F_b_from_gpu[i];
+            diff = ref - val;
+            adiff = abs(diff);
+            diff_sum += diff;
+            adiff_sum += adiff;
+
+            if ( adiff > 1.e-12 ){
+               nerrors++;
+               double ratio = 1.0;
+               if ( abs(ref) > 0. ){ ratio = val / ref ; }
+               cout << "Fb: CPU - GPU: Error at " << i << " " << ref << " " << val
+                    << " " << diff << " " << ratio << " " << endl ;
+               if ( nerrors >= 100 ){
+                  cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
+                  exit( EXIT_FAILURE );
+               }
+            }         
+         }
+
       }
 
 

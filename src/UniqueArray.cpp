@@ -58,13 +58,14 @@ UniqueArray::UniqueArray(){
 
 // First horrible inefficient implementation
 unsigned int UniqueArray::add( const double* const __restrict__ values, const int & size ){
-
+/*
       if ( count % 1 == 0 ){
          cout << " Add iter # " << count ;
          for( int i=0; i < size; i++ ){ cout << " " << values[i] ; }
          cout << endl;
       }
       count++;
+*/
       size_t h;
       if ( size == 3 ){
          h = hash_3doubles(values);

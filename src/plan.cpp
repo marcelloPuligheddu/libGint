@@ -35,7 +35,7 @@ inline bool ArrayOpGreater( const OpArray& a, const std::array<int,OP_SIZE>& b )
    return false;
 }
 
-constexpr int NLco( const int L ){ return (L+1)*(L+2)/2; }
+inline int NLco( const int L ){ return (L+1)*(L+2)/2; }
 
 
 constexpr int mem( const int la, const int lb, const int lc, const int ld){

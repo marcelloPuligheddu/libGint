@@ -4,10 +4,6 @@
 
 
 
-unsigned int encode4( int a, int b, int c, int d ){
-   return a*256*256*256 + b*256*256 + c*256 + d;
-}
-
 __device__ __host__ void decode4(
    unsigned int abcd, unsigned int* a, unsigned int* b,
    unsigned int* c, unsigned int * d ){
@@ -19,7 +15,7 @@ __device__ __host__ void decode4(
 
 
 unsigned int encodeL( int la, int lb, int lc, int ld ){
-    return la * NL3 + lb * NL2 + lc * NL + ld;
+   return la * NL3 + lb * NL2 + lc * NL + ld;
 }
 
 
@@ -30,23 +26,8 @@ __device__ __host__ void decodeL( unsigned int L, int* la, int* lb, int* lc, int
    (*la) = L / NL3 ;
 }
 
-unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
 /*
-    assert( ipa < 32 );
-    assert( ipa >= 0 );
-    assert( ipb < 32 );
-    assert( ipb >= 0 );
-    assert( ipc < 32 );
-    assert( ipc >= 0 );
-    assert( ipd < 32 );
-    assert( ipd >= 0 );
-    assert( n1 < 8 );
-    assert( n1 >= -8 );
-    assert( n2 < 8 );
-    assert( n2 >= -8 );
-    assert( n3 < 8 );
-    assert( n3 >= -8 );
-  */  
+unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
     unsigned int ret = 0;
     ret += n3+8;
     ret += (n2+8) * 16;
@@ -54,13 +35,10 @@ unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, co
     ret += (ipd) * 16 * 16 * 16;
     ret += (ipc) * 16 * 16 * 16 * 32;
     ret += (ipb) * 16 * 16 * 16 * 32 * 32;
-    ret += (ipa) * 16 * 16 * 16 * 32 * 32 * 32;
-    
-//    assert( ret < 2147483647 ) ; // 2**(4*3) * 2**(5*4) == 2**32; 2147483647 = 2**32-1
-    
+    ret += (ipa) * 16 * 16 * 16 * 32 * 32 * 32;    
     return ret;
 }
-
+*/
 
 
 __device__ __host__ void decode_ipabcd_none(
@@ -167,11 +145,8 @@ __device__ __host__ int compute_Ns( int la, int lb, int lc, int ld ){
 }
 
 
-__host__ __device__ void compute_weighted_distance(
-      double X12[3], const double X1[3], const double X2[3],
-      const double c1, const double c2, const double c12 ){
-   X12[0] = ( c1*X1[0] + c2*X2[0] ) / c12;
-   X12[1] = ( c1*X1[1] + c2*X2[1] ) / c12;
-   X12[2] = ( c1*X1[2] + c2*X2[2] ) / c12;
-}
+//__host__ __device__ void compute_weighted_distance(
+//      double X12[3], const double X1[3], const double X2[3],
+//      const double c1, const double c2, const double c12 ){
+//}
 

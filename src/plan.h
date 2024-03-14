@@ -74,10 +74,6 @@ bool contains(const OpDict* G, Op op );
 bool contains(const OpDict& G, Op op );
 
 void rec_add( int h, int la, int lb, int lc, int ld, int m, OpDict *G );
-
-
-constexpr int NLco( int L );
-
 constexpr int mem( const int la, const int lb, const int lc, const int ld);
 constexpr int mem( const Op& sh );
 

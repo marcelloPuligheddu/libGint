@@ -25,7 +25,9 @@ SOFTWARE.
 
 
 
-unsigned int encode4( int a, int b, int c, int d );
+inline unsigned int encode4( int a, int b, int c, int d ){
+   return a*256*256*256 + b*256*256 + c*256 + d;
+}
 
 //#pragma omp declare target
 __device__ __host__ void decode4(
@@ -35,7 +37,7 @@ __device__ __host__ void decode4(
 unsigned int encodeL( int la, int lb, int lc, int ld );
 __device__ __host__ void decodeL( unsigned int L, int* la, int* lb, int* lc, int* ld );
 
-unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 );
+//unsigned int encode_ipabcd_n123( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 );
 
 __device__ __host__ void decode_ipabcd_none(
       unsigned int ipzn,
@@ -56,10 +58,13 @@ __device__ __host__ int compute_Nc( int la, int lb=0, int lc=0, int ld=0 );
 __device__ __host__ int compute_Ns( int la, int lb=0, int lc=0, int ld=0 );
 
 
-__device__ __host__ void compute_weighted_distance(
+__device__ __host__ inline void compute_weighted_distance(
       double X12[3], const double X1[3], const double X2[3],
-      const double c1, const double c2, const double c12 );
-
+      const double c1, const double c2, const double c12 ){
+   X12[0] = ( c1*X1[0] + c2*X2[0] ) / c12;
+   X12[1] = ( c1*X1[1] + c2*X2[1] ) / c12;
+   X12[2] = ( c1*X1[2] + c2*X2[2] ) / c12;
+}
 
 
 __host__ int NLco( int L );

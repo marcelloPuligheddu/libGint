@@ -75,7 +75,7 @@ SOFTWARE.
 #define L_BASE (32)
 #define SERIAL_L4(a,b,c,d) ((((a)*L_BASE+(b))*L_BASE+(c))*L_BASE+(d))
 
-#define PRM_TMP_SIZE 1
+#define PRM_TMP_SIZE 1 
 #define FVH_SIZE 18
 #define PMI_SIZE 2
 #define SPH_SIZE 2

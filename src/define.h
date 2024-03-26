@@ -75,17 +75,16 @@ SOFTWARE.
 #define L_BASE (32)
 #define SERIAL_L4(a,b,c,d) ((((a)*L_BASE+(b))*L_BASE+(c))*L_BASE+(d))
 
-#define PRM_TMP_SIZE 1 
+//#define PRM_TMP_SIZE 1 
 #define FVH_SIZE 18
-#define PMI_SIZE 2
+//#define PMI_SIZE 2
 #define SPH_SIZE 2
 #define TRA_SIZE 6
 #define KS_SIZE  8
 
-#define PRM_TMP_OFFSET_IPZN 0
-
-#define PMI_OFFSET_OF     0
-#define PMI_OFFSET_IPZN   1
+//#define PRM_TMP_OFFSET_IPZN 0
+//#define PMI_OFFSET_OF     0
+//#define PMI_OFFSET_IPZN   1
 
 #define FVH_OFFSET_OV      0
 #define FVH_OFFSET_OG      1

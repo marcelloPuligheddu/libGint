@@ -55,22 +55,23 @@ void AIS::set_max_n_prm( int max_n3 ){
    max_n_prm *= max( npb );
    max_n_prm *= max( npc );
    max_n_prm *= max( npd );
-   prm_tmp_list.resize( PRM_TMP_SIZE * max_n_prm );
+   prm_tmp_list.resize( max_n_prm );
 }
 
 void AIS::set_L(){
-   for( int la=0; la <= 2; la++ ){
-   for( int lb=0; lb <= 2; lb++ ){
-   for( int lc=0; lc <= 2; lc++ ){
-   for( int ld=0; ld <= 2; ld++ ){
+   for( int la=0; la <= 1; la++ ){
+   for( int lb=0; lb <= 1; lb++ ){
+   for( int lc=0; lc <= 1; lc++ ){
+   for( int ld=0; ld <= 1; ld++ ){
       int L = encodeL( la,lb,lc,ld );
-      PMI[L].reserve( 100000 );
+      PMX[L].reserve( 100000 );
+       OF[L].reserve( 100000 );
    }}}}
 }
 
 void AIS::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
    unsigned int piabcdxyz = encode_ipabcd_n123(ipa,ipb,ipc,ipd,n1,n2,n3);
-   prm_tmp_list[ n_prm * PRM_TMP_SIZE + PRM_TMP_OFFSET_IPZN] = piabcdxyz;
+   prm_tmp_list[ n_prm ] = piabcdxyz;
    n_prm++;
 }
 
@@ -232,20 +233,9 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                const unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
                const unsigned int encoded_npabcd = encode4(npa[i],npb[j],npc[k],npd[l]);
 
-               while ( PMI[L].size() < (1 + Ov + n_prm) * PMI_SIZE ) {
-//                  cout << " Realloc " << la<<lb<<lc<<ld << " " << PMI[L].size() << endl ;
-                  PMI[L].resize( (1 + Ov + n_prm) * PMI_SIZE + 2 * PMI[L].capacity() );
-               }
-
-               unsigned int * pmi_l = & (PMI[L][Ov*PMI_SIZE]) ;
-
-               for( unsigned int prm_idx = 0; prm_idx < n_prm; prm_idx++ ){
-                  pmi_l[ prm_idx * PMI_SIZE + PMI_OFFSET_OF  ] = Of;
-                  pmi_l[ prm_idx * PMI_SIZE + PMI_OFFSET_IPZN] = prm_tmp_list[prm_idx];
-               }
-//                    PMI[L].push_back(Of);
-//                    PMI[L].push_back(prm_tmp_list[prm_idx]);
-//               }
+//               cout << " Inserting " << n_prm << " times " << Of << " into OF[" << la<<lb<<lc<<ld << "] at " << OF[L].size() << endl;
+                OF[L].insert(  OF[L].end(), n_prm, Of );
+               PMX[L].insert( PMX[L].end(), prm_tmp_list.begin(), prm_tmp_list.begin()+n_prm );
 
                const unsigned int tmp[FVH_SIZE] = {
                   Ov, Og, Oq, n_prm, idx_A[i], idx_B[j], idx_C[k], idx_D[l],
@@ -260,13 +250,13 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                   Fm_size[L] += (4*3+5) * n_prm;
                }
 
-               if ( all_moments.count(L) == 0 ){
+               if ( all_moments[L] == false ){
                   std::vector<int> * plan = NULL ;
                   unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
                   plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
                   all_vrr_blocksize[L] = vrr_blocksize;
                   all_hrr_blocksize[L] = hrr_blocksize;
-                  all_moments.insert(L);
+                  all_moments[L] = true;
                }
 
                AC_size[L] += all_vrr_blocksize[L] * n_prm;
@@ -388,7 +378,8 @@ void AIS::compute_max_vector_size(){
 
    max_integral_scratch_size = 0;
    max_plan_size = 0;
-   max_PMI_size = 0;
+   max_OF_size = 0;
+   max_PMX_size = 0;
    max_FVH_size = 0;
    max_SPH_size = 0;
    max_KS_size  = 0;
@@ -406,11 +397,12 @@ void AIS::compute_max_vector_size(){
       size_t integral_scratch_size = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L] ;
 
       max_integral_scratch_size = max( max_integral_scratch_size, integral_scratch_size );
-      max_plan_size  = max(max_plan_size, plan->size());
-      max_PMI_size   = max(max_PMI_size,  (size_t)PMI_SIZE * (1+offset_V[L]) );
+      max_plan_size  = max(max_plan_size,  plan->size());
+      max_OF_size    = max(max_OF_size,    OF[L].size());
+      max_PMX_size   = max(max_PMX_size,  PMX[L].size());
       max_FVH_size   = max(max_FVH_size,  FVH[L].size());
       max_SPH_size   = max(max_SPH_size,  SPH[L].size());
-      max_KS_size    = max( max_KS_size,   KS[L].size());
+      max_KS_size    = max(max_KS_size,    KS[L].size());
       max_TRA_size   = max(max_TRA_size,  TRA[L].size());
 
       out_size += OUT_size[L];
@@ -421,7 +413,7 @@ void AIS::compute_max_vector_size(){
 
 size_t AIS::memory_needed( ){
    compute_max_vector_size();
-   size_t tmp = (max_plan_size + max_PMI_size + max_FVH_size + max_SPH_size + max_KS_size + max_TRA_size);
+   size_t tmp = (max_plan_size + max_OF_size + max_PMX_size + max_FVH_size + max_SPH_size + max_KS_size + max_TRA_size);
    size_t add1 = tmp * sizeof(unsigned int);
    size_t add2 = (max_integral_scratch_size + out_size) * sizeof(double);
    size_t add3 = 2 * FP_size * sizeof(double);
@@ -485,17 +477,20 @@ void AIS::get_K( std::vector<double> & K_a_,  std::vector<double> & K_b_ ){
 void AIS::reset_indices(){
    max_integral_scratch_size = 0;
    max_plan_size = 0;
-   max_PMI_size = 0;
+   max_OF_size = 0;
+   max_PMX_size = 0;
    max_FVH_size = 0;
    max_SPH_size = 0;
    max_TRA_size = 0;
    out_size = 0;
 
    for ( unsigned int L : encoded_moments ){
-      PMI[L].clear();
+       OF[L].clear();
+      PMX[L].clear();
       FVH[L].clear();
       SPH[L].clear();
       TRA[L].clear();
+       KS[L].clear();
       offset_F[L] = 0;
       offset_V[L] = 0;
       offset_G[L] = 0;
@@ -548,7 +543,8 @@ void AIS::dispatch( bool skip_cpu ){
    tot_mem += ua.internal_buffer.size()*sizeof(double) ;
    tot_mem += sizeof(double)*max_integral_scratch_size;
    tot_mem += sizeof(int)*max_plan_size          ;
-   tot_mem += sizeof(unsigned int)*max_PMI_size  ; 
+   tot_mem += sizeof(unsigned int)*max_OF_size  ; 
+   tot_mem += sizeof(unsigned int)*max_PMX_size  ; 
    tot_mem += sizeof(unsigned int)*max_FVH_size  ;
    tot_mem += sizeof(unsigned int)*max_SPH_size  ;
    tot_mem += sizeof(unsigned int)*max_KS_size  ;
@@ -558,14 +554,15 @@ void AIS::dispatch( bool skip_cpu ){
 
    if ( first ){
       cout << "Memory use: (MB)" << endl;
-      cout << " OUT DAT SCRT PLAN PMI FVH SPH KS TRA AUX FK TOT" << endl;
+      cout << " OUT DAT SCRT PLAN OF PMX FVH SPH KS TRA AUX FK TOT" << endl;
       first = false;
    }
    cout << int( OUT.size()*sizeof(double) *1.e-6 ) << " ";
    cout << int( ua.internal_buffer.size()*sizeof(double) *1.e-6 ) << " ";
    cout << int( sizeof(double)*max_integral_scratch_size *1.e-6 ) << " ";
    cout << int( sizeof(int)*max_plan_size          *1.e-6 ) << "  ";
-   cout << int( sizeof(unsigned int)*max_PMI_size  *1.e-6 ) << "  "; 
+   cout << int( sizeof(unsigned int)*max_OF_size   *1.e-6 ) << "  "; 
+   cout << int( sizeof(unsigned int)*max_PMX_size  *1.e-6 ) << "  "; 
    cout << int( sizeof(unsigned int)*max_FVH_size  *1.e-6 ) << "  ";
    cout << int( sizeof(unsigned int)*max_SPH_size  *1.e-6 ) << "  ";
    cout << int( sizeof(unsigned int)*max_KS_size   *1.e-6 ) << "  ";
@@ -602,7 +599,8 @@ void AIS::dispatch( bool skip_cpu ){
       double * SPHER = ABCD0 + ABCD0_size[L];
 
       unsigned int * FVH_L = FVH[L].data();
-      unsigned int * PMI_L = PMI[L].data();
+      unsigned int *  OF_L =  OF[L].data();
+      unsigned int * PMX_L = PMX[L].data();
       unsigned int * TRA_L = TRA[L].data();
       unsigned int * KS_L  =  KS[L].data();
 
@@ -618,10 +616,10 @@ void AIS::dispatch( bool skip_cpu ){
       if ( not skip_cpu ) {
 
          compute_Fm_batched_low(
-            FVH_L, PMI_L, env, Fm, Nprm, labcd, periodic, cell_h, ftable, ftable_ld );
+            FVH_L, OF_L, PMX_L, env, Fm, Nprm, labcd, periodic, cell_h, ftable, ftable_ld );
 
          compute_VRR_batched_low(
-            Ncells, plan_L, PMI_L, FVH_L, Fm, env,
+            Ncells, plan_L, PMX_L, FVH_L, Fm, env,
             AC, ABCD, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
 
          compute_HRR_batched_low(
@@ -687,14 +685,15 @@ void AIS::dispatch( bool skip_cpu ){
 
 
    double *integral_scratch_dev;
-   unsigned int *PMI_dev, *FVH_dev, *SPH_dev, *KS_dev, *TRA_dev;
+   unsigned int *OF_dev, *PMX_dev, *FVH_dev, *SPH_dev, *KS_dev, *TRA_dev;
    int *plan_dev;
 
 
    timer.start();
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&integral_scratch_dev,    sizeof(double)*max_integral_scratch_size ));
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&plan_dev,  sizeof(int)*max_plan_size ));
-   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&PMI_dev, sizeof(unsigned int)*max_PMI_size )); 
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&plan_dev,sizeof(int)*max_plan_size ));
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&OF_dev , sizeof(unsigned int)*max_OF_size )); 
+   CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&PMX_dev, sizeof(unsigned int)*max_PMX_size )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&FVH_dev, sizeof(unsigned int)*max_FVH_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&SPH_dev, sizeof(unsigned int)*max_SPH_size )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&KS_dev , sizeof(unsigned int)*max_KS_size  )); 
@@ -741,9 +740,10 @@ void AIS::dispatch( bool skip_cpu ){
 //      cout << " <<< " << Fm_numblocks << "," << Fm_blocksize << " >>> " ;
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice ));
-//      cout << endl << sizeof(unsigned int)*(PMI_SIZE*Nprm) << " " << sizeof(unsigned int)*max_PMI_size << endl;
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
-         PMI_dev, PMI[L].data(), sizeof(unsigned int)*(PMI_SIZE*Nprm), cudaMemcpyHostToDevice )); 
+          OF_dev,  OF[L].data(), sizeof(unsigned int)*(Nprm), cudaMemcpyHostToDevice ));  
+      CUDA_GPU_ERR_CHECK( cudaMemcpy(
+         PMX_dev, PMX[L].data(), sizeof(unsigned int)*(Nprm), cudaMemcpyHostToDevice )); 
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          FVH_dev, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()), cudaMemcpyHostToDevice ));
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
@@ -759,13 +759,13 @@ void AIS::dispatch( bool skip_cpu ){
       int Fm_numblocks = (Nprm+Fm_blocksize-1)/Fm_blocksize;
 
       compute_Fm_batched_low_gpu<<<Fm_numblocks,Fm_blocksize>>>(
-         FVH_dev, PMI_dev, data_dev, Fm_dev, Nprm, labcd,
+         FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, ftable_dev, ftable_ld );
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
       compute_VRR_batched_gpu_low<<<Ncells,32>>>(
-         Ncells, plan_dev, PMI_dev, FVH_dev, Fm_dev, data_dev,
+         Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
      
       compute_HRR_batched_gpu_low<<<Ncells,128>>>(
@@ -930,9 +930,11 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaFree(C2S_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(integral_scratch_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(plan_dev) );
-   CUDA_GPU_ERR_CHECK( cudaFree(PMI_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree( OF_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree(PMX_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(FVH_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(SPH_dev) );
+   CUDA_GPU_ERR_CHECK( cudaFree( KS_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(TRA_dev) );
 
    reset_indices();
@@ -953,6 +955,7 @@ void AIS::report_througput(bool skip_cpu){
    cout << " la lb lc ld L OUT(MB) ";
    if ( not skip_cpu ) { cout << "CPU_Throughput(GB/s) " ; }
    cout << " GPU_Throughput(GB/s) " << endl;
+/*
    for ( auto L : all_moments ){
 
       int la,lb,lc,ld,labcd;
@@ -973,5 +976,6 @@ void AIS::report_througput(bool skip_cpu){
       cout << endl;
 
    }
+*/
 }
 

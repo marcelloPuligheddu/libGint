@@ -26,13 +26,14 @@ SOFTWARE.
 #include <vector>
 
 void compute_Fm_batched(
-      const std::vector<unsigned int>& FVH, const std::vector<unsigned int>& PMI,
+      const std::vector<unsigned int>& FVH, const std::vector<unsigned int>& OF, const std::vector<unsigned int>& PMX,
       const std::vector<double>& data, std::vector<double>& Fm, int NFm, int L, bool periodic, double* cell,
       const double* const __restrict__ ftable, const int ftable_ld );
 
 void compute_Fm_batched_low(
       const unsigned int* const __restrict__ FVH,
-      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ OF,
+      const unsigned int* const __restrict__ PMX,
       const double* const __restrict__ data,
       double* const __restrict__ Fm,
       int NFm, int L, bool periodic,
@@ -41,7 +42,8 @@ void compute_Fm_batched_low(
 
 __global__ void compute_Fm_batched_low_gpu(
       unsigned int* __restrict__ FVH,
-      unsigned int*  __restrict__ PMI,
+      unsigned int*  __restrict__ OF,
+      unsigned int*  __restrict__ PMX,
       double* __restrict__ data,
       double* __restrict__ Fm,
       int NFm, int L, bool periodic,

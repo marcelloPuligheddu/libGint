@@ -25,15 +25,16 @@ __device__ __host__ double compute_K( const double z1, const double z2, const do
 
 __device__ __host__ void compute_Fm_batched_single( int p, 
       const unsigned int* const __restrict__ FVH,
-      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ OF,
+      const unsigned int* const __restrict__ PMX,
       const double* const __restrict__ data,
       double* const __restrict__ Fm,
       int NFm, int L, bool periodic,
       const double* const __restrict__ cell,
       const double* const __restrict__ ftable, const int ftable_ld ){
 
-   unsigned int i    = PMI[p*PMI_SIZE+PMI_OFFSET_OF  ];
-   unsigned int ipzn = PMI[p*PMI_SIZE+PMI_OFFSET_IPZN];
+   unsigned int i    = OF[p];
+   unsigned int ipzn = PMX[p];
    unsigned int ipa,ipb,ipc,ipd;
    int n1,n2,n3;
    decode_ipabcd_n123( ipzn, &ipa, &ipb, &ipc, &ipd, &n1, &n2, &n3 );
@@ -125,7 +126,8 @@ __device__ __host__ void compute_Fm_batched_single( int p,
 
 void compute_Fm_batched_low(
       const unsigned int* const __restrict__ FVH,
-      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ OF,
+      const unsigned int* const __restrict__ PMX,
       const double* const __restrict__ data,
       double* const __restrict__ Fm,
       int NFm, int L, bool periodic,
@@ -135,13 +137,14 @@ void compute_Fm_batched_low(
 //{
 //#pragma omp parallel for
    for( int p = 0 ; p < NFm ; p++ ){
-      compute_Fm_batched_single( p, FVH, PMI,data,Fm,NFm,L,periodic,cell,ftable,ftable_ld );
+      compute_Fm_batched_single( p, FVH, OF,PMX,data,Fm,NFm,L,periodic,cell,ftable,ftable_ld );
    }
 }
 
 __global__ void compute_Fm_batched_low_gpu(
       unsigned int* __restrict__ FVH,
-      unsigned int* __restrict__ PMI,
+      unsigned int* __restrict__ OF,
+      unsigned int* __restrict__ PMX,
       double* __restrict__ data,
       double* __restrict__ Fm,
       int NFm, int L, bool periodic,
@@ -149,17 +152,17 @@ __global__ void compute_Fm_batched_low_gpu(
       double* __restrict__ ftable, int ftable_ld ){
 
    for( int p = threadIdx.x + blockIdx.x*blockDim.x ; p < NFm ; p += blockDim.x*gridDim.x ){
-      compute_Fm_batched_single( p, FVH, PMI,data,Fm,NFm,L,periodic,cell,ftable,ftable_ld );
+      compute_Fm_batched_single( p, FVH, OF,PMX,data,Fm,NFm,L,periodic,cell,ftable,ftable_ld );
    }
 }
 
 void compute_Fm_batched(
-      const std::vector<unsigned int>& FVH, const std::vector<unsigned int>& PMI,
+      const std::vector<unsigned int>& FVH,const std::vector<unsigned int>& OF, const std::vector<unsigned int>& PMX,
       const std::vector<double>& data, std::vector<double>& Fm, int NFm, int L, bool periodic, double* cell,
       const double* const __restrict__ ftable, const int ftable_ld ){
 
    compute_Fm_batched_low(
-      FVH.data(), PMI.data(),
+      FVH.data(), OF.data(), PMX.data(),
       data.data(), Fm.data(), NFm, L, periodic, cell,
       ftable, ftable_ld );
 } 

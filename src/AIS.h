@@ -115,7 +115,8 @@ class AIS {
  
    size_t max_integral_scratch_size = 0;
    size_t max_plan_size = 0;
-   size_t max_PMI_size = 0;
+   size_t max_OF_size = 0;
+   size_t max_PMX_size = 0;
    size_t max_FVH_size = 0;
    size_t max_SPH_size = 0;
    size_t max_KS_size = 0;
@@ -130,7 +131,8 @@ class AIS {
    int all_hrr_blocksize[NL4] = {0};
 
    std::vector<unsigned int> FVH[NL4];
-   std::vector<unsigned int> PMI[NL4];
+   std::vector<unsigned int> OF[NL4];
+   std::vector<unsigned int> PMX[NL4];
    std::vector<unsigned int> SPH[NL4];
    std::vector<unsigned int> TRA[NL4];
    std::vector<unsigned int> KS[NL4];
@@ -159,7 +161,7 @@ class AIS {
 
    std::unordered_set<unsigned int> encoded_moments ;
    bool first = true;
-   std::unordered_set<unsigned int> all_moments ;
+   bool all_moments[NL4] ;
    std::vector<size_t> record_of_out_sizes[NL4];
    std::vector<double> record_of_times_cpu[NL4];
    std::vector<double> record_of_times_gpu[NL4];

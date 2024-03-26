@@ -583,7 +583,7 @@ void execute_CP2S_v2(
 
 __global__ void compute_VRR_batched_gpu_low(
       const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ PMX,
       const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ Fm,
       const double* const __restrict__ data,
@@ -638,7 +638,7 @@ __global__ void compute_VRR_batched_gpu_low(
       for ( unsigned i = my_vrr_team; i < n_prm ;  i += num_vrr_teams ){
 
          unsigned int Of   = ( Ov + i ) * F_size;
-         unsigned int ipzn = PMI[(Ov + i )*PMI_SIZE+PMI_OFFSET_IPZN ];
+         unsigned int ipzn = PMX[(Ov + i )];
          unsigned int ipa,ipb,ipc,ipd;
 
          decode_ipabcd_none( ipzn, &ipa,&ipb,&ipc,&ipd );
@@ -727,7 +727,7 @@ __global__ void compute_VRR_batched_gpu_low(
 
 void compute_VRR_batched_low(
       const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ PMI,
+      const unsigned int* const __restrict__ PMX,
       const unsigned int* const __restrict__ FVH,
       const double* const __restrict__ Fm,
       const double* const __restrict__ data,
@@ -767,7 +767,7 @@ void compute_VRR_batched_low(
 
       for ( unsigned thread=0; thread < n_prm; thread++ ){
          unsigned int Of   = ( Ov + thread ) * F_size;
-         unsigned int ipzn = PMI[(Ov + thread)*PMI_SIZE+PMI_OFFSET_IPZN ];
+         unsigned int ipzn = PMX[(Ov + thread)];
          unsigned int ipa,ipb,ipc,ipd;
 
          decode_ipabcd_none( ipzn, &ipa,&ipb,&ipc,&ipd );
@@ -855,12 +855,12 @@ void compute_VRR_batched_low(
 
 
 void compute_VRR_batched(
-      const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& PMI,
+      const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& PMX,
       const std::vector<unsigned int>& FVH, const std::vector<double>& Fm, const std::vector<double>& data,
       std::vector<double>& AC, std::vector<double>& ABCD, int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
 
    compute_VRR_batched_low(
-      Ncells, plan.data(), PMI.data(), FVH.data(), Fm.data(),
+      Ncells, plan.data(), PMX.data(), FVH.data(), Fm.data(),
       data.data(), AC.data(), ABCD.data(), vrr_blocksize, hrr_blocksize, L, numV, numVC );
 }
 

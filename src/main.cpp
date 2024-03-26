@@ -13,12 +13,11 @@ using std::cerr;
 using std::cout;
 using std::cin;
 
-// A hash function used to hash a tuple 
-struct hash_tuple { 
-    inline size_t operator()( const std::tuple<int,int,int,int>& x) const{ 
-        return ((std::get<0>(x)*1024 + std::get<1>(x))*1024 + std::get<2>(x)) * 1024 + std::get<3>(x);
-    } 
-};
+// A my_hash function used to my_hash a v4
+ 
+
+//int my_hash( int x0, int x1, int x2, int x3) { return ((x0*256 + x1)*256 + x2) * 256 + x3; }
+int my_hash( int x0, int x1, int x2, int x3) { return x0*256 + x1; }
 
 
 
@@ -82,9 +81,9 @@ for (int ienv=0; ienv < env_size; ienv++ ){
    env.push_back(tmp);
 }
 
-typedef std::tuple<int,int,int,int> four_ints;
-std::unordered_map< four_ints, unsigned int, hash_tuple > offset_set;
-std::unordered_map< four_ints, unsigned int, hash_tuple > ld_set;
+
+std::vector< unsigned int > offset_set( 256*256 );
+std::vector< unsigned int > ld_set ( 256*256 );
 
 std::vector<double> SpDm_a;
 std::vector<double> SpKS_a;
@@ -97,12 +96,16 @@ std::vector<double> my_F_b;
 // reads the structure of the density matrix
 int len_offset;
 cin >> len_offset;
+
+
+int atom_set;
 for ( int uff=0; uff < len_offset; uff++ ){
    int set_i, set_j, atom_i,atom_j;
-   unsigned int off,ld;
+   int off,ld;
    cin >> set_i >> set_j >> atom_i >> atom_j >> off >> ld ;
-   offset_set[four_ints(set_i,set_j,atom_i,atom_j)] = off;
-   ld_set[four_ints(set_i,set_j,atom_i,atom_j)] = ld; 
+   atom_set = my_hash(set_i,set_j,atom_i,atom_j);
+   offset_set[atom_set] = off;
+   ld_set[atom_set] = ld; 
 }
 
 
@@ -308,52 +311,53 @@ for ( int l = 0 ; l < nbas ; l ++ ){
       int ld_bd_set, ld_bc_set, ld_ad_set, ld_ac_set;
       int Tbd, Tbc, Tad, Tac;
 
+
       // bd
       if ( atom_j >= atom_l ){
-         four_ints set_atom(j,l,jkind,lkind);
-         offset_bd_L_set = offset_bd_atom + offset_set[set_atom]; // ## no multi L set in pyscf
-         ld_bd_set = ld_set[set_atom];
+         atom_set = my_hash(j,l,jkind,lkind);
+         offset_bd_L_set = offset_bd_atom + offset_set[atom_set]; // ## no multi L set in pyscf
+         ld_bd_set = ld_set[atom_set];
          Tbd = false;
       } else { 
-         four_ints set_atom(l,j,lkind,jkind);
-         offset_bd_L_set = offset_bd_atom + offset_set[set_atom];
-         ld_bd_set = ld_set[set_atom];
+         atom_set = my_hash(l,j,lkind,jkind);
+         offset_bd_L_set = offset_bd_atom + offset_set[atom_set];
+         ld_bd_set = ld_set[atom_set];
          Tbd = true;
       }
       // bc
       if ( atom_j >= atom_k ){
-         four_ints set_atom(j,k,jkind,kkind);
-         offset_bc_L_set = offset_bc_atom + offset_set[set_atom];
-         ld_bc_set = ld_set[set_atom];
+         atom_set = my_hash(j,k,jkind,kkind);
+         offset_bc_L_set = offset_bc_atom + offset_set[atom_set];
+         ld_bc_set = ld_set[atom_set];
          Tbc = false;
       } else {
-         four_ints set_atom(k,j,kkind,jkind);
-         offset_bc_L_set = offset_bc_atom + offset_set[set_atom];
-         ld_bc_set = ld_set[set_atom];
+         atom_set = my_hash(k,j,kkind,jkind);
+         offset_bc_L_set = offset_bc_atom + offset_set[atom_set];
+         ld_bc_set = ld_set[atom_set];
          Tbc = true;
       }
       // ad
       if ( atom_i >= atom_l ){
-         four_ints set_atom(i,l,ikind,lkind);
-         offset_ad_L_set = offset_ad_atom + offset_set[set_atom];
-         ld_ad_set = ld_set[set_atom];
+         atom_set = my_hash(i,l,ikind,lkind);
+         offset_ad_L_set = offset_ad_atom + offset_set[atom_set];
+         ld_ad_set = ld_set[atom_set];
          Tad = false;
       } else {
-         four_ints set_atom(l,i,lkind,ikind);
-         offset_ad_L_set = offset_ad_atom + offset_set[set_atom];
-         ld_ad_set = ld_set[set_atom];
+         atom_set = my_hash(l,i,lkind,ikind);
+         offset_ad_L_set = offset_ad_atom + offset_set[atom_set];
+         ld_ad_set = ld_set[atom_set];
          Tad = true;
       }
       // ac
       if ( atom_i >= atom_k ){
-         four_ints set_atom(i,k,ikind,kkind);
-         offset_ac_L_set = offset_ac_atom + offset_set[set_atom];
-         ld_ac_set = ld_set[set_atom];
+         atom_set = my_hash(i,k,ikind,kkind);
+         offset_ac_L_set = offset_ac_atom + offset_set[atom_set];
+         ld_ac_set = ld_set[atom_set];
          Tac = false;
       } else {
-         four_ints set_atom(k,i,kkind,ikind);
-         offset_ac_L_set = offset_ac_atom + offset_set[set_atom];
-         ld_ac_set = ld_set[set_atom];
+         atom_set = my_hash(k,i,kkind,ikind);
+         offset_ac_L_set = offset_ac_atom + offset_set[atom_set];
+         ld_ac_set = ld_set[atom_set];
          Tac = true;
       }
 
@@ -463,6 +467,7 @@ for ( int l = 0 ; l < nbas ; l ++ ){
       bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
       if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
          cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
+         cout.flush();
          timer.stop();
 
          timer.start();
@@ -522,7 +527,13 @@ if ( nspin == 1 ){
    ais.get_K( my_final_F_a,  my_final_F_b );
 }
 
+
+
 // stupid symmetry operator(s)
+
+
+
+
 for ( int iset = 0 ; iset < nbas ; iset ++ ){
 for ( int jset = 0 ; jset < nbas ; jset ++ ){
    int atom_i = bas[iset*8+0];
@@ -535,10 +546,12 @@ for ( int jset = 0 ; jset < nbas ; jset ++ ){
       int lj = bas[jset*8+1];
       int nlj = bas[jset*8+3];
       int dj = (2*lj+1)*nlj;
-            
-      int i = offset_set[four_ints(iset,jset,atom_i,atom_j)];
+
+      int atom_set_ij = my_hash(iset,jset,atom_i,atom_j);
+      int i = offset_set[atom_set_ij];
       for ( int ma = 0; ma < di; ma++ ){
-         int j = offset_set[four_ints(jset,iset,atom_j,atom_i)] + ma;
+         int atom_set_ji = my_hash(jset,iset,atom_j,atom_i);
+         int j = offset_set[atom_set_ji] + ma;
          for ( int mb = 0; mb < dj; mb++ ){
             if ( i > j ){
                my_final_F_a[i] = my_final_F_a[i] + my_final_F_a[j];
@@ -566,7 +579,8 @@ for ( int iset = 0 ; iset < nbas ; iset ++ ){
    int li = bas[iset*8+1];
    int nli = bas[iset*8+3];
    int di = (2*li+1) * nli;
-   int i0 = offset_set[four_ints(iset,iset,atom_i,atom_i)];
+   int atom_set_ii = my_hash(iset,iset,atom_i,atom_i);
+   int i0 = offset_set[atom_set_ii];
    for ( int ma = 0; ma < di; ma++ ){
       int i = i0 + ma * di + ma;
       my_final_F_a[i] *= 2.;

@@ -148,10 +148,10 @@ if ( mode == 'P' ){
    for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
       SpDm_a.push_back( std::rand() / (RAND_MAX + 1u) );
       SpKS_a.push_back( std::rand() / (RAND_MAX + 1u) );
-   }
-   if ( nspin == 2 ){
-      SpDm_a.push_back( std::rand() / (RAND_MAX + 1u) );
-      SpKS_a.push_back( std::rand() / (RAND_MAX + 1u) );  
+      if ( nspin == 2 ){
+         SpDm_b.push_back( std::rand() / (RAND_MAX + 1u) );
+         SpKS_b.push_back( std::rand() / (RAND_MAX + 1u) );
+      }
    }
 }
 
@@ -251,33 +251,31 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 
 ais.set_max_n_prm( 1 );
 ais.set_L();
+
 for ( int i = 0 ; i < nbas ; i ++ ){
    double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
    int la_min = bas[i*8+1];
    int la_max = bas[i*8+1];
    int nza = bas[i*8+2];
-
 for ( int j = 0 ; j < nbas ; j ++ ){
    double* RB = &env[ atm[ bas[j*8+0]*6+1 ]];
    int lb_min = bas[j*8+1];
    int lb_max = bas[j*8+1];
    int nzb = bas[j*8+2];
 
-for ( int k = 0 ; k < nbas ; k ++ ){
-   double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
-   int lc_min = bas[k*8+1];
-   int lc_max = bas[k*8+1];
-   int nzc = bas[k*8+2];
-
-for ( int l = 0 ; l < nbas ; l ++ ){
-   double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
-   int ld_min = bas[l*8+1];
-   int ld_max = bas[l*8+1];
-   int nzd = bas[l*8+2];
+   for ( int k = 0 ; k < nbas ; k ++ ){
+      double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
+      int lc_min = bas[k*8+1];
+      int lc_max = bas[k*8+1];
+      int nzc = bas[k*8+2];
+   for ( int l = 0 ; l < nbas ; l ++ ){
+      double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
+      int ld_min = bas[l*8+1];
+      int ld_max = bas[l*8+1];
+      int nzd = bas[l*8+2];
 
 
       // TODO: split the calculation of symm k, Tbd offset and ld to functions
-
       int atom_i = bas[i*8+0];
       int atom_j = bas[j*8+0];
       int atom_k = bas[k*8+0];
@@ -299,7 +297,6 @@ for ( int l = 0 ; l < nbas ; l ++ ){
       int lkind = atom_l;
 
       double symm_fac = 0.5;
-
       if (atom_i == atom_j) { symm_fac *= 2.0; }
       if (atom_k == atom_l) { symm_fac *= 2.0; }
       if (atom_i == atom_k and atom_j == atom_l and atom_i != atom_j and atom_k != atom_l) { symm_fac *= 2.0; }
@@ -310,8 +307,6 @@ for ( int l = 0 ; l < nbas ; l ++ ){
       unsigned int offset_bd_L_set, offset_bc_L_set, offset_ad_L_set, offset_ac_L_set;
       int ld_bd_set, ld_bc_set, ld_ad_set, ld_ac_set;
       int Tbd, Tbc, Tad, Tac;
-
-
       // bd
       if ( atom_j >= atom_l ){
          atom_set = my_hash(j,l,jkind,lkind);

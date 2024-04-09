@@ -281,10 +281,10 @@ for ( int j = 0 ; j < nbas ; j ++ ){
       int atom_k = bas[k*8+0];
       int atom_l = bas[l*8+0];
       bool screened_by_symm = false;
-      if ( atom_i > atom_j ){ screened_by_symm = true; }
-      if ( atom_k > atom_l ){ screened_by_symm = true; }
-      if ( not ( (atom_k+atom_l) <= (atom_i+atom_j)) ){ screened_by_symm = true; }
-      if ( ((atom_i + atom_j) == (atom_k + atom_l)) and (atom_k < atom_i) ){ screened_by_symm = true; }
+      if ( atom_i > atom_j ){ screened_by_symm = true; continue;}
+      if ( atom_k > atom_l ){ screened_by_symm = true; continue; }
+      if ( not ( (atom_k+atom_l) <= (atom_i+atom_j)) ){ screened_by_symm = true; continue; }
+      if ( ((atom_i + atom_j) == (atom_k + atom_l)) and (atom_k < atom_i) ){ screened_by_symm = true; continue; }
 
       int offset_ac_atom = 0; // should be given by the dbscr system. We just use a big set,set,atom,atom matrix for simplicity
       int offset_ad_atom = 0;

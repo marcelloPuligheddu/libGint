@@ -40,9 +40,9 @@ int nspin;
 
 
 cin >> mode ;
-cout << "MODE: " << mode;
+cout << " MODE: " << mode;
 cin >> nspin ;
-cout << "NSPIN: " << nspin;
+cout << " NSPIN: " << nspin;
 
 if ( skip_cpu ){ cout << " SKIP "; }
 cout << endl;

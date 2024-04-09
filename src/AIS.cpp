@@ -710,7 +710,11 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
    timer.stop();
 //   cout << "CUBLAS HANDLE CREATE " << timer.elapsedMilliseconds() << " ms " << endl;
-  
+ 
+   // Main cycle. 
+   // 1) Get the plan
+   // 2) Copy the input vectors to device memory
+   // 3) Run
    for ( unsigned int L : encoded_moments ){
       int la,lb,lc,ld,labcd;
       decodeL(L,&la,&lb,&lc,&ld);

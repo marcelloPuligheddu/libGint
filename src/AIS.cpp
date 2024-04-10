@@ -719,6 +719,8 @@ void AIS::dispatch( bool skip_cpu ){
    // 1) Get the plan
    // 2) Copy the input vectors to device memory
    // 3) Run
+
+   PUSH_RANGE("dispatch all L",3);
    for ( unsigned int L : encoded_moments ){
       int la,lb,lc,ld,labcd;
       decodeL(L,&la,&lb,&lc,&ld);
@@ -742,12 +744,10 @@ void AIS::dispatch( bool skip_cpu ){
       double* ABCD0_dev = ABCD_dev  + ABCD_size[L];
       double* SPHER_dev = ABCD0_dev + ABCD0_size[L];
 
-//      cout << "Computing " << Ncells << " cells" ;
-//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | " << OUT_size[L] << " | " ;
-//      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
-//      cout << " <<< " << Fm_numblocks << "," << Fm_blocksize << " >>> " ;
-      std::string Lname = std::to_string(la) + "_" + std::to_string(lb) + "_" + std::to_string(lc) + "_" + std::to_string(ld) ;
-      PUSH_RANGE(Lname,L%num_colors);
+      std::string Lname = std::to_string(la) + "_" + std::to_string(lb) + "_" + std::to_string(lc) + "_" + std::to_string(ld);
+      PUSH_RANGE(Lname,3);
+
+      PUSH_RANGE("transfer indeces",4);
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice ));
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
@@ -760,7 +760,7 @@ void AIS::dispatch( bool skip_cpu ){
           KS_dev,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()), cudaMemcpyHostToDevice )); 
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          TRA_dev, TRA[L].data(), sizeof(unsigned int)*(TRA[L].size()), cudaMemcpyHostToDevice ));
-
+      POP_RANGE; // transfer indeces
       timer.start();
 
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
@@ -768,6 +768,7 @@ void AIS::dispatch( bool skip_cpu ){
       int Fm_blocksize = 256;
       int Fm_numblocks = (Nprm+Fm_blocksize-1)/Fm_blocksize;
 
+      PUSH_RANGE("compute",5);
       compute_Fm_batched_low_gpu<<<Fm_numblocks,Fm_blocksize>>>(
          FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, ftable_dev, ftable_ld );
@@ -798,20 +799,15 @@ void AIS::dispatch( bool skip_cpu ){
       }
 
       compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
-
+      POP_RANGE; // compute
       CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      POP_RANGE; // Lname
       timer.stop();
 
-//      cout << " GPU KRNL " <<  " SL " << labcd << " " ;
-//      cout << timer.elapsedMicroseconds() << " us " ;
-//      cout << OUT_size[L] / timer.elapsedMicroseconds() * sizeof(double) / 1.e3 << " GB/s" ;
-//      cout << endl;
-//      cout.flush();
-
       record_of_times_gpu[L].push_back(timer.elapsedMicroseconds());
-
    }
+   POP_RANGE; // compute all L
    timer.start();
    std::vector<double> OUT_from_gpu( OUT.size() );
    CUDA_GPU_ERR_CHECK( cudaMemcpy( OUT_from_gpu.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));

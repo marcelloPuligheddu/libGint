@@ -690,6 +690,7 @@ void AIS::dispatch( bool skip_cpu ){
 
 
    timer.start();
+   PUSH_RANGE("dispatch malloc",1);
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&integral_scratch_dev,    sizeof(double)*max_integral_scratch_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&plan_dev,sizeof(int)*max_plan_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&OF_dev , sizeof(unsigned int)*max_OF_size )); 
@@ -698,16 +699,19 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&SPH_dev, sizeof(unsigned int)*max_SPH_size )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&KS_dev , sizeof(unsigned int)*max_KS_size  )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&TRA_dev, sizeof(unsigned int)*max_TRA_size )); 
-   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+   POP_RANGE;
    timer.stop();
 //   cout << "L Malloc " << timer.elapsedMilliseconds() << " ms " << endl;
 
    timer.start();
+   PUSH_RANGE("dispatch cublas handle",2);
    cublasHandle_t cublas_handle;
    CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
-   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+   POP_RANGE;
    timer.stop();
 //   cout << "CUBLAS HANDLE CREATE " << timer.elapsedMilliseconds() << " ms " << endl;
  
@@ -742,6 +746,8 @@ void AIS::dispatch( bool skip_cpu ){
 //      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | " << OUT_size[L] << " | " ;
 //      cout << " AC: " << AC_size[L] << " ABCD " << ABCD_size[L] << "/" << ABCD0_size[L] ;
 //      cout << " <<< " << Fm_numblocks << "," << Fm_blocksize << " >>> " ;
+      std::string Lname = std::to_string(la) + "_" + std::to_string(lb) + "_" + std::to_string(lc) + "_" + std::to_string(ld) ;
+      PUSH_RANGE(Lname,L%num_colors);
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
          plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice ));
       CUDA_GPU_ERR_CHECK( cudaMemcpy(

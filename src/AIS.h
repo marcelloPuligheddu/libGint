@@ -143,7 +143,7 @@ class AIS {
 //   bool is_gamma = true;
    unsigned int n_set = 0;
    unsigned int prm_in_set = 0;
-   unsigned int n_prm = 0;
+   std::vector< unsigned int > n_prm ;
    int max_n_prm;
    unsigned int p0 = 0;
    unsigned int cell_in_set = 0;

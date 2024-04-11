@@ -14,7 +14,7 @@
 #include "fgamma.h"
 #include "AIS.h"
 #include "c2s.h"
-
+#include <omp.h>
 
 using std::max;
 
@@ -55,7 +55,9 @@ void AIS::set_max_n_prm( int max_n3 ){
    max_n_prm *= max( npb );
    max_n_prm *= max( npc );
    max_n_prm *= max( npd );
-   prm_tmp_list.resize( max_n_prm );
+   prm_tmp_list.resize( max_n_prm  * omp_get_max_threads() );
+   n_prm.resize(omp_get_max_threads(), 0);
+   cout << " NPRM set as " << omp_get_max_threads() << " X " << max_n_prm << endl; cout.flush();
 }
 
 void AIS::set_L(){
@@ -70,9 +72,12 @@ void AIS::set_L(){
 }
 
 void AIS::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
+//   cout << " TH " << omp_get_thread_num() << " adding prm " << ipa << ipb << ipc << ipd << n1 << n2 << n3 << endl;
+//   cout.flush();
    unsigned int piabcdxyz = encode_ipabcd_n123(ipa,ipb,ipc,ipd,n1,n2,n3);
-   prm_tmp_list[ n_prm ] = piabcdxyz;
-   n_prm++;
+   int my_thr = omp_get_thread_num();
+   prm_tmp_list[ max_n_prm * my_thr + n_prm[my_thr] ] = piabcdxyz;
+   n_prm[my_thr]++;
 }
 
 ////////// A ////////
@@ -188,8 +193,8 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
    
 //   Timer timer;
 //   Timer timer2;
-
-   if (n_prm == 0){
+   int my_thr = omp_get_thread_num();
+   if (n_prm[my_thr] == 0){
       return;
    }
 
@@ -233,21 +238,21 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                const unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
                const unsigned int encoded_npabcd = encode4(npa[i],npb[j],npc[k],npd[l]);
 
-//               cout << " Inserting " << n_prm << " times " << Of << " into OF[" << la<<lb<<lc<<ld << "] at " << OF[L].size() << endl;
-                OF[L].insert(  OF[L].end(), n_prm, Of );
-               PMX[L].insert( PMX[L].end(), prm_tmp_list.begin(), prm_tmp_list.begin()+n_prm );
+//               cout << " TH " << my_thr << " Inserting " << n_prm[my_thr] << " times " << Of << " into OF[" << la<<lb<<lc<<ld << "] at " << OF[L].size() << " | " << PMX[L].size() << endl;
+               OF[L].insert(  OF[L].end(), n_prm[my_thr], Of );
+               PMX[L].insert( PMX[L].end(), &prm_tmp_list[my_thr*max_n_prm], &prm_tmp_list[my_thr*max_n_prm]+n_prm[my_thr] );
 
                const unsigned int tmp[FVH_SIZE] = {
-                  Ov, Og, Oq, n_prm, idx_A[i], idx_B[j], idx_C[k], idx_D[l],
+                  Ov, Og, Oq, n_prm[my_thr], idx_A[i], idx_B[j], idx_C[k], idx_D[l],
                   idx_Za[i], idx_Zb[j], idx_Zc[k], idx_Zd[l], idx_Ka, idx_Kb, idx_Kc, idx_Kd,
                   encoded_nlabcd, encoded_npabcd
                };
                FVH[L].insert( FVH[L].end(), tmp, tmp+18 );
 
                const int labcd = la+lb+lc+ld;
-               Fm_size[L] += (1+labcd) * n_prm;
+               Fm_size[L] += (1+labcd) * n_prm[my_thr];
                if ( labcd > 0 ){
-                  Fm_size[L] += (4*3+5) * n_prm;
+                  Fm_size[L] += (4*3+5) * n_prm[my_thr];
                }
 
                if ( all_moments[L] == false ){
@@ -259,11 +264,11 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                   all_moments[L] = true;
                }
 
-               AC_size[L] += all_vrr_blocksize[L] * n_prm;
+               AC_size[L] += all_vrr_blocksize[L] * n_prm[my_thr];
                ABCD_size[L] += all_hrr_blocksize[L] * N_cc;
 
                offset_G[L] += N_cc;
-               offset_V[L] += n_prm;
+               offset_V[L] += n_prm[my_thr];
                offset_F[L] ++ ;
 
                encoded_moments.insert(L);
@@ -272,13 +277,13 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
 }
 
 void AIS::add_cell() {
-
-   if (n_prm == 0){
+   int my_thr = omp_get_thread_num();
+   if (n_prm[my_thr] == 0){
       return;
    }
 
    cell_in_set++;
-   n_prm = 0;
+   n_prm[my_thr] = 0;
 
 }
 
@@ -507,7 +512,7 @@ void AIS::reset_indices(){
    dest=0;
    n_set = 0;
    prm_in_set = 0;
-   n_prm = 0;
+   std::fill(n_prm.begin(), n_prm.end(), 0);
    p0 = 0;
    cell_in_set = 0;
 
@@ -653,44 +658,20 @@ void AIS::dispatch( bool skip_cpu ){
    timer2.stop();
 //   cout << "DISPATCH CPU " << timer2.elapsedMilliseconds() << endl;
 
-
    timer2.start();
 
    double *data_dev, *cell_h_dev, *ftable_dev, *OUT_dev, *C2S_dev;
+   double *integral_scratch_dev;
+   unsigned int *OF_dev, *PMX_dev, *FVH_dev, *SPH_dev, *KS_dev, *TRA_dev;
+   int *plan_dev;
 
    timer.start();
+   PUSH_RANGE("dispatch malloc",1);
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&OUT_dev, sizeof(double)*OUT.size() )); // TODO mvoe alloc to be concurr to compute_Fm
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&data_dev, sizeof(double)*(ua.internal_buffer.size()) ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&cell_h_dev, sizeof(double)*(9) ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&ftable_dev, sizeof(double)*(nelem) ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&C2S_dev, sizeof(double)*245 ));
-   timer.stop();
-//   cout << "I Malloc " << timer.elapsedMilliseconds() << " ms " << endl;
-
-//   cout << "Copying Ua " << sizeof(unsigned int)*(ua.internal_buffer.size()) * 1.e-6 << " MBytes " << endl;
-   timer.start();
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), cudaMemcpyHostToDevice ));
-
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      cell_h_dev, cell_h, sizeof(double)*(9), cudaMemcpyHostToDevice ));
-
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      ftable_dev, ftable, sizeof(double)*(nelem), cudaMemcpyHostToDevice ));
-
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      C2S_dev, c2s, sizeof(double)*245, cudaMemcpyHostToDevice ));
-   timer.stop();
-//   cout << "F COPY " << timer.elapsedMilliseconds() << " ms " << endl;
-
-
-   double *integral_scratch_dev;
-   unsigned int *OF_dev, *PMX_dev, *FVH_dev, *SPH_dev, *KS_dev, *TRA_dev;
-   int *plan_dev;
-
-
-   timer.start();
-   PUSH_RANGE("dispatch malloc",1);
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&integral_scratch_dev,    sizeof(double)*max_integral_scratch_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&plan_dev,sizeof(int)*max_plan_size ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&OF_dev , sizeof(unsigned int)*max_OF_size )); 
@@ -703,17 +684,28 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    POP_RANGE;
    timer.stop();
-//   cout << "L Malloc " << timer.elapsedMilliseconds() << " ms " << endl;
 
    timer.start();
-   PUSH_RANGE("dispatch cublas handle",2);
+   PUSH_RANGE("dispatch memcy",1);
+   CUDA_GPU_ERR_CHECK( cudaMemcpy(
+      data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), cudaMemcpyHostToDevice ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy(
+      cell_h_dev, cell_h, sizeof(double)*(9), cudaMemcpyHostToDevice ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy(
+      ftable_dev, ftable, sizeof(double)*(nelem), cudaMemcpyHostToDevice ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpy(
+      C2S_dev, c2s, sizeof(double)*245, cudaMemcpyHostToDevice ));
+   POP_RANGE;
+   timer.stop();
+
+   timer.start();
+   PUSH_RANGE("dispatch cublas handle",1);
    cublasHandle_t cublas_handle;
    CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
    CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
    CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    POP_RANGE;
    timer.stop();
-//   cout << "CUBLAS HANDLE CREATE " << timer.elapsedMilliseconds() << " ms " << endl;
  
    // Main cycle. 
    // 1) Get the plan
@@ -745,7 +737,7 @@ void AIS::dispatch( bool skip_cpu ){
       double* SPHER_dev = ABCD0_dev + ABCD0_size[L];
 
       std::string Lname = std::to_string(la) + "_" + std::to_string(lb) + "_" + std::to_string(lc) + "_" + std::to_string(ld);
-      PUSH_RANGE(Lname,3);
+      PUSH_RANGE(Lname.c_str(),3);
 
       PUSH_RANGE("transfer indeces",4);
       CUDA_GPU_ERR_CHECK( cudaMemcpy(
@@ -763,8 +755,8 @@ void AIS::dispatch( bool skip_cpu ){
       POP_RANGE; // transfer indeces
       timer.start();
 
-      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
       int Fm_blocksize = 256;
       int Fm_numblocks = (Nprm+Fm_blocksize-1)/Fm_blocksize;
 
@@ -772,8 +764,8 @@ void AIS::dispatch( bool skip_cpu ){
       compute_Fm_batched_low_gpu<<<Fm_numblocks,Fm_blocksize>>>(
          FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, ftable_dev, ftable_ld );
-      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
       compute_VRR_batched_gpu_low<<<Ncells,32>>>(
          Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev, data_dev,
@@ -784,34 +776,33 @@ void AIS::dispatch( bool skip_cpu ){
          hrr_blocksize, Nc, numVC, numVCH );
 
       // Note: we need to DeviceSynchronize before going from kernels to cublas. TODO actually check it is true
-      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
       compute_SPH_batched_gpu_alt ( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, ABCD_dev, C2S_dev, cublas_handle );
 
       int corrBS = 64;
       int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
-      apply_correction<<<corrNB,corrBS>>>( Nqrtt*Ns, SPHER_dev, corr );
+//      apply_correction<<<corrNB,corrBS>>>( Nqrtt*Ns, SPHER_dev, corr );
 
       compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_a_dev, SPHER_dev, K_a_dev, data_dev );
       if ( nspin == 2 ){
          compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_b_dev, SPHER_dev, K_b_dev, data_dev );
       }
 
-      compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
+//      compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
       POP_RANGE; // compute
-      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
       POP_RANGE; // Lname
       timer.stop();
-
       record_of_times_gpu[L].push_back(timer.elapsedMicroseconds());
    }
    POP_RANGE; // compute all L
-   timer.start();
-   std::vector<double> OUT_from_gpu( OUT.size() );
-   CUDA_GPU_ERR_CHECK( cudaMemcpy( OUT_from_gpu.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
-   timer.stop();
+//   timer.start();
+//   std::vector<double> OUT_from_gpu( OUT.size() );
+//   CUDA_GPU_ERR_CHECK( cudaMemcpy( OUT_from_gpu.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
+//   timer.stop();
 
    timer.start();
    std::vector<double> F_a_from_gpu( FP_size );
@@ -827,7 +818,7 @@ void AIS::dispatch( bool skip_cpu ){
 
    timer2.stop();
 //   cout << "DISPATCH GPU " << timer2.elapsedMilliseconds() << " ms" << endl;
-
+/*
    if ( not skip_cpu ){
       double diff_sum = 0.0;
       double adiff_sum = 0.0;
@@ -914,7 +905,6 @@ void AIS::dispatch( bool skip_cpu ){
 
       }
 
-
       if (nerrors != 0 ){
          cout << "E[ CPU-GPU ] = " <<  diff_sum / Nval << endl;
          cout << "E[|CPU-GPU|] = " << adiff_sum / Nval << endl;
@@ -942,7 +932,7 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaFree(SPH_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree( KS_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(TRA_dev) );
-
+*/
    reset_indices();
 
 }

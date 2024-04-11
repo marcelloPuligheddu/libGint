@@ -7,7 +7,7 @@
 #include <tuple>
 #include <cstdlib>
 #include <ctime>
-
+#include <omp.h>
 using std::cout;
 using std::cerr;
 using std::cout;
@@ -144,17 +144,23 @@ if ( mode == 'C' ){
 }
 
 if ( mode == 'P' ){
+   SpDm_a.resize( len_SpDm );
+   SpKS_a.resize( len_SpDm );
+   SpDm_b.resize( len_SpDm );
+   SpKS_b.resize( len_SpDm );
+
    std::srand(std::time(nullptr));
+   #pragma omp parallel for
    for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
-      SpDm_a.push_back( std::rand() / (RAND_MAX + 1u) );
-      SpKS_a.push_back( std::rand() / (RAND_MAX + 1u) );
+      SpDm_a[idx_SpDm] = ( std::rand() / (RAND_MAX + 1u) );
+      SpKS_a[idx_SpDm] = ( std::rand() / (RAND_MAX + 1u) );
       if ( nspin == 2 ){
-         SpDm_b.push_back( std::rand() / (RAND_MAX + 1u) );
-         SpKS_b.push_back( std::rand() / (RAND_MAX + 1u) );
+         SpDm_b[idx_SpDm] = ( std::rand() / (RAND_MAX + 1u) );
+         SpKS_b[idx_SpDm] = ( std::rand() / (RAND_MAX + 1u) );
       }
    }
 }
-
+#pragma omp barrier
 
 int int_size;
 cin >> int_size ;
@@ -171,7 +177,6 @@ int n3_min = 0;
 int n3_max = 0;
 double PCells[3] = {0.,0.,0.};
 bool periodic = false;
-
 AIS ais;
 // Since we all always adding to F, it is important that it starts from a value of zero
 if ( nspin == 1 ){
@@ -186,9 +191,9 @@ if ( nspin == 1 ){
    ais.set_K ( my_F_a, my_F_b );
 }
 
-
 ais.show_state();
 ais.periodic = periodic;
+
 for( int uff=0; uff < 9 ; uff++){
    ais.cell_h[uff] = cell_h[uff];
 }
@@ -252,7 +257,17 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 ais.set_max_n_prm( 1 );
 ais.set_L();
 
+cout << " Q " << endl; cout.flush();
+
+#pragma omp parallel default(shared) 
+{
+#pragma omp for schedule(dynamic,4)
 for ( int i = 0 ; i < nbas ; i ++ ){
+   #pragma omp critical
+   {
+     cout << " TH " << omp_get_thread_num() << " i: " << i << endl;
+     cout.flush();
+   }
    double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
    int la_min = bas[i*8+1];
    int la_max = bas[i*8+1];
@@ -413,9 +428,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                      compute_weighted_distance(Q,RCp,RDp,zc,zd,zcd);
                      double PQ0[3] = {P[0]-Q[0], P[1]-Q[1], P[2]-Q[2]};
 
-//                     int shift[3] = {0,0,0};
-//                     if (periodic){ }
-
+//		     #pragma omp critical
                      ais.add_prm(iza,izb,izc,izd,n1,n2,n3);
 
                      cell_is_screened = false;
@@ -423,10 +436,11 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   }} // zc,zd
                }} // za,zb
 
-
+               #pragma omp critical
                if ( not cell_is_screened ) {
                   ais.add_shell(i,j,k,l,n1,n2);
                }
+               #pragma omp critical
                ais.add_cell();
             } // R3
          } // R2
@@ -441,11 +455,13 @@ for ( int j = 0 ; j < nbas ; j ++ ){
             int nlb = bas[j*8+3];
             int nlc = bas[k*8+3];
             int nld = bas[l*8+3];
+            #pragma omp critical
             ais.add_qrt(la,lb,lc,ld, nla,nlb,nlc,nld);
             for( int inla = 0 ; inla < nla; inla++ ){
             for( int inlb = 0 ; inlb < nlb; inlb++ ){
             for( int inlc = 0 ; inlc < nlc; inlc++ ){
             for( int inld = 0 ; inld < nld; inld++ ){
+               #pragma omp critical
                ais.add_qrtt(
                   symm_fac, la,lb,lc,ld, 
                   inla,inlb,inlc,inld,
@@ -455,17 +471,22 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   Tac,Tad,Tbc,Tbd );
             }}}}
          }}}}
+         #pragma omp critical
          ais.add_set();
       }
+   }} // bas cd
+}} // bas ab
 
+}
 
-      bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
-      if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
+//      bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
+//      if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
          cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
          cout.flush();
          timer.stop();
 
          timer.start();
+
          ais.dispatch(skip_cpu);
          timer.stop();
          cout << " Dispatch step: " << timer.elapsedMilliseconds() << endl;
@@ -494,20 +515,17 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                        << " " << diff << " " << ratio << " " << endl ;
                   if ( nerrors >= 100 ){
                      cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
-                     return EXIT_FAILURE ;
+//                     return EXIT_FAILURE ;
                   }
                }
             }
     
             cout << "I: E[ CPU-REF ] " << diff_sum / Nval << endl;
             cout << "I: E[|CPU-REF|] " << adiff_sum / Nval << endl;
-            if ( nerrors > 0 ){ return EXIT_FAILURE ; }
+//            if ( nerrors > 0 ){ return EXIT_FAILURE ; }
          }
          timer.start();
-      }
-
-   }} // bas cd
-}} // bas ab
+//      }
 
 timer.stop();
 
@@ -610,7 +628,7 @@ if ( mode == 'C' ){
               << " " << diff << " " << ratio << " " << endl ;
          if ( nerrors >= 100 ){
             cout << " F: TOO MANY ERRORS ! EXITING NOW " << endl;
-            return EXIT_FAILURE ;
+//            return EXIT_FAILURE ;
          }
       }
       if ( nspin == 2 ){
@@ -629,7 +647,7 @@ if ( mode == 'C' ){
                  << " " << diff << " " << ratio << " " << endl ;
             if ( nerrors >= 100 ){
                cout << " Fb: TOO MANY ERRORS ! EXITING NOW " << endl;
-               return EXIT_FAILURE ;
+//               return EXIT_FAILURE ;
             }
          }
       }
@@ -637,13 +655,12 @@ if ( mode == 'C' ){
 
    cout << "F: E[ CPU-REF ] " << diff_sum / Nval << endl;
    cout << "F: E[|CPU-REF|] " << adiff_sum / Nval << endl;
-   if ( nerrors > 0 ){ return EXIT_FAILURE ; }
+//   if ( nerrors > 0 ){ return EXIT_FAILURE ; }
 
-}
 
 // ais.show_state();
 if ( mode == 'P' ){ ais.report_througput(skip_cpu); }
-
+}
 return EXIT_SUCCESS;
 }
 

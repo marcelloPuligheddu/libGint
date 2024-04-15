@@ -150,7 +150,7 @@ if ( mode == 'P' ){
    SpKS_b.resize( len_SpDm );
 
    std::srand(std::time(nullptr));
-   #pragma omp parallel for
+
    for( int idx_SpDm=0; idx_SpDm < len_SpDm; idx_SpDm++ ){
       SpDm_a[idx_SpDm] = ( std::rand() / (RAND_MAX + 1u) );
       SpKS_a[idx_SpDm] = ( std::rand() / (RAND_MAX + 1u) );
@@ -160,7 +160,7 @@ if ( mode == 'P' ){
       }
    }
 }
-#pragma omp barrier
+
 
 int int_size;
 cin >> int_size ;
@@ -177,6 +177,9 @@ int n3_min = 0;
 int n3_max = 0;
 double PCells[3] = {0.,0.,0.};
 bool periodic = false;
+#pragma omp parallel default(shared)
+{
+
 AIS ais;
 // Since we all always adding to F, it is important that it starts from a value of zero
 if ( nspin == 1 ){
@@ -257,45 +260,48 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 ais.set_max_n_prm( 1 );
 ais.set_L();
 
-cout << " Q " << endl; cout.flush();
+#pragma omp for schedule(dynamic)
+for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 
-#pragma omp parallel default(shared) 
-{
-#pragma omp for schedule(dynamic,4)
-for ( int i = 0 ; i < nbas ; i ++ ){
-   #pragma omp critical
-   {
-     cout << " TH " << omp_get_thread_num() << " i: " << i << endl;
-     cout.flush();
+   int i = (ijkl / (nbas*nbas*nbas)        );
+   int j = (ijkl / (nbas*nbas     ) % nbas );
+   int k = (ijkl / (nbas          ) % nbas );
+   int l = (ijkl/  (1             ) % nbas );
+
+
+   if (ijkl % 1000000 == 0){
+     #pragma omp critical
+     { cout << " TH " << omp_get_thread_num() << " i: " << i << " " << j << " " << k << " " << l << &ais << endl;
+       cout.flush(); }
    }
+
    double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
    int la_min = bas[i*8+1];
    int la_max = bas[i*8+1];
    int nza = bas[i*8+2];
-for ( int j = 0 ; j < nbas ; j ++ ){
+//for ( int j = 0 ; j < nbas ; j ++ ){
    double* RB = &env[ atm[ bas[j*8+0]*6+1 ]];
    int lb_min = bas[j*8+1];
    int lb_max = bas[j*8+1];
    int nzb = bas[j*8+2];
 
-   for ( int k = 0 ; k < nbas ; k ++ ){
+//   for ( int k = 0 ; k < nbas ; k ++ ){
       double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
       int lc_min = bas[k*8+1];
       int lc_max = bas[k*8+1];
       int nzc = bas[k*8+2];
-   for ( int l = 0 ; l < nbas ; l ++ ){
+//   for ( int l = 0 ; l < nbas ; l ++ ){
       double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
       int ld_min = bas[l*8+1];
       int ld_max = bas[l*8+1];
       int nzd = bas[l*8+2];
-
 
       // TODO: split the calculation of symm k, Tbd offset and ld to functions
       int atom_i = bas[i*8+0];
       int atom_j = bas[j*8+0];
       int atom_k = bas[k*8+0];
       int atom_l = bas[l*8+0];
-      bool screened_by_symm = false;
+      bool screened_by_symm = false; // = screen_by_symm_atom(atom_i, atom_j, atom_k, atom_l);
       if ( atom_i > atom_j ){ screened_by_symm = true; continue;}
       if ( atom_k > atom_l ){ screened_by_symm = true; continue; }
       if ( not ( (atom_k+atom_l) <= (atom_i+atom_j)) ){ screened_by_symm = true; continue; }
@@ -311,7 +317,7 @@ for ( int j = 0 ; j < nbas ; j ++ ){
       int kkind = atom_k;
       int lkind = atom_l;
 
-      double symm_fac = 0.5;
+      double symm_fac = 0.5; // = compute_symm_fac(atom_i, atom_j, atom_k, atom_l);
       if (atom_i == atom_j) { symm_fac *= 2.0; }
       if (atom_k == atom_l) { symm_fac *= 2.0; }
       if (atom_i == atom_k and atom_j == atom_l and atom_i != atom_j and atom_k != atom_l) { symm_fac *= 2.0; }
@@ -323,6 +329,11 @@ for ( int j = 0 ; j < nbas ; j ++ ){
       int ld_bd_set, ld_bc_set, ld_ad_set, ld_ac_set;
       int Tbd, Tbc, Tad, Tac;
       // bd
+      // offset_bd_set = offset_bd_atom + symm_transpose( atom_j,atom_l, j,l,jkind,lkind, offset_set,ld_set, &Tbd,&ld_bd_set );
+      // offset_bc_set = offset_bc_atom + symm_transpose( atom_j,atom_k, j,k,jkind,kkind, offset_set,ld_set, &Tbc,&ld_bc_set );
+      // offset_ad_set = offset_ad_atom + symm_transpose( atom_i,atom_l, i,l,ikind,lkind, offset_set,ld_set, &Tad,&ld_ad_set );
+      // offset_ac_set = offset_ac_atom + symm_transpose( atom_i,atom_k, i,k,ikind,kkind, offset_set,ld_set, &Tac,&ld_ac_set ); 
+
       if ( atom_j >= atom_l ){
          atom_set = my_hash(j,l,jkind,lkind);
          offset_bd_L_set = offset_bd_atom + offset_set[atom_set]; // ## no multi L set in pyscf
@@ -428,7 +439,6 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                      compute_weighted_distance(Q,RCp,RDp,zc,zd,zcd);
                      double PQ0[3] = {P[0]-Q[0], P[1]-Q[1], P[2]-Q[2]};
 
-//		     #pragma omp critical
                      ais.add_prm(iza,izb,izc,izd,n1,n2,n3);
 
                      cell_is_screened = false;
@@ -436,11 +446,12 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   }} // zc,zd
                }} // za,zb
 
-               #pragma omp critical
+
                if ( not cell_is_screened ) {
+//                  #pragma omp critical
                   ais.add_shell(i,j,k,l,n1,n2);
                }
-               #pragma omp critical
+//               #pragma omp critical
                ais.add_cell();
             } // R3
          } // R2
@@ -455,13 +466,13 @@ for ( int j = 0 ; j < nbas ; j ++ ){
             int nlb = bas[j*8+3];
             int nlc = bas[k*8+3];
             int nld = bas[l*8+3];
-            #pragma omp critical
+//            #pragma omp critical
             ais.add_qrt(la,lb,lc,ld, nla,nlb,nlc,nld);
             for( int inla = 0 ; inla < nla; inla++ ){
             for( int inlb = 0 ; inlb < nlb; inlb++ ){
             for( int inlc = 0 ; inlc < nlc; inlc++ ){
             for( int inld = 0 ; inld < nld; inld++ ){
-               #pragma omp critical
+//               #pragma omp critical
                ais.add_qrtt(
                   symm_fac, la,lb,lc,ld, 
                   inla,inlb,inlc,inld,
@@ -471,16 +482,18 @@ for ( int j = 0 ; j < nbas ; j ++ ){
                   Tac,Tad,Tbc,Tbd );
             }}}}
          }}}}
-         #pragma omp critical
+//         #pragma omp critical
          ais.add_set();
       }
-   }} // bas cd
-}} // bas ab
 
-}
 
 //      bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
 //      if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
+//   }} // bas cd
+//}} // bas ab
+} // ijkl
+
+
          cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
          cout.flush();
          timer.stop();
@@ -490,7 +503,6 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          ais.dispatch(skip_cpu);
          timer.stop();
          cout << " Dispatch step: " << timer.elapsedMilliseconds() << endl;
-
 
          if ( mode == 'C' ){
             int nerrors = 0;
@@ -526,6 +538,10 @@ for ( int j = 0 ; j < nbas ; j ++ ){
          }
          timer.start();
 //      }
+//   }} // bas cd
+//}} // bas ab
+
+
 
 timer.stop();
 
@@ -656,11 +672,14 @@ if ( mode == 'C' ){
    cout << "F: E[ CPU-REF ] " << diff_sum / Nval << endl;
    cout << "F: E[|CPU-REF|] " << adiff_sum / Nval << endl;
 //   if ( nerrors > 0 ){ return EXIT_FAILURE ; }
-
+}
 
 // ais.show_state();
 if ( mode == 'P' ){ ais.report_througput(skip_cpu); }
-}
+
+
+} // pragma omp parallel
+
 return EXIT_SUCCESS;
 }
 

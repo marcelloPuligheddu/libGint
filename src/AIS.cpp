@@ -728,7 +728,7 @@ void AIS::dispatch( bool skip_cpu ){
       unsigned int Nprm   = offset_V[L];
       unsigned int Ncells = offset_F[L];
       unsigned int Nqrtt  = offset_Q[L];
-      unsigned int Nshell = offset_T[L];
+//      unsigned int Nshell = offset_T[L];
 
       double* Fm_dev    = &integral_scratch_dev[0];
       double* AC_dev    = Fm_dev    + Fm_size[L];
@@ -781,8 +781,8 @@ void AIS::dispatch( bool skip_cpu ){
 
       compute_SPH_batched_gpu_alt ( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, ABCD_dev, C2S_dev, cublas_handle );
 
-      int corrBS = 64;
-      int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
+//      int corrBS = 64;
+//      int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
 //      apply_correction<<<corrNB,corrBS>>>( Nqrtt*Ns, SPHER_dev, corr );
 
       compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_a_dev, SPHER_dev, K_a_dev, data_dev );

@@ -14,7 +14,7 @@
 #include "fgamma.h"
 #include "AIS.h"
 #include "c2s.h"
-#include <omp.h>
+//#include <omp.h>
 
 using std::max;
 
@@ -55,29 +55,37 @@ void AIS::set_max_n_prm( int max_n3 ){
    max_n_prm *= max( npb );
    max_n_prm *= max( npc );
    max_n_prm *= max( npd );
-   prm_tmp_list.resize( max_n_prm  * omp_get_max_threads() );
-   n_prm.resize(omp_get_max_threads(), 0);
-   cout << " NPRM set as " << omp_get_max_threads() << " X " << max_n_prm << endl; cout.flush();
+   prm_tmp_list.resize( max_n_prm );
+   n_prm = 0;
 }
 
-void AIS::set_L(){
+void AIS::init(){
+   Timer timer;
+   timer.start();
+
    for( int la=0; la <= 1; la++ ){
    for( int lb=0; lb <= 1; lb++ ){
    for( int lc=0; lc <= 1; lc++ ){
    for( int ld=0; ld <= 1; ld++ ){
       int L = encodeL( la,lb,lc,ld );
-      PMX[L].reserve( 100000 );
-       OF[L].reserve( 100000 );
+      PMX[L].reserve( 10000 );
+       OF[L].reserve( 10000 );
    }}}}
+
+   PUSH_RANGE("dispatch cublas handle",1);
+   CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
+   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+   POP_RANGE;
+   timer.stop();
 }
 
 void AIS::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
 //   cout << " TH " << omp_get_thread_num() << " adding prm " << ipa << ipb << ipc << ipd << n1 << n2 << n3 << endl;
 //   cout.flush();
    unsigned int piabcdxyz = encode_ipabcd_n123(ipa,ipb,ipc,ipd,n1,n2,n3);
-   int my_thr = omp_get_thread_num();
-   prm_tmp_list[ max_n_prm * my_thr + n_prm[my_thr] ] = piabcdxyz;
-   n_prm[my_thr]++;
+   prm_tmp_list[ n_prm ] = piabcdxyz;
+   n_prm++;
 }
 
 ////////// A ////////
@@ -193,8 +201,8 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
    
 //   Timer timer;
 //   Timer timer2;
-   int my_thr = omp_get_thread_num();
-   if (n_prm[my_thr] == 0){
+
+   if (n_prm == 0){
       return;
    }
 
@@ -238,21 +246,21 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                const unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
                const unsigned int encoded_npabcd = encode4(npa[i],npb[j],npc[k],npd[l]);
 
-//               cout << " TH " << my_thr << " Inserting " << n_prm[my_thr] << " times " << Of << " into OF[" << la<<lb<<lc<<ld << "] at " << OF[L].size() << " | " << PMX[L].size() << endl;
-               OF[L].insert(  OF[L].end(), n_prm[my_thr], Of );
-               PMX[L].insert( PMX[L].end(), &prm_tmp_list[my_thr*max_n_prm], &prm_tmp_list[my_thr*max_n_prm]+n_prm[my_thr] );
+//               cout << " TH " << my_thr << " Inserting " << n_prm << " times " << Of << " into OF[" << la<<lb<<lc<<ld << "] at " << OF[L].size() << " | " << PMX[L].size() << endl;
+               OF[L].insert(  OF[L].end(), n_prm, Of );
+               PMX[L].insert( PMX[L].end(), &prm_tmp_list[0], &prm_tmp_list[n_prm] );
 
                const unsigned int tmp[FVH_SIZE] = {
-                  Ov, Og, Oq, n_prm[my_thr], idx_A[i], idx_B[j], idx_C[k], idx_D[l],
+                  Ov, Og, Oq, n_prm, idx_A[i], idx_B[j], idx_C[k], idx_D[l],
                   idx_Za[i], idx_Zb[j], idx_Zc[k], idx_Zd[l], idx_Ka, idx_Kb, idx_Kc, idx_Kd,
                   encoded_nlabcd, encoded_npabcd
                };
                FVH[L].insert( FVH[L].end(), tmp, tmp+18 );
 
                const int labcd = la+lb+lc+ld;
-               Fm_size[L] += (1+labcd) * n_prm[my_thr];
+               Fm_size[L] += (1+labcd) * n_prm;
                if ( labcd > 0 ){
-                  Fm_size[L] += (4*3+5) * n_prm[my_thr];
+                  Fm_size[L] += (4*3+5) * n_prm;
                }
 
                if ( all_moments[L] == false ){
@@ -264,11 +272,11 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                   all_moments[L] = true;
                }
 
-               AC_size[L] += all_vrr_blocksize[L] * n_prm[my_thr];
+               AC_size[L] += all_vrr_blocksize[L] * n_prm;
                ABCD_size[L] += all_hrr_blocksize[L] * N_cc;
 
                offset_G[L] += N_cc;
-               offset_V[L] += n_prm[my_thr];
+               offset_V[L] += n_prm;
                offset_F[L] ++ ;
 
                encoded_moments.insert(L);
@@ -277,13 +285,13 @@ void AIS::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
 }
 
 void AIS::add_cell() {
-   int my_thr = omp_get_thread_num();
-   if (n_prm[my_thr] == 0){
+
+   if (n_prm == 0){
       return;
    }
 
    cell_in_set++;
-   n_prm[my_thr] = 0;
+   n_prm = 0;
 
 }
 
@@ -426,7 +434,7 @@ size_t AIS::memory_needed( ){
 }
 
 void AIS::set_P( std::vector<double> & P_ ){
-   cout << " Setting P with size " << P_.size() << endl ;
+//   cout << " Setting P with size " << P_.size() << endl ;
    nspin = 1;
    P_a = P_.data();
    FP_size = P_.size();
@@ -435,7 +443,7 @@ void AIS::set_P( std::vector<double> & P_ ){
 }
 
 void AIS::set_P( std::vector<double> & P_a_, std::vector<double> & P_b_ ){
-   cout << " Setting P Polarized with size " << P_a_.size() << " " << P_b_.size() << endl ;
+//   cout << " Setting P Polarized with size " << P_a_.size() << " " << P_b_.size() << endl ;
    nspin = 2;
    P_a = P_a_.data();
    P_b = P_b_.data();
@@ -447,7 +455,7 @@ void AIS::set_P( std::vector<double> & P_a_, std::vector<double> & P_b_ ){
 }
 
 void AIS::set_K( std::vector<double> & K_ ){
-   cout << " Setting K with size " << K_.size() << endl ;
+//   cout << " Setting K with size " << K_.size() << endl ;
    assert( nspin == 1 );
    K_a = K_.data();
    FP_size = K_.size();
@@ -456,7 +464,7 @@ void AIS::set_K( std::vector<double> & K_ ){
 }
 
 void AIS::set_K( std::vector<double> & K_a_, std::vector<double> & K_b_ ){
-   cout << " Setting K Polarized with size " << K_a_.size() << " " << K_b_.size() << endl ;
+//   cout << " Setting K Polarized with size " << K_a_.size() << " " << K_b_.size() << endl ;
    assert( nspin == 2 );
    K_a = K_a_.data();
    K_b = K_b_.data();
@@ -512,7 +520,7 @@ void AIS::reset_indices(){
    dest=0;
    n_set = 0;
    prm_in_set = 0;
-   std::fill(n_prm.begin(), n_prm.end(), 0);
+   n_prm = 0;
    p0 = 0;
    cell_in_set = 0;
 
@@ -557,11 +565,14 @@ void AIS::dispatch( bool skip_cpu ){
    tot_mem += sizeof(unsigned int)*(9+nelem+245) ;
    tot_mem += 2 * sizeof(double)*(FP_size) ;
 
+   #pragma omp single
    if ( first ){
       cout << "Memory use: (MB)" << endl;
       cout << " OUT DAT SCRT PLAN OF PMX FVH SPH KS TRA AUX FK TOT" << endl;
       first = false;
    }
+   #pragma omp critical
+   {
    cout << int( OUT.size()*sizeof(double) *1.e-6 ) << " ";
    cout << int( ua.internal_buffer.size()*sizeof(double) *1.e-6 ) << " ";
    cout << int( sizeof(double)*max_integral_scratch_size *1.e-6 ) << " ";
@@ -575,6 +586,7 @@ void AIS::dispatch( bool skip_cpu ){
    cout << int( sizeof(unsigned int)*(9+nelem+245) *1.e-6 ) << "  "; 
    cout << int( 2 * sizeof(double)*(FP_size)       *1.e-6 ) << "  "; 
    cout << int( tot_mem *1.e-6 ) << endl;
+   }
 
    std::vector<double> integral_scratch(max_integral_scratch_size);
 
@@ -698,15 +710,7 @@ void AIS::dispatch( bool skip_cpu ){
    POP_RANGE;
    timer.stop();
 
-   timer.start();
-   PUSH_RANGE("dispatch cublas handle",1);
-   cublasHandle_t cublas_handle;
-   CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
-   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
-   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-   POP_RANGE;
-   timer.stop();
- 
+
    // Main cycle. 
    // 1) Get the plan
    // 2) Copy the input vectors to device memory

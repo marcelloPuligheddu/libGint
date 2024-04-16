@@ -27,10 +27,6 @@ bool skip_cpu = false;
 if (argc > 1 and argv[1][0] == 'G' ){ skip_cpu = true; }
 
 
-Timer timer;
-//Timer timer_shell;
-timer.start();
-
 int nbas, natom, env_size;
 std::vector<int> bas;
 std::vector<int> atm;
@@ -38,6 +34,10 @@ std::vector<double> env;
 char mode;
 int nspin;
 
+int num_gpus;
+cudaGetDeviceCount(&num_gpus);
+
+cout << endl << " GPUS " << num_gpus << endl;
 
 cin >> mode ;
 cout << " MODE: " << mode;
@@ -180,7 +180,20 @@ bool periodic = false;
 #pragma omp parallel default(shared)
 {
 
+Timer timer;
+timer.start();
+
+
+cudaSetDevice( omp_get_thread_num() % num_gpus);
 AIS ais;
+ais.init();
+timer.stop();
+#pragma omp critical
+{ cout << " Init step: " << omp_get_thread_num() << " " << timer.elapsedMilliseconds() << endl;
+cout.flush(); }
+
+
+timer.start();
 // Since we all always adding to F, it is important that it starts from a value of zero
 if ( nspin == 1 ){
    ais.set_P ( SpDm_a );
@@ -258,9 +271,8 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 }
 
 ais.set_max_n_prm( 1 );
-ais.set_L();
 
-#pragma omp for schedule(dynamic)
+#pragma omp for 
 for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 
    int i = (ijkl / (nbas*nbas*nbas)        );
@@ -269,9 +281,9 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
    int l = (ijkl/  (1             ) % nbas );
 
 
-   if (ijkl % 1000000 == 0){
-     #pragma omp critical
-     { cout << " TH " << omp_get_thread_num() << " i: " << i << " " << j << " " << k << " " << l << &ais << endl;
+   if (ijkl % (nbas*nbas*nbas) == 0){
+//     #pragma omp critical
+     { cout << " TH " << omp_get_thread_num() << " i: " << i << " " << j << " " << k << " " << l << " " << timer.elapsedMilliseconds() << endl;
        cout.flush(); }
    }
 
@@ -493,16 +505,16 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 //}} // bas ab
 } // ijkl
 
-
-         cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
-         cout.flush();
          timer.stop();
+	 #pragma omp critical
+         { cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
+           cout.flush(); }
 
          timer.start();
-
          ais.dispatch(skip_cpu);
          timer.stop();
-         cout << " Dispatch step: " << timer.elapsedMilliseconds() << endl;
+	 #pragma omp critical
+         { cout << " TH " << omp_get_thread_num() << " dispatch step: " << timer.elapsedMilliseconds() << endl; }
 
          if ( mode == 'C' ){
             int nerrors = 0;
@@ -559,10 +571,6 @@ if ( nspin == 1 ){
 
 
 // stupid symmetry operator(s)
-
-
-
-
 for ( int iset = 0 ; iset < nbas ; iset ++ ){
 for ( int jset = 0 ; jset < nbas ; jset ++ ){
    int atom_i = bas[iset*8+0];
@@ -675,7 +683,7 @@ if ( mode == 'C' ){
 }
 
 // ais.show_state();
-if ( mode == 'P' ){ ais.report_througput(skip_cpu); }
+//if ( mode == 'P' ){ ais.report_througput(skip_cpu); }
 
 
 } // pragma omp parallel

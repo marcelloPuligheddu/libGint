@@ -70,7 +70,7 @@ class AIS {
    void setCl( int k, int lc_, int nlc_, double* Kc_  );
    void setDl( int l, int ld_, int nld_, double* Kd_  );
    void set_max_n_prm( int max_n3 );
-   void set_L( );
+   void init( );
    void compute_max_vector_size();
    size_t memory_needed();
 
@@ -91,7 +91,7 @@ class AIS {
    std::vector<std::vector<int> > all_la,all_lb,all_lc,all_ld;
    std::vector<std::vector<int> > all_nla,all_nlb,all_nlc,all_nld;
    std::vector<std::vector< unsigned int>> all_idx_Ka, all_idx_Kb, all_idx_Kc, all_idx_Kd;
-
+   cublasHandle_t cublas_handle;
 
    int nspin = 0 ;
    double * K_a; // not owned by AIS
@@ -143,7 +143,7 @@ class AIS {
 //   bool is_gamma = true;
    unsigned int n_set = 0;
    unsigned int prm_in_set = 0;
-   std::vector< unsigned int > n_prm ;
+   unsigned int n_prm = 0;
    int max_n_prm;
    unsigned int p0 = 0;
    unsigned int cell_in_set = 0;

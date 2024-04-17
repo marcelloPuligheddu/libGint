@@ -177,7 +177,7 @@ int n3_min = 0;
 int n3_max = 0;
 double PCells[3] = {0.,0.,0.};
 bool periodic = false;
-#pragma omp parallel default(shared)
+#pragma omp parallel
 {
 
 Timer timer;
@@ -186,11 +186,10 @@ timer.start();
 
 cudaSetDevice( omp_get_thread_num() % num_gpus);
 AIS ais;
-ais.init();
-timer.stop();
 #pragma omp critical
-{ cout << " Init step: " << omp_get_thread_num() << " " << timer.elapsedMilliseconds() << endl;
-cout.flush(); }
+ais.init();
+ais.periodic = periodic;
+timer.stop();
 
 
 timer.start();
@@ -206,9 +205,6 @@ if ( nspin == 1 ){
    my_F_b.resize( SpKS_b.size(), 0.0 );
    ais.set_K ( my_F_a, my_F_b );
 }
-
-ais.show_state();
-ais.periodic = periodic;
 
 for( int uff=0; uff < 9 ; uff++){
    ais.cell_h[uff] = cell_h[uff];
@@ -272,6 +268,9 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 
 ais.set_max_n_prm( 1 );
 
+#pragma omp critical
+{ cout << " Init step: " << omp_get_thread_num() << " " << timer.elapsedMilliseconds() << endl; cout.flush(); }
+
 #pragma omp for 
 for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 
@@ -280,11 +279,9 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
    int k = (ijkl / (nbas          ) % nbas );
    int l = (ijkl/  (1             ) % nbas );
 
-
    if (ijkl % (nbas*nbas*nbas) == 0){
-//     #pragma omp critical
-     { cout << " TH " << omp_get_thread_num() << " i: " << i << " " << j << " " << k << " " << l << " " << timer.elapsedMilliseconds() << endl;
-       cout.flush(); }
+     #pragma omp critical
+     { cout << " TH " << omp_get_thread_num() << " i: " << i << " " << j << " " << k << " " << l << " " << timer.elapsedMilliseconds() << endl; cout.flush(); }
    }
 
    double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
@@ -458,12 +455,9 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
                   }} // zc,zd
                }} // za,zb
 
-
                if ( not cell_is_screened ) {
-//                  #pragma omp critical
                   ais.add_shell(i,j,k,l,n1,n2);
                }
-//               #pragma omp critical
                ais.add_cell();
             } // R3
          } // R2
@@ -478,13 +472,11 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
             int nlb = bas[j*8+3];
             int nlc = bas[k*8+3];
             int nld = bas[l*8+3];
-//            #pragma omp critical
             ais.add_qrt(la,lb,lc,ld, nla,nlb,nlc,nld);
             for( int inla = 0 ; inla < nla; inla++ ){
             for( int inlb = 0 ; inlb < nlb; inlb++ ){
             for( int inlc = 0 ; inlc < nlc; inlc++ ){
             for( int inld = 0 ; inld < nld; inld++ ){
-//               #pragma omp critical
                ais.add_qrtt(
                   symm_fac, la,lb,lc,ld, 
                   inla,inlb,inlc,inld,
@@ -494,68 +486,35 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
                   Tac,Tad,Tbc,Tbd );
             }}}}
          }}}}
-//         #pragma omp critical
          ais.add_set();
       }
 
 
 //      bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
-//      if ( (k==0 and l==0 and ais.memory_needed() > 4.e9) or is_last_qrtt ){
-//   }} // bas cd
-//}} // bas ab
-} // ijkl
 
-         timer.stop();
+      if ( (k==0 and l==0 and ais.memory_needed() > 1.e9) ){
+//         timer.stop();
 	 #pragma omp critical
-         { cout << " Prepare step: " << timer.elapsedMilliseconds() << endl;
-           cout.flush(); }
-
-         timer.start();
+         { cout << " Prepare step: " << timer.elapsedMilliseconds() << endl; cout.flush(); }
+//         timer.start();
          ais.dispatch(skip_cpu);
-         timer.stop();
-	 #pragma omp critical
-         { cout << " TH " << omp_get_thread_num() << " dispatch step: " << timer.elapsedMilliseconds() << endl; }
+//         timer.stop();
+//	 #pragma omp critical
+//         { cout << " TH " << omp_get_thread_num() << " dispatch step: " << timer.elapsedMilliseconds() << endl; cout.flush(); }
+//         timer.start();
+      } // if k l == 0
+} // ijkl
+#pragma omp barrier
 
-         if ( mode == 'C' ){
-            int nerrors = 0;
-            double diff_sum = 0.0;
-            double adiff_sum = 0.0;
-            int Nval = int(ais.OUT.size());
+#pragma omp critical
+{ cout << " TH " << omp_get_thread_num() << " FINAL Prepare step: " << timer.elapsedMilliseconds() << endl; cout.flush(); }
 
-            for(int ival=0; ival < Nval; ival++ ){
-               double ref;
-               cin >> ref;
-               double val = ais.OUT[ival];
-               double diff = ref - val;
-               double adiff = abs(diff);
-               diff_sum += diff;
-               adiff_sum += adiff;
+//timer.start();
+ais.dispatch(skip_cpu);
+//timer.stop();
 
-               if ( adiff > 1.e-12 ){
-                  nerrors++;
-                  double ratio = 1.0;
-                  if ( abs(ref) > 0. ){ ratio = val / ref ; }
-                  cout << " I: CPU - REF: Error at " << ival << " " << val << " " << ref 
-                       << " " << diff << " " << ratio << " " << endl ;
-                  if ( nerrors >= 100 ){
-                     cout << " TOO MANY ERRORS ! EXITING NOW " << endl;
-//                     return EXIT_FAILURE ;
-                  }
-               }
-            }
-    
-            cout << "I: E[ CPU-REF ] " << diff_sum / Nval << endl;
-            cout << "I: E[|CPU-REF|] " << adiff_sum / Nval << endl;
-//            if ( nerrors > 0 ){ return EXIT_FAILURE ; }
-         }
-         timer.start();
-//      }
-//   }} // bas cd
-//}} // bas ab
-
-
-
-timer.stop();
+#pragma omp critical
+{ cout << " TH " << omp_get_thread_num() << " FINAL dispatch step: " << timer.elapsedMilliseconds() << endl; cout.flush(); }
 
 // gets the KS
 
@@ -684,7 +643,6 @@ if ( mode == 'C' ){
 
 // ais.show_state();
 //if ( mode == 'P' ){ ais.report_througput(skip_cpu); }
-
 
 } // pragma omp parallel
 

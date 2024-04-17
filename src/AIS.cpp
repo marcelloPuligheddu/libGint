@@ -74,8 +74,8 @@ void AIS::init(){
 
    PUSH_RANGE("dispatch cublas handle",1);
    CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
-   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
-   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+//   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+//   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    POP_RANGE;
    timer.stop();
 }
@@ -401,16 +401,16 @@ void AIS::compute_max_vector_size(){
 
    for ( unsigned int L : encoded_moments ){
 
-      int la,lb,lc,ld;
-      decodeL(L,&la,&lb,&lc,&ld);
-      std::vector<int> * plan = NULL ;
-      unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
-      plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
-
+//      int la,lb,lc,ld;
+//      decodeL(L,&la,&lb,&lc,&ld);
+//      std::vector<int> * plan = NULL ;
+//      unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
+//      plans.get( la, lb, lc, ld, &plan, &vrr_blocksize, &hrr_blocksize, &numV, &numVC, &numVCH );
+//      max_plan_size  = max(max_plan_size,  plan->size());
+      max_plan_size = 1e6;
       size_t integral_scratch_size = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L] ;
-
       max_integral_scratch_size = max( max_integral_scratch_size, integral_scratch_size );
-      max_plan_size  = max(max_plan_size,  plan->size());
+
       max_OF_size    = max(max_OF_size,    OF[L].size());
       max_PMX_size   = max(max_PMX_size,  PMX[L].size());
       max_FVH_size   = max(max_FVH_size,  FVH[L].size());
@@ -537,7 +537,8 @@ void AIS::dispatch( bool skip_cpu ){
 
    compute_max_vector_size();
 
-//   cout << "Dispatch: Will compute " << out_size << " values " << endl;
+   #pragma omp critical
+   { cout << "Dispatch: Will compute " << out_size << " values " << endl; cout.flush(); }
    OUT.resize(out_size);
 
    int ftable_ld = 0; // ld of table for fgamma
@@ -565,12 +566,14 @@ void AIS::dispatch( bool skip_cpu ){
    tot_mem += sizeof(unsigned int)*(9+nelem+245) ;
    tot_mem += 2 * sizeof(double)*(FP_size) ;
 
-   #pragma omp single
-   if ( first ){
-      cout << "Memory use: (MB)" << endl;
-      cout << " OUT DAT SCRT PLAN OF PMX FVH SPH KS TRA AUX FK TOT" << endl;
-      first = false;
-   }
+//   #pragma omp single
+//   if ( first ){
+//      cout << "Memory use: (MB)" << endl;
+//      cout << " OUT DAT SCRT PLAN OF PMX FVH SPH KS TRA AUX FK TOT" << endl;
+//      first = false;
+//      cout.flush();
+//   }
+
    #pragma omp critical
    {
    cout << int( OUT.size()*sizeof(double) *1.e-6 ) << " ";
@@ -585,7 +588,7 @@ void AIS::dispatch( bool skip_cpu ){
    cout << int( sizeof(unsigned int)*max_TRA_size  *1.e-6 ) << "  ";
    cout << int( sizeof(unsigned int)*(9+nelem+245) *1.e-6 ) << "  "; 
    cout << int( 2 * sizeof(double)*(FP_size)       *1.e-6 ) << "  "; 
-   cout << int( tot_mem *1.e-6 ) << endl;
+   cout << int( tot_mem *1.e-6 ) << endl; cout.flush();
    }
 
    std::vector<double> integral_scratch(max_integral_scratch_size);
@@ -692,8 +695,8 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&SPH_dev, sizeof(unsigned int)*max_SPH_size )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&KS_dev , sizeof(unsigned int)*max_KS_size  )); 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&TRA_dev, sizeof(unsigned int)*max_TRA_size )); 
-   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
-   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+//   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+//   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    POP_RANGE;
    timer.stop();
 

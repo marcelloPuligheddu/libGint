@@ -924,8 +924,8 @@ void AIS::dispatch( bool skip_cpu ){
 //         F.data(), OUT_dev, sizeof(double)*(OUT.size()), cudaMemcpyDeviceToHost ));
    }
 
-
-   CUBLAS_GPU_ERR_CHECK( cublasDestroy(cublas_handle) );
+*/
+   
    CUDA_GPU_ERR_CHECK( cudaFree(OUT_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(data_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(cell_h_dev) );
@@ -939,7 +939,7 @@ void AIS::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaFree(SPH_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree( KS_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(TRA_dev) );
-*/
+
    reset_indices();
 
 }

@@ -267,7 +267,7 @@ for ( int l = 0 ; l < nbas ; l ++ ){
 }
 
 ais.set_max_n_prm( 1 );
-
+int ijkl_iter = 0;
 #pragma omp critical
 { cout << " Init step: " << omp_get_thread_num() << " " << timer.elapsedMilliseconds() << endl; cout.flush(); }
 
@@ -492,7 +492,7 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 
 //      bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
 
-      if ( (k==0 and l==0 and ais.memory_needed() > 1.e9) ){
+      if ( (ijkl_iter%1000==0 and ais.memory_needed() > 0.5e9) ){
 //         timer.stop();
 	 #pragma omp critical
          { cout << " Prepare step: " << timer.elapsedMilliseconds() << endl; cout.flush(); }
@@ -503,6 +503,7 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 //         { cout << " TH " << omp_get_thread_num() << " dispatch step: " << timer.elapsedMilliseconds() << endl; cout.flush(); }
 //         timer.start();
       } // if k l == 0
+      ijkl_iter++;
 } // ijkl
 #pragma omp barrier
 

@@ -63,6 +63,9 @@ void AIS::init(){
    Timer timer;
    timer.start();
 
+   { cout << "Cuda create stream " << &cuda_stream << " \n" ; cout.flush(); }
+   CUDA_GPU_ERR_CHECK( cudaStreamCreate( &cuda_stream ));
+
    for( int la=0; la <= 1; la++ ){
    for( int lb=0; lb <= 1; lb++ ){
    for( int lc=0; lc <= 1; lc++ ){
@@ -73,7 +76,11 @@ void AIS::init(){
    }}}}
 
    PUSH_RANGE("dispatch cublas handle",1);
+
+   { cout << "Cuda create stream " << &cuda_stream << " \n" ; cout.flush(); }
+
    CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
+   CUBLAS_GPU_ERR_CHECK( cublasSetStream( cublas_handle, cuda_stream ));
 //   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 //   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    POP_RANGE;
@@ -702,15 +709,18 @@ void AIS::dispatch( bool skip_cpu ){
 
    timer.start();
    PUSH_RANGE("dispatch memcy",1);
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), cudaMemcpyHostToDevice ));
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      cell_h_dev, cell_h, sizeof(double)*(9), cudaMemcpyHostToDevice ));
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      ftable_dev, ftable, sizeof(double)*(nelem), cudaMemcpyHostToDevice ));
-   CUDA_GPU_ERR_CHECK( cudaMemcpy(
-      C2S_dev, c2s, sizeof(double)*245, cudaMemcpyHostToDevice ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+      data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), cudaMemcpyHostToDevice, cuda_stream ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+      cell_h_dev, cell_h, sizeof(double)*(9), cudaMemcpyHostToDevice, cuda_stream ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+      ftable_dev, ftable, sizeof(double)*(nelem), cudaMemcpyHostToDevice, cuda_stream ));
+   CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+      C2S_dev, c2s, sizeof(double)*245, cudaMemcpyHostToDevice, cuda_stream ));
    POP_RANGE;
+   CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
+   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+   
    timer.stop();
 
 
@@ -747,19 +757,21 @@ void AIS::dispatch( bool skip_cpu ){
       PUSH_RANGE(Lname.c_str(),3);
 
       PUSH_RANGE("transfer indeces",4);
-      CUDA_GPU_ERR_CHECK( cudaMemcpy(
-         plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice ));
-      CUDA_GPU_ERR_CHECK( cudaMemcpy(
-          OF_dev,  OF[L].data(), sizeof(unsigned int)*(Nprm), cudaMemcpyHostToDevice ));  
-      CUDA_GPU_ERR_CHECK( cudaMemcpy(
-         PMX_dev, PMX[L].data(), sizeof(unsigned int)*(Nprm), cudaMemcpyHostToDevice )); 
-      CUDA_GPU_ERR_CHECK( cudaMemcpy(
-         FVH_dev, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()), cudaMemcpyHostToDevice ));
-      CUDA_GPU_ERR_CHECK( cudaMemcpy(
-          KS_dev,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()), cudaMemcpyHostToDevice )); 
-      CUDA_GPU_ERR_CHECK( cudaMemcpy(
-         TRA_dev, TRA[L].data(), sizeof(unsigned int)*(TRA[L].size()), cudaMemcpyHostToDevice ));
+      CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+         plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice, cuda_stream ));
+      CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+          OF_dev,  OF[L].data(), sizeof(unsigned int)*(Nprm), cudaMemcpyHostToDevice, cuda_stream ));  
+      CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+         PMX_dev, PMX[L].data(), sizeof(unsigned int)*(Nprm), cudaMemcpyHostToDevice, cuda_stream )); 
+      CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+         FVH_dev, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()), cudaMemcpyHostToDevice, cuda_stream ));
+      CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+          KS_dev,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()), cudaMemcpyHostToDevice, cuda_stream )); 
+      CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
+         TRA_dev, TRA[L].data(), sizeof(unsigned int)*(TRA[L].size()), cudaMemcpyHostToDevice, cuda_stream ));
       POP_RANGE; // transfer indeces
+      CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
       timer.start();
 
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
@@ -768,17 +780,17 @@ void AIS::dispatch( bool skip_cpu ){
       int Fm_numblocks = (Nprm+Fm_blocksize-1)/Fm_blocksize;
 
       PUSH_RANGE("compute",5);
-      compute_Fm_batched_low_gpu<<<Fm_numblocks,Fm_blocksize>>>(
+      compute_Fm_batched_low_gpu<<<Fm_numblocks,Fm_blocksize,0,cuda_stream>>>(
          FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, ftable_dev, ftable_ld );
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
-      compute_VRR_batched_gpu_low<<<Ncells,32>>>(
+      compute_VRR_batched_gpu_low<<<Ncells,32,0,cuda_stream>>>(
          Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC );
      
-      compute_HRR_batched_gpu_low<<<Ncells,128>>>(
+      compute_HRR_batched_gpu_low<<<Ncells,128,0,cuda_stream>>>(
          Ncells, plan_dev, FVH_dev, data_dev, ABCD_dev, ABCD0_dev,
          hrr_blocksize, Nc, numVC, numVCH );
 
@@ -792,9 +804,9 @@ void AIS::dispatch( bool skip_cpu ){
 //      int corrNB = (Nqrtt*Ns+corrBS-1)/corrBS;
 //      apply_correction<<<corrNB,corrBS>>>( Nqrtt*Ns, SPHER_dev, corr );
 
-      compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_a_dev, SPHER_dev, K_a_dev, data_dev );
+      compute_KS_gpu<<<Nqrtt,128,0,cuda_stream>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_a_dev, SPHER_dev, K_a_dev, data_dev );
       if ( nspin == 2 ){
-         compute_KS_gpu<<<Nqrtt,128>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_b_dev, SPHER_dev, K_b_dev, data_dev );
+         compute_KS_gpu<<<Nqrtt,128,0,cuda_stream>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_b_dev, SPHER_dev, K_b_dev, data_dev );
       }
 
 //      compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );

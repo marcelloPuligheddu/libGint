@@ -10,7 +10,7 @@ using std::endl;
 bool linear_search( const std::vector<double>& data, double* values, int size, int* sp ){
    // I know it can be faster. If data is (indirectly) sorted it will be even faster to rewrite it
 //   cout << " Looking for " << values[0] << " of size " << size << " among " << data.size() << endl;
-   for( int i=0; i < data.size(); i++ ){
+   for( unsigned int i=0; i < data.size(); i++ ){
       bool found = false;
       bool is_possible = true;
       for( int s=0; s<size and is_possible ; s++ ){

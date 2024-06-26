@@ -10,7 +10,9 @@ void compute_KS(
       const double * const __restrict__ P,
       const double * const __restrict__ I,
       double * const __restrict__ K,
-      const double * const __restrict__ data ){
+      const double * const __restrict__ data,
+      double hf_fac ){
+
    const int nsa = 2*la+1;
    const int nsb = 2*lb+1;
    const int nsc = 2*lc+1;
@@ -66,10 +68,12 @@ void compute_KS(
          const double pbc = P [Ibc];
          const double pbd = P [Ibd];
          // must be atomics
-         K[ Ibd ] += pac * iabcd;
-         K[ Ibc ] += pad * iabcd;
-         K[ Iad ] += pbc * iabcd;
-         K[ Iac ] += pbd * iabcd;
+         // MAYBE move the hf_fac multiplication outside this kernel, since K initial value is zero, only multiply once at the end
+         // Cost would go from N(integral computeted) / n_gpu to SIZEOF( K ) for every gpu, so it may not be always useful
+         K[ Ibd ] += hf_fac * pac * iabcd;
+         K[ Ibc ] += hf_fac * pad * iabcd;
+         K[ Iad ] += hf_fac * pbc * iabcd;
+         K[ Iac ] += hf_fac * pbd * iabcd;
       }
    }
 }
@@ -84,7 +88,9 @@ __global__ void compute_KS_gpu(
       const double * const __restrict__ P,
       const double * const __restrict__ I,
       double * const __restrict__ K,
-      const double * const __restrict__ data ){
+      const double * const __restrict__ data,
+      double hf_fac ){
+
    const int nsa = 2*la+1;
    const int nsb = 2*lb+1;
    const int nsc = 2*lc+1;
@@ -112,7 +118,7 @@ __global__ void compute_KS_gpu(
       decode4( Tall   , &Tac,  &Tad,  &Tbc,  &Tbd  );
 
       const int Oq = block * nsabcd ;
-      const double fac = symm_factors[idx_fac];
+      const double fac = symm_factors[idx_fac] * hf_fac;
       
       
       for ( int t = threadIdx.x ; t < nsabcd; t += blockDim.x ){
@@ -131,20 +137,38 @@ __global__ void compute_KS_gpu(
          const int idx_bc = Tbc ?  idx_c * ldbc + idx_b :  idx_b * ldbc + idx_c;
          const int idx_bd = Tbd ?  idx_d * ldbd + idx_b :  idx_b * ldbd + idx_d;
 
+         const int idx_ac_T = not Tac ?  idx_c * ldac + idx_a :  idx_a * ldac + idx_c;
+         const int idx_ad_T = not Tad ?  idx_d * ldad + idx_a :  idx_a * ldad + idx_d;
+         const int idx_bc_T = not Tbc ?  idx_c * ldbc + idx_b :  idx_b * ldbc + idx_c;
+         const int idx_bd_T = not Tbd ?  idx_d * ldbd + idx_b :  idx_b * ldbd + idx_d;
+
          const int Iac = offset_L_set_atom_ac + idx_ac;
          const int Iad = offset_L_set_atom_ad + idx_ad;
          const int Ibc = offset_L_set_atom_bc + idx_bc;
          const int Ibd = offset_L_set_atom_bd + idx_bd;
+
+         const int Iac_T = offset_L_set_atom_ac + idx_ac_T;
+         const int Iad_T = offset_L_set_atom_ad + idx_ad_T;
+         const int Ibc_T = offset_L_set_atom_bc + idx_bc_T;
+         const int Ibd_T = offset_L_set_atom_bd + idx_bd_T;
+
          const double iabcd = - fac * I[ Oq + t ];
          const double kbd = iabcd * P [Iac];
          const double kbc = iabcd * P [Iad];
          const double kad = iabcd * P [Ibc];
          const double kac = iabcd * P [Ibd];
-         // must be atomics on device, or however P and K are distributed
-         atomicAdd( &K[ Ibd ] , kbd);
-         atomicAdd( &K[ Ibc ] , kbc);
-         atomicAdd( &K[ Iad ] , kad);
-         atomicAdd( &K[ Iac ] , kac);
+         // must be atomics on device, or however K is distributed
+         printf("KS GPU %d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbd, fac, I[ Oq + t ], P[Iac], K[Ibd_T], Iac, Ibd_T );
+         printf("KS GPU %d.1: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbc, fac, I[ Oq + t ], P[Iad], K[Ibc_T], Iad, Ibc_T );
+         printf("KS GPU %d.2: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kad, fac, I[ Oq + t ], P[Ibc], K[Iad_T], Ibc, Iad_T );
+         printf("KS GPU %d.4: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kac, fac, I[ Oq + t ], P[Ibd], K[Iac_T], Ibd, Iac_T );
+
+         // MAYBE move the hf_fac multiplication outside this kernel, since K initial value is zero, only multiply once at the end
+         // Cost would go from N(integral computeted) / n_gpu to SIZEOF( K ) for every gpu, so it may not be always useful
+         atomicAdd( &K[ Ibd_T ] , kbd);
+         atomicAdd( &K[ Ibc_T ] , kbc);
+         atomicAdd( &K[ Iad_T ] , kad);
+         atomicAdd( &K[ Iac_T ] , kac);
       }
    }
 }

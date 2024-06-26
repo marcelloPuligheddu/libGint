@@ -1,5 +1,5 @@
 #include <iostream>
-#include "AIS.h"
+#include "libGint.h"
 #include "util.h"
 #include "timer.h"
 #include <cassert>
@@ -185,7 +185,7 @@ timer.start();
 
 
 cudaSetDevice( omp_get_thread_num() % num_gpus);
-AIS ais;
+libGint ais;
 #pragma omp critical
 ais.init();
 ais.periodic = periodic;
@@ -211,58 +211,16 @@ for( int uff=0; uff < 9 ; uff++){
 }
 
 for ( int i = 0 ; i < nbas ; i ++ ){
-   double* RA = &env[ atm[ bas[i*8+0]*6+1 ]];
-   int la_min = bas[i*8+1];
-   int la_max = bas[i*8+1];
-   int nza = bas[i*8+2];
-   double* Za = &env[bas[i*8+5]];
-   ais.setA(i, RA, Za, nza);
-   for ( int la = la_min; la <= la_max; la++){
-      int nla = bas[i*8+3];
-      double* Ka = &env[bas[i*8+6]];
-      ais.setAl(i, la, nla, Ka );
-   }
-}
-
-for ( int j = 0 ; j < nbas ; j ++ ){
-   double* RB = &env[ atm[ bas[j*8+0]*6+1 ]];
-   int lb_min = bas[j*8+1];
-   int lb_max = bas[j*8+1];
-   int nzb = bas[j*8+2];
-   double* Zb = &env[bas[j*8+5]];
-   ais.setB(j, RB, Zb, nzb);
-   for ( int lb = lb_min; lb <= lb_max; lb++){
-      int nlb = bas[j*8+3];
-      double* Kb = &env[bas[j*8+6]];
-      ais.setBl(j, lb, nlb, Kb );
-   }
-}
-
-for ( int k = 0 ; k < nbas ; k ++ ){
-   double* RC = &env[ atm[ bas[k*8+0]*6+1 ]];
-   int lc_min = bas[k*8+1];
-   int lc_max = bas[k*8+1];
-   int nzc = bas[k*8+2];
-   double* Zc = &env[bas[k*8+5]];
-   ais.setC(k, RC, Zc, nzc );
-   for ( int lc = lc_min; lc <= lc_max; lc++){
-      int nlc = bas[k*8+3];
-      double* Kc = &env[bas[k*8+6]];
-      ais.setCl(k, lc, nlc, Kc );
-   }
-}
-
-for ( int l = 0 ; l < nbas ; l ++ ){
-   double* RD = &env[ atm[ bas[l*8+0]*6+1 ]];
-   int ld_min = bas[l*8+1];
-   int ld_max = bas[l*8+1];
-   int nzd = bas[l*8+2];
-   double* Zd = &env[bas[l*8+5]];
-   ais.setD(l, RD, Zd, nzd );
-   for ( int ld = ld_min; ld <= ld_max; ld++){
-      int nld = bas[l*8+3];
-      double* Kd = &env[bas[l*8+6]];
-      ais.setDl(l, ld, nld, Kd );
+   double* R = &env[ atm[ bas[i*8+0]*6+1 ]];
+   int l_min = bas[i*8+1];
+   int l_max = bas[i*8+1];
+   int nz = bas[i*8+2];
+   double* Z = &env[bas[i*8+5]];
+   ais.set_Atom(i, R, Z, nz);
+   for ( int l = l_min; l <= l_max; l++){
+      int nl = bas[i*8+3];
+      double* K = &env[bas[i*8+6]];
+      ais.set_Atom_L(i, l, nl, K );
    }
 }
 
@@ -407,7 +365,7 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
             // TODO real D in cp2k is shifted so that CD(0) = min(C-D) under cell
             double RDp[3] = {RD[0]+R2[0], RD[1]+R2[1], RD[2]+R2[2] };
             double CD[3] = {RC[0]-RDp[0], RC[1]-RDp[1], RC[2]-RDp[2]};
-
+            bool cell_is_screened = true;
             for (int n3=n3_min; n3 <= n3_max ; n3++){
                double RCp[3];
                double* R3 = &PCells[n3*3];
@@ -430,7 +388,7 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 //               ais.moveC(RCp);
 //               ais.moveD(RDp);
 
-               bool cell_is_screened = true;
+
                for( int iza=0; iza < nza ; iza++){
                for( int izb=0; izb < nzb ; izb++){
                   double za = env[bas[i*8+5]+iza];
@@ -454,12 +412,13 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
                      set_is_screened = false;
                   }} // zc,zd
                }} // za,zb
-
-               if ( not cell_is_screened ) {
-                  ais.add_shell(i,j,k,l,n1,n2);
-               }
-               ais.add_cell();
             } // R3
+
+            if ( not cell_is_screened ) {
+               ais.add_shell(i,j,k,l,n1,n2);
+            }
+            ais.add_cell();
+
          } // R2
       } // R1
 
@@ -492,7 +451,7 @@ for ( int ijkl = 0 ; ijkl < nbas*nbas*nbas*nbas; ijkl ++ ){
 
 //      bool is_last_qrtt = (i==(nbas-1)) and (j==(nbas-1)) and (k==(nbas-1)) and (l==(nbas-1));
 
-      if ( (ijkl_iter%1000==0 and ais.memory_needed() > 2.0e9) ){
+      if ( (ijkl_iter%1000==0 and ais.memory_needed() > 0.5e9) ){
 //         timer.stop();
 	 #pragma omp critical
          { cout << " Prepare step: " << timer.elapsedMilliseconds() << endl; cout.flush(); }

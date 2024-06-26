@@ -491,6 +491,8 @@ __device__ void execute_CP2S_gpu(
    const int NcoAC = NcoA*NcoC;
    for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
       // must be block atomic 
+      double tmp = K * pr_mem[i];
+      printf( " CP2S at i: %d.%d.%d | %d %d %d %d | Adding : %4.10lg = %4.10lg * %4.10lg * to %4.10lg \n ", blockIdx.x, threadIdx.x, i, ipa,ipb,ipc,ipd, tmp, K, pr_mem[i], sh_mem[i] );
       atomicAdd( &sh_mem[ i ] , K * pr_mem[i]);
    }
 

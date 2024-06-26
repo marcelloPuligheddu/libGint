@@ -71,6 +71,8 @@ SOFTWARE.
 #define MEGABYTE (1000*1000)
 #define MAX_MEMORY_PER_RUN (1000*MEGABYTE)
 
+#define COULOMB   0
+#define TRUNCATED 1
 
 #define L_BASE (32)
 #define SERIAL_L4(a,b,c,d) ((((a)*L_BASE+(b))*L_BASE+(c))*L_BASE+(d))
@@ -168,6 +170,12 @@ static const char* my_cublasGetStatusString(cublasStatus_t error){
 
         case CUBLAS_STATUS_INTERNAL_ERROR:
             return "CUBLAS_STATUS_INTERNAL_ERROR";
+
+        case CUBLAS_STATUS_NOT_SUPPORTED:
+            return "CUBLAS_STATUS_NOT_SUPPORTED";
+
+        case CUBLAS_STATUS_LICENSE_ERROR:
+            return "CUBLAS_STATUS_LICENSE_ERROR";
     }
 
     return "<unknown>";

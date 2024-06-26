@@ -28,7 +28,7 @@ SOFTWARE.
 #include <float.h>
 #include <stdio.h>
 
-double* read_c0( int Nder, FILE* stream, int* ldc0_ptr );
+//double* read_c0( int Nder, FILE* stream, int* ldc0_ptr );
 void fgamma_ref( int nmax , double T, double* f);
 double* create_md_ftable( int nmax, double tmin, double tmax, double tdelta, int* ld );
 __device__ __host__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld );

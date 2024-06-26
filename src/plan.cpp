@@ -38,10 +38,10 @@ inline bool ArrayOpGreater( const OpArray& a, const std::array<int,OP_SIZE>& b )
 inline int NLco( const int L ){ return (L+1)*(L+2)/2; }
 
 
-constexpr int mem( const int la, const int lb, const int lc, const int ld){
+int mem( const int la, const int lb, const int lc, const int ld){
    return NLco(la)*NLco(lb)*NLco(lc)*NLco(ld);
 }
-constexpr int mem( const Op& sh ){
+int mem( const Op& sh ){
    return NLco(sh.la)*NLco(sh.lb)*NLco(sh.lc)*NLco(sh.ld);
 }
 

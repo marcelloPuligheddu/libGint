@@ -30,7 +30,8 @@ void compute_KS(
       const double * const __restrict__ P,
       const double * const __restrict__ I,
       double * const __restrict__ K,
-      const double * const __restrict__ data );
+      const double * const __restrict__ data,
+      double hf_fac  );
  
 __global__ void compute_KS_gpu(
       const int Nqrtt,
@@ -39,7 +40,8 @@ __global__ void compute_KS_gpu(
       const double * const __restrict__ P,
       const double * const __restrict__ I,
       double * const __restrict__ K,
-      const double * const __restrict__ data );
+      const double * const __restrict__ data,
+      double hf_fac );
 
 
 #endif

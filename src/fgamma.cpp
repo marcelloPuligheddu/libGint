@@ -27,6 +27,7 @@ SOFTWARE.
 #define NDERIV_MAX 21
 #define DEGREE 13
 
+/*
 double* read_c0( int Nder, FILE* stream, int* ldc0_ptr ){
    const int patches = 207;
    assert( Nder <= NDERIV_MAX );
@@ -47,6 +48,7 @@ double* read_c0( int Nder, FILE* stream, int* ldc0_ptr ){
    (*ldc0_ptr) = ldc0;
    return C0_ptr;
 }
+*/
 
 void fgamma_ref( int nmax , double T, double* f){
    const int kmax = 50;

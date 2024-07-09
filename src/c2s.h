@@ -23,8 +23,15 @@ SOFTWARE.
 #ifndef C2S_H_COMPILE_GUARD
 #define C2S_H_COMPILE_GUARD
 
-
 #include <math.h>
+
+#define c2s_2_2_0 -0.5/sqrt(3.0)
+#define c2s_2_2_2 -0.5/sqrt(3.0)
+#define c2s_2_2_5  1.0/sqrt(3.0)
+
+
+
+
 
 static double c2s[1*1+3*3+5*6+7*10+9*15] = {
 1.0, 
@@ -43,7 +50,7 @@ static double c2s[1*1+3*3+5*6+7*10+9*15] = {
 // cp2k c2s matrix for l=2
  0., 1., 0., 0., 0., 0.,
  0., 0., 0., 0., 1., 0.,
--0.28867513,0., 0., -0.28867513, 0., 0.57735027,
+ c2s_2_2_0,0., 0., c2s_2_2_2, 0., c2s_2_2_5,
  0., 0., 1., 0., 0., 0.,
  0.5, 0., 0., -0.5, 0., 0.,
 

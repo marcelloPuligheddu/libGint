@@ -11,10 +11,7 @@ PY := python3
 ERRFLAGS := -Wall -Wextra -Werror -Wshadow -Wformat
 INCFLAGS := -I /usr/include/mkl/
 LIBFLAGS := -lcudart -lcublas -lblas -lmkl_rt
-CXXFLAGS := -O3 -tp=native -std=c++14 -gpu=ccnative  -cuda $(PROFLAGS) $(ERRFLAGS) $(INCFLAGS) $(LIBFLAGS)
-
-# CUDA architecture
-ARCH := -arch=sm_75
+CXXFLAGS := -fPIC -O3 -tp=native -std=c++14 -gpu=ccnative  -cuda $(PROFLAGS) $(ERRFLAGS) $(INCFLAGS) $(LIBFLAGS)
 
 # Directories
 SRC_DIR := src

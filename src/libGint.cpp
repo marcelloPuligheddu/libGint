@@ -101,11 +101,11 @@ void libGint::set_Potential_Truncated( double R_cut_, double * C0_, int ld_C0_, 
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&C0_dev, C0_size * sizeof(double) ) );
    CUDA_GPU_ERR_CHECK( cudaMemcpy( C0_dev, C0, C0_size * sizeof(double), cudaMemcpyHostToDevice ));   
 
-   cout << " Setting C0 " << C0_size << " | " << ld_C0 << endl;
-   for ( int ic=0; ic < C0_size; ic++ ){
-      cout << " " << C0[ic] << " " ;
-      if ( ic % ld_C0 == ld_C0-1 ){ cout << endl ; }
-   } cout << endl;
+//   cout << " Setting C0 " << C0_size << " | " << ld_C0 << endl;
+//   for ( int ic=0; ic < C0_size; ic++ ){
+//      cout << " " << C0[ic] << " " ;
+//      if ( ic % ld_C0 == ld_C0-1 ){ cout << endl ; }
+//   } // cout << endl;
 }
 
 void libGint::set_Atom( int i, double* R_, double* Z_, int np_ ){
@@ -136,7 +136,7 @@ void libGint::set_Atom_L( int i, int l_, int nl_, double* K_ ){
 
 void libGint::add_prm( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ){
 //   cout << "|" << ipa << ipb << ipc << ipd << n1 << n2 << n3 ;
-   cout.flush();
+//   cout.flush();
    unsigned int piabcdxyz = encode_ipabcd_n123(ipa,ipb,ipc,ipd,n1,n2,n3);
    prm_tmp_list[ n_prm ] = piabcdxyz;
    n_prm++;
@@ -156,7 +156,7 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
    int nnlc = all_l[k].size();
    int nnld = all_l[l].size();
 
-   cout << endl;
+//   cout << endl;
 
    for( int idx_la=0; idx_la < nnla; idx_la++ ){
       unsigned int idx_Ka = all_idx_K[i][idx_la];
@@ -186,12 +186,12 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                const unsigned int encoded_nlabcd = encode4(nla,nlb,nlc,nld);
                const unsigned int encoded_npabcd = encode4(np[i],np[j],np[k],np[l]);
 
-               cout << " TH " << my_thr << " Inserting " << Of << " repeated " << n_prm << " times into OF[" << la<<lb<<lc<<ld << "] at " << OF[L].size() << " | " << PMX[L].size() << endl;
-
+//               cout << " TH " << my_thr << " Inserting " << Of << " repeated " << n_prm << " times into OF[" << la<<lb<<lc<<ld << "] at " << OF[L].size() << " | " << PMX[L].size() << endl;
 
                OF[L].insert(  OF[L].end(), n_prm, Of );
 
-               for ( int prm_idx=0; prm_idx<n_prm; prm_idx++ ){ cout << prm_tmp_list[prm_idx] << " "; } cout << endl;
+//               for ( int prm_idx=0; prm_idx<n_prm; prm_idx++ ){ cout << prm_tmp_list[prm_idx] << " "; } cout << endl;
+
                PMX[L].insert( PMX[L].end(), &prm_tmp_list[0], &prm_tmp_list[n_prm] );
 
                const unsigned int tmp[FVH_SIZE] = {
@@ -200,11 +200,11 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                   encoded_nlabcd, encoded_npabcd
                };
 
-               cout << " Adding " << FVH_SIZE << " elements to FVH " ;
-               for ( int tmp_idx=0; tmp_idx<FVH_SIZE; tmp_idx++ ){
-                  cout << tmp[tmp_idx] << " " ;
-                  if ( (tmp_idx==2) or (tmp_idx==3) or (tmp_idx==7) or (tmp_idx==11) or (tmp_idx==15) ){ cout << "|" ; }
-               } cout << endl;
+//               cout << " Adding " << FVH_SIZE << " elements to FVH " ;
+//               for ( int tmp_idx=0; tmp_idx<FVH_SIZE; tmp_idx++ ){
+//                  cout << tmp[tmp_idx] << " " ;
+//                  if ( (tmp_idx==2) or (tmp_idx==3) or (tmp_idx==7) or (tmp_idx==11) or (tmp_idx==15) ){ cout << "|" ; }
+//               } cout << endl;
 
                FVH[L].insert( FVH[L].end(), tmp, tmp+FVH_SIZE );
 
@@ -216,7 +216,7 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
 
                if ( all_moments[L] == false ){
 
-                  cout << " planning " << la << " " << lb << " " << lc << " " << ld << endl;
+//                  cout << " planning " << la << " " << lb << " " << lc << " " << ld << endl;
 
                   std::vector<int> * plan = NULL ;
                   unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;
@@ -240,7 +240,7 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
 
 void libGint::add_cell() {
 
-   cout << " TH " << my_thr << " Adding cell with " << n_prm << endl;
+//   cout << " TH " << my_thr << " Adding cell with " << n_prm << endl;
    if (n_prm == 0){
       return;
    }
@@ -316,16 +316,16 @@ void libGint::add_qrtt(
    KS_idxs[KS_OFFSET_OFFBD  ] = offset_bd_L_set;
    KS_idxs[KS_OFFSET_TALL   ] = encode4(  (int)Tac, (int)Tad, (int)Tbc, (int)Tbd );
 
-   cout << endl;
-   cout << " KS adding qrtt at weight " << symm_fac << " i: |" << inla << " " << inlb << " " << inlc << " " << inld << "|" ;
-   cout << "     l: |" << la << " " << lb << " " << lc << " " << ld << "|" << endl;
-   cout << "     offsets are " << offset_ac_L_set << " " << offset_ad_L_set << " " << offset_bc_L_set << " " << offset_bd_L_set << endl;
-   cout << "     Ts are " << Tac << Tad << Tbc << Tbd << endl;
-   cout << endl;
+//   cout << endl;
+//   cout << " KS adding qrtt at weight " << symm_fac << " i: |" << inla << " " << inlb << " " << inlc << " " << inld << "|" ;
+//   cout << "     l: |" << la << " " << lb << " " << lc << " " << ld << "|" << endl;
+//   cout << "     offsets are " << offset_ac_L_set << " " << offset_ad_L_set << " " << offset_bc_L_set << " " << offset_bd_L_set << endl;
+//   cout << "     Ts are " << Tac << Tad << Tbc << Tbd << endl;
+//   cout << endl;
 
    KS[L].insert( KS[L].end(), KS_idxs, KS_idxs+KS_SIZE );
 
-   cout << " KS done " << endl ; cout.flush();
+//   cout << " KS done " << endl ; cout.flush();
 
 }
 
@@ -431,7 +431,7 @@ void libGint::set_K( double * K_ , int K_size ){
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
    CUDA_GPU_ERR_CHECK( cudaMemcpy( K_a_dev, K_, sizeof(double)*FP_size, cudaMemcpyHostToDevice ));
 
-   cout << " Setting K with size " << K_size << " @ " << K_a << " and " << K_a_dev << endl ;
+//   cout << " Setting K with size " << K_size << " @ " << K_a << " and " << K_a_dev << endl ;
 
 }
 void libGint::set_K( std::vector<double> & K_ ){ set_K( K_.data(), K_.size()); }
@@ -575,8 +575,6 @@ void libGint::dispatch( bool skip_cpu ){
    unsigned int *OF_dev, *PMX_dev, *FVH_dev, *SPH_dev, *KS_dev, *TRA_dev;
    int *plan_dev;
 
-   cout << " Q " << endl ; cout.flush();
-
    PUSH_RANGE("dispatch malloc",1);
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&OUT_dev, sizeof(double)*OUT.size() ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&data_dev, sizeof(double)*(ua.internal_buffer.size()) ));
@@ -595,9 +593,6 @@ void libGint::dispatch( bool skip_cpu ){
    CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
    POP_RANGE;
 
-   cout << " QQ " << cuda_stream << endl; cout.flush();
-   cout << " W " << endl ; cout.flush();
-
    PUSH_RANGE("dispatch memcy",1);
    CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
       data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), cudaMemcpyHostToDevice, cuda_stream ));
@@ -610,8 +605,6 @@ void libGint::dispatch( bool skip_cpu ){
    POP_RANGE;
    CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
    CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-   
-   cout << " E " << endl ; cout.flush();
 
    // Main cycle. 
    // 1) Get the plan
@@ -620,9 +613,6 @@ void libGint::dispatch( bool skip_cpu ){
 
    PUSH_RANGE("dispatch all L",3);
    for ( unsigned int L : encoded_moments ){
-
-      
-      cout << " R " << endl ; cout.flush();
 
       int la,lb,lc,ld,labcd;
       decodeL(L,&la,&lb,&lc,&ld);
@@ -634,17 +624,14 @@ void libGint::dispatch( bool skip_cpu ){
       std::vector<int> * plan = NULL ;
       unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;   
 
-      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
-      cout.flush();
+//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | "; cout.flush();
 
       unsigned int Nprm   = offset_V[L];
       unsigned int Ncells = offset_F[L];
       unsigned int Nqrtt  = offset_Q[L];
 
 
-      cout << "Computing " << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " ;
-      cout << endl;
-      cout.flush();
+//      cout << "Computing " << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << endl; cout.flush();
 
       double* Fm_dev    = &integral_scratch_dev[0];
       double* AC_dev    = Fm_dev    + Fm_size[L];
@@ -689,10 +676,11 @@ void libGint::dispatch( bool skip_cpu ){
 
       std::vector<double> FM_on_cpu(Fm_size[L]);
       CUDA_GPU_ERR_CHECK( cudaMemcpy( FM_on_cpu.data(),  Fm_dev, sizeof(double)*(Fm_size[L]), cudaMemcpyDeviceToHost) );
-      cout << " FM " << endl;
-      for( int ifm=0; ifm < Fm_size[L]; ifm++ ){
-         cout << ifm << " " << std::setprecision(16) << FM_on_cpu[ifm] << endl;
-      } cout << endl;
+
+//      cout << " FM " << endl;
+//      for( int ifm=0; ifm < Fm_size[L]; ifm++ ){
+//         cout << ifm << " " << std::setprecision(16) << FM_on_cpu[ifm] << endl;
+//      } cout << endl;
 
 
 
@@ -739,12 +727,12 @@ void libGint::dispatch( bool skip_cpu ){
 
    std::vector<double> F_a_from_gpu( FP_size );
 
-   cout << endl;
-   cout << " Copying K back from gpu to cpu. " << endl;
-   cout << " Gpu address is " << K_a_dev << endl;
-   cout << " Cpu address is " << F_a_from_gpu.data() << endl;
-   cout << " Copying " << FP_size << " elements " << endl;
-   cout << endl;
+//   cout << endl;
+//   cout << " Copying K back from gpu to cpu. " << endl;
+//   cout << " Gpu address is " << K_a_dev << endl;
+//   cout << " Cpu address is " << F_a_from_gpu.data() << endl;
+//   cout << " Copying " << FP_size << " elements " << endl;
+//   cout << endl;
 
    CUDA_GPU_ERR_CHECK( cudaMemcpy( F_a_from_gpu.data(), K_a_dev, sizeof(double)*(FP_size), cudaMemcpyDeviceToHost ));
    if ( nspin == 2 ){
@@ -752,8 +740,7 @@ void libGint::dispatch( bool skip_cpu ){
       CUDA_GPU_ERR_CHECK( cudaMemcpy( F_b_from_gpu.data(), K_b_dev, sizeof(double)*(FP_size), cudaMemcpyDeviceToHost ));
    }
 
-   for ( int ipf=0; ipf < FP_size; ipf++ ){ cout <<  ipf << " " << F_a_from_gpu[ipf] << endl ; }
-   cout << endl;
+//   for ( int ipf=0; ipf < FP_size; ipf++ ){ cout <<  ipf << " " << F_a_from_gpu[ipf] << endl ; } cout << endl;
   
    CUDA_GPU_ERR_CHECK( cudaFree(OUT_dev) );
    CUDA_GPU_ERR_CHECK( cudaFree(data_dev) );

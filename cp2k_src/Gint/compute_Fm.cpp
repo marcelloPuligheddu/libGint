@@ -45,8 +45,8 @@ __device__ __host__ void compute_Fm_batched_single( int p,
    int n1,n2,n3;
    decode_ipabcd_n123( ipzn, &ipa, &ipb, &ipc, &ipd, &n1, &n2, &n3 );
 
-   printf( " GPU px %d \n" , p );
-   printf( " ipzn: %d | %d %d %d %d | %d %d %d \n" , ipzn, ipa, ipb, ipc, ipd, n1, n2, n3 );
+//   printf( " GPU px %d \n" , p );
+//   printf( " ipzn: %d | %d %d %d %d | %d %d %d \n" , ipzn, ipa, ipb, ipc, ipd, n1, n2, n3 );
 
    unsigned int idx_A  = FVH[i*FVH_SIZE+FVH_OFFSET_IDX_A];
    unsigned int idx_B  = FVH[i*FVH_SIZE+FVH_OFFSET_IDX_B];
@@ -66,11 +66,11 @@ __device__ __host__ void compute_Fm_batched_single( int p,
    double zc = data[idx_zc];
    double zd = data[idx_zd];
 
-   printf( " p: %d | A: [ %d ]  %lf %lf %lf \n", p, idx_A, A[0], A[1], A[2] );
-   printf( " p: %d | B: [ %d ]  %lf %lf %lf \n", p, idx_B, B[0], B[1], B[2] );
-   printf( " p: %d | C: [ %d ]  %lf %lf %lf \n", p, idx_C, C[0], C[1], C[2] );
-   printf( " p: %d | D: [ %d ]  %lf %lf %lf \n", p, idx_D, D[0], D[1], D[2] );
-   printf( " z: [ %d ]  %lf %lf %lf %lf \n", idx_za, za, zb, zc, zd );
+//   printf( " p: %d | A: [ %d ]  %lf %lf %lf \n", p, idx_A, A[0], A[1], A[2] );
+//   printf( " p: %d | B: [ %d ]  %lf %lf %lf \n", p, idx_B, B[0], B[1], B[2] );
+//   printf( " p: %d | C: [ %d ]  %lf %lf %lf \n", p, idx_C, C[0], C[1], C[2] );
+//   printf( " p: %d | D: [ %d ]  %lf %lf %lf \n", p, idx_D, D[0], D[1], D[2] );
+//   printf( " z: [ %d ]  %lf %lf %lf %lf \n", idx_za, za, zb, zc, zd );
 
    int F_size = L + 1;
    if (L > 0 ) { F_size += 4*3+5; }
@@ -106,8 +106,8 @@ __device__ __host__ void compute_Fm_batched_single( int p,
    double Zn = 1./sqrt(z); // cp2k uses the correct norm so we can use OS86 eq 44
    double Kfactor = Zn * Kab * Kcd;
 
-   printf( " p: %d | P: [ %d ]  %lf %lf %lf \n", p, 0, P[0], P[1], P[2] );
-   printf( " p: %d | Q: [ %d ]  %lf %lf %lf \n", p, 0, Q[0], Q[1], Q[2] );
+//   printf( " p: %d | P: [ %d ]  %lf %lf %lf \n", p, 0, P[0], P[1], P[2] );
+//   printf( " p: %d | Q: [ %d ]  %lf %lf %lf \n", p, 0, Q[0], Q[1], Q[2] );
 
    double F0 = 0.0;
    fgamma0( 0, T, &F0, ftable, ftable_ld );
@@ -124,8 +124,8 @@ __device__ __host__ void compute_Fm_batched_single( int p,
    } // end switch potential_type
 
    for( unsigned int m=0; m < L+1; m++ ){
-      double tmp = Fm[Of+m]*Kfactor;
-      printf ( " Fm[%d](T=%lg) = %4.12lg = %4.12lg * %4.12lg || F00 = %4.12lg \n", m, T, tmp, Fm[Of+m], Kfactor, F0 );
+//      double tmp = Fm[Of+m]*Kfactor;
+//      printf ( " Fm[%d](T=%lg) = %4.12lg = %4.12lg * %4.12lg || F00 = %4.12lg \n", m, T, tmp, Fm[Of+m], Kfactor, F0 );
       Fm[Of+m] *= Kfactor;
    }
 

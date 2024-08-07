@@ -917,10 +917,10 @@ CONTAINS
              potential_parameter%potential_type == do_potential_mix_cl_trunc) then
             write (*,*) " Setting TruncCol: Rcut = ", potential_parameter%cutoff_radius
             write (*,*) " C0 = " , shape(C0)
-            write (*,*) " C0 = " , C0(1,1)
-            do iatom=1, 207
-               write (*,*) iatom, C0(:,iatom)
-            end do
+!            write (*,*) " C0 = " , C0(1,1)
+!            do iatom=1, 207
+!               write (*,*) iatom, C0(:,iatom)
+!            end do
             call libgint_set_Potential_Truncated( potential_parameter%cutoff_radius, C0(:,:) )
          end if
          first_call = .false.
@@ -960,8 +960,8 @@ CONTAINS
             do l = la_min( iset ) , la_max(iset)
                nla = nsgfl_a(l,iset)
 
-               write (*,*) " CP2K setting atom set L ", jset ,l, nla,  gcc(1:npgfa(iset),inla:inla+nla-1,iset)
-               write (*,*) "    note sphi is : " ,  basis_parameter(ikind)%sphi_ext(:, :, :, :)
+!               write (*,*) " CP2K setting atom set L ", jset ,l, nla,  gcc(1:npgfa(iset),inla:inla+nla-1,iset)
+!               write (*,*) "    note sphi is : " ,  basis_parameter(ikind)%sphi_ext(:, :, :, :)
                call libgint_set_Atom_L( jset-1, l, nla, gcc(1:npgfa(iset),inla:inla+nla-1,iset) )
 
                inla = inla + nla
@@ -1694,11 +1694,11 @@ CONTAINS
                                 Tac = .true.
                               end if
 
-                              write (*,*) "atoms:" , iatom,jatom,katom,latom
-                              write (*,*) " offsets ac ad bc bd: ", offset_ac_L_set, &
-                                                      offset_ad_L_set, offset_bc_L_set, offset_bd_L_set
-                              write (*,*) " ld      ac ad bc bd: ",       ld_ac_set, &
-                                                       ld_ad_set,      ld_bc_set,       ld_bd_set
+!                              write (*,*) "atoms:" , iatom,jatom,katom,latom
+!                              write (*,*) " offsets ac ad bc bd: ", offset_ac_L_set, &
+!                                                      offset_ad_L_set, offset_bc_L_set, offset_bd_L_set
+!                              write (*,*) " ld      ac ad bc bd: ",       ld_ac_set, &
+!                                                       ld_ad_set,      ld_bc_set,       ld_bd_set
 
                               ! MEGACHANGE! !!
 
@@ -1764,7 +1764,7 @@ CONTAINS
                                                          s_offset_bd = offset_bd_L_set + s_offset_b * ld_bd_set + s_offset_d
                                                       end if
 
-                                                      write (*,*) " Adding qrtt ", la,lb,lc,ld, inla-1,inlb-1,inlc-1,inld-1 
+!                                                      write (*,*) " Adding qrtt ", la,lb,lc,ld, inla-1,inlb-1,inlc-1,inld-1 
                                                       call libgint_add_qrtt( symm_fac, &
                                                             la,lb,lc,ld, inla-1,inlb-1,inlc-1,inld-1, &
                                                             ld_ac_set, ld_ad_set,ld_bc_set,ld_bd_set, &
@@ -1982,16 +1982,16 @@ CONTAINS
       call libgint_dispatch()
       write (*,*) " Dispatch returned "
 
-      write (*,*) " P from CPU calculations before symmetrization " 
-      write (*,*) full_density_alpha(:,1)
+!      write (*,*) " P from CPU calculations before symmetrization " 
+!      write (*,*) full_density_alpha(:,1)
 
-      write (*,*) " K from CPU calculations before symmetrization " 
+!      write (*,*) " K from CPU calculations before symmetrization " 
       allocate( full_ks_alpha_from_gpu, Mold = full_ks_alpha )
       call libgint_get_K( full_ks_alpha_from_gpu(:,1) )
       max_abs_delta_KS = 0.0_dp
       do  inla=1, size(full_ks_alpha)
-         write (*,*) inla, full_ks_alpha(inla,1), full_ks_alpha_from_gpu(inla,1), &
-                           full_ks_alpha(inla,1) - full_ks_alpha_from_gpu(inla,1)
+!         write (*,*) inla, full_ks_alpha(inla,1), full_ks_alpha_from_gpu(inla,1), &
+!                           full_ks_alpha(inla,1) - full_ks_alpha_from_gpu(inla,1)
          max_abs_delta_KS = max( max_abs_delta_ks, abs(  full_ks_alpha(inla,1) - full_ks_alpha_from_gpu(inla,1) ) )
       end do
       write(*,*) " ------------------------------------ "
@@ -2593,7 +2593,7 @@ CONTAINS
 
       screened = .true.
 
-      write (*,*) " CP2K C4 L0 adding ", nelements_ij, " x ", nelements_kl, " gaussian quartets to libGint " 
+!      write (*,*) " CP2K C4 L0 adding ", nelements_ij, " x ", nelements_kl, " gaussian quartets to libGint " 
 
       DO list_ij = 1, nelements_ij
          ZetaInv = pgf_list_ij(list_ij)%ZetaInv
@@ -2605,8 +2605,8 @@ CONTAINS
             kpgf = pgf_list_kl(list_kl)%ipgf
             lpgf = pgf_list_kl(list_kl)%jpgf
 
-            write (*,*) " CP2K C4 L1 ", list_ij, " x ", list_kl, " are adding ", &
-                                       pgf_list_ij(list_ij)%nimages, "x", pgf_list_kl(list_kl)%nimages, " cells to libGint " 
+!            write (*,*) " CP2K C4 L1 ", list_ij, " x ", list_kl, " are adding ", &
+!                                       pgf_list_ij(list_ij)%nimages, "x", pgf_list_kl(list_kl)%nimages, " cells to libGint " 
 
             CALL build_pgf_product_list(pgf_list_ij(list_ij), pgf_list_kl(list_kl), pgf_product_list, &
                                         nproducts, log10_pmax, log10_eps_schwarz, neighbor_cells, cell, &
@@ -2616,8 +2616,8 @@ CONTAINS
 !            call libgint_add_prm( ipgf-1, jpgf-1, kpgf-1, lpgf-1, 0, 0, 0 )
            ! periodic one
             do pgf_index=1, nproducts
-               write (*,*) " CP2K C4 L2 adding PRM ", ipgf-1, jpgf-1, kpgf-1, lpgf-1, 0, 0, 0, " : " , & 
-                                       pgf_index-1, " / ", nproducts, list_ij, list_kl
+!               write (*,*) " CP2K C4 L2 adding PRM ", ipgf-1, jpgf-1, kpgf-1, lpgf-1, 0, 0, 0, " : " , & 
+!                                       pgf_index-1, " / ", nproducts, list_ij, list_kl
                call libgint_add_prm( ipgf-1, jpgf-1, kpgf-1, lpgf-1, 0, 0,0 )
                screened = .false.
             end do
@@ -2771,7 +2771,7 @@ CONTAINS
       INTEGER                                            :: i, j, ma, mb, mc, md, offset_ac, &
                                                             offset_ad, offset_bc, offset_bd
 
-      write(*,*) "KS Adding I: ", prim , " @@ P ", density, " to KS " , ks, " for atoms ", iatom, jatom, katom,latom
+!      write(*,*) "KS Adding I: ", prim , " @@ P ", density, " to KS " , ks, " for atoms ", iatom, jatom, katom,latom
 
       IF (jatom >= latom) THEN
          i = 1

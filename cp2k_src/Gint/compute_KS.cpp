@@ -118,6 +118,9 @@ __global__ void compute_KS_gpu(
       decode4( Tall   , &Tac,  &Tad,  &Tbc,  &Tbd  );
 
       const int Oq = block * nsabcd ;
+      // MAYBE move the hf_fac multiplication outside this kernel, since K initial value is zero, only multiply once at the end
+      // Cost would go from N(integral computeted) / n_gpu to SIZEOF( K ) for every gpu, so it may not be always useful
+      // OR move the hf_fac multiplication to the GCC factors
       const double fac = symm_factors[idx_fac] * hf_fac;
       
       
@@ -132,20 +135,20 @@ __global__ void compute_KS_gpu(
          const int idx_c = inlc*nsc + isc;
          const int idx_d = inld*nsd + isd;
 
-         const int idx_ac = Tac ?  idx_c * ldac + idx_a :  idx_a * ldac + idx_c;
-         const int idx_ad = Tad ?  idx_d * ldad + idx_a :  idx_a * ldad + idx_d;
-         const int idx_bc = Tbc ?  idx_c * ldbc + idx_b :  idx_b * ldbc + idx_c;
-         const int idx_bd = Tbd ?  idx_d * ldbd + idx_b :  idx_b * ldbd + idx_d;
+//         const int idx_ac = Tac ?  idx_c * ldac + idx_a :  idx_a * ldac + idx_c;
+//         const int idx_ad = Tad ?  idx_d * ldad + idx_a :  idx_a * ldad + idx_d;
+//         const int idx_bc = Tbc ?  idx_c * ldbc + idx_b :  idx_b * ldbc + idx_c;
+//         const int idx_bd = Tbd ?  idx_d * ldbd + idx_b :  idx_b * ldbd + idx_d;
 
          const int idx_ac_T = not Tac ?  idx_c * ldac + idx_a :  idx_a * ldac + idx_c;
          const int idx_ad_T = not Tad ?  idx_d * ldad + idx_a :  idx_a * ldad + idx_d;
          const int idx_bc_T = not Tbc ?  idx_c * ldbc + idx_b :  idx_b * ldbc + idx_c;
          const int idx_bd_T = not Tbd ?  idx_d * ldbd + idx_b :  idx_b * ldbd + idx_d;
 
-         const int Iac = offset_L_set_atom_ac + idx_ac;
-         const int Iad = offset_L_set_atom_ad + idx_ad;
-         const int Ibc = offset_L_set_atom_bc + idx_bc;
-         const int Ibd = offset_L_set_atom_bd + idx_bd;
+//         const int Iac = offset_L_set_atom_ac + idx_ac;
+//         const int Iad = offset_L_set_atom_ad + idx_ad;
+//         const int Ibc = offset_L_set_atom_bc + idx_bc;
+//         const int Ibd = offset_L_set_atom_bd + idx_bd;
 
          const int Iac_T = offset_L_set_atom_ac + idx_ac_T;
          const int Iad_T = offset_L_set_atom_ad + idx_ad_T;
@@ -157,14 +160,13 @@ __global__ void compute_KS_gpu(
          const double kbc = iabcd * P [Iad_T];
          const double kad = iabcd * P [Ibc_T];
          const double kac = iabcd * P [Ibd_T];
-         // must be atomics on device, or however K is distributed
-         printf("KS GPU %d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbd, fac, I[ Oq + t ], P[Iac_T], K[Ibd_T], Iac, Ibd_T );
-         printf("KS GPU %d.1: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbc, fac, I[ Oq + t ], P[Iad_T], K[Ibc_T], Iad, Ibc_T );
-         printf("KS GPU %d.2: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kad, fac, I[ Oq + t ], P[Ibc_T], K[Iad_T], Ibc, Iad_T );
-         printf("KS GPU %d.4: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kac, fac, I[ Oq + t ], P[Ibd_T], K[Iac_T], Ibd, Iac_T );
 
-         // MAYBE move the hf_fac multiplication outside this kernel, since K initial value is zero, only multiply once at the end
-         // Cost would go from N(integral computeted) / n_gpu to SIZEOF( K ) for every gpu, so it may not be always useful
+//         printf("KS GPU %d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbd, fac, I[ Oq + t ], P[Iac_T], K[Ibd_T], Iac, Ibd_T );
+//         printf("KS GPU %d.1: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbc, fac, I[ Oq + t ], P[Iad_T], K[Ibc_T], Iad, Ibc_T );
+//         printf("KS GPU %d.2: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kad, fac, I[ Oq + t ], P[Ibc_T], K[Iad_T], Ibc, Iad_T );
+//         printf("KS GPU %d.4: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kac, fac, I[ Oq + t ], P[Ibd_T], K[Iac_T], Ibd, Iac_T );
+
+         // MUST be atomics on device, or however K is distributed
          atomicAdd( &K[ Ibd_T ] , kbd);
          atomicAdd( &K[ Ibc_T ] , kbc);
          atomicAdd( &K[ Iad_T ] , kad);

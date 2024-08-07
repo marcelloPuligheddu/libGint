@@ -299,7 +299,7 @@ CONTAINS
 
 
                DO l = 1, m_max + 1
-                  write (*,*) " Fm[",l,"] = " , product_list(nproducts)%Fm(l), " * " , factor
+!                  write (*,*) " Fm[",l,"] = " , product_list(nproducts)%Fm(l), " * " , factor
                   product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l)*factor
                END DO
 

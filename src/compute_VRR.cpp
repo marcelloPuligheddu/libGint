@@ -483,42 +483,39 @@ __device__ void execute_CP2S_gpu(
       const double* const __restrict__ Ka, const double* const __restrict__ Kb,
       const double* const __restrict__ Kc, const double* const __restrict__ Kd ){
 
-   // index over the contract basis sets
-   double K = Ka[ ipa ] * Kb[ ipb ] * Kc[ ipc ] * Kd[ ipd ];
-
    const int NcoA = NLco_dev(AL);
    const int NcoC = NLco_dev(CL);
    const int NcoAC = NcoA*NcoC;
-   for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-      // must be block atomic 
-//      double tmp = K * pr_mem[i];
-//      printf( " CP2S at i: %d.%d.%d | %d %d %d %d | Adding : %4.10lg = %4.10lg * %4.10lg * to %4.10lg \n ", blockIdx.x, threadIdx.x, i, ipa,ipb,ipc,ipd, tmp, K, pr_mem[i], sh_mem[i] );
-      atomicAdd( &sh_mem[ i ] , K * pr_mem[i]);
-   }
 
-/*
+//   if ( nla == 1 and nlb == 1 and nlc == 1 and nld == 1 ){
+//      double K = Ka[ ipa ] * Kb[ ipb ] * Kc[ ipc ] * Kd[ ipd ];
+//      for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
+//         // double tmp = K * pr_mem[i];
+//         // printf( " CP2S at i: %d.%d.%d | %d %d %d %d | Adding : %4.10lg = %4.10lg * %4.10lg * to %4.10lg \n ", blockIdx.x, threadIdx.x, i, ipa,ipb,ipc,ipd, tmp, K, pr_mem[i], sh_mem[i] );
+//         // must be block atomic 
+//         atomicAdd( &sh_mem[ i ] , K * pr_mem[i]);
+//      }
+//   } else {
 
-   const unsigned int nl___d = nld;
-   const unsigned int nl__cd = nlc*nl___d;
-   const unsigned int nl_bcd = nlb*nl__cd;
-   const unsigned int nlabcd = nla*nl_bcd;
+      const unsigned int nl___d = nld;
+      const unsigned int nl__cd = nlc*nl___d;
+      const unsigned int nl_bcd = nlb*nl__cd;
+      const unsigned int nlabcd = nla*nl_bcd;
+      // index over the contract basis sets
+      for( unsigned int ilabcd = 0; ilabcd < nlabcd; ilabcd++ ){
+         unsigned int a = (ilabcd / nl_bcd) ;
+         unsigned int b = (ilabcd / nl__cd) % nlb ;
+         unsigned int c = (ilabcd / nl___d) % nlc ;
+         unsigned int d = ilabcd % nld ;
+         double K = Ka[ a*nga + ipa ] * Kb[ b*ngb + ipb ] * Kc[ c*ngc + ipc ] * Kd[ d*ngd + ipd ];
+//         double K = Ka[ ipa*nla + a ] * Kb[ ipb*nlb + b ] * Kc[ ipc*nlc + c ] * Kd[ ipd*nld + d ];
 
-   for( unsigned int ilabcd = 0; ilabcd < nlabcd; ilabcd++ ){
-      unsigned int a = (ilabcd / nl_bcd) ;
-      unsigned int b = (ilabcd / nl__cd) % nlb ;
-      unsigned int c = (ilabcd / nl___d) % nlc ;
-      unsigned int d = ilabcd % nld ;
-      double K = Ka[ a*nga + ipa ] * Kb[ b*ngb + ipb ] * Kc[ c*ngc + ipc ] * Kd[ d*ngd + ipd ];
-
-      const int NcoA = NLco_dev(AL);
-      const int NcoC = NLco_dev(CL);
-      const int NcoAC = NcoA*NcoC;
-      for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-        // must be atomic
-        atomicAdd( &sh_mem[ ilabcd*hrr_blocksize + i ] , K * pr_mem[i]);
+         for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
+           // must be atomic
+           atomicAdd( &sh_mem[ ilabcd*hrr_blocksize + i ] , K * pr_mem[i]);
+         }
       }
-   }
-*/
+//   }
 }
 
 
@@ -717,7 +714,7 @@ __global__ void compute_VRR_batched_gpu_low(
                   la, lc, m1, m2, my_vrr_rank, vrr_team_size, hrr_blocksize,
                   ipa, ipb, ipc, ipd, nla, nlb, nlc, nld, npa, npb, npc, npd, Ka, Kb, Kc, Kd );
             } else if ( t == SYTM ){
-//               __syncthreads();
+               __syncthreads();
             }
          } // end of loop over op  
       }

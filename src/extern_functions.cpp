@@ -102,8 +102,6 @@ void libgint_set_Atom_L( void * handle, int i, int l, int nl, double * K ){
       } cout << endl ;
    } cout << endl;
 
-
-
    g_handle -> set_Atom_L( i, l, nl, K_normalized.data() );
 }
 

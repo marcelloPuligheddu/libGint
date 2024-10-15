@@ -45,14 +45,11 @@ using std::max;
 
 class libGint {
    public:
-   libGint(){ 
-      my_thr = omp_get_thread_num() ;
-      std::cout << " LibGint Ctor called from thr " << my_thr << std::endl; 
-   }
-   void add_prm ( const int ipa, const int ipb, const int ipc, const int ipd, const int n1, const int n2, const int n3 ) ;
+   libGint(){ my_thr = omp_get_thread_num() ; Nomp = omp_get_num_threads(); }
+   void add_prm ( const int ipa, const int ipb, const int ipc, const int ipd ) ;
    void add_shell (int i, int j , int k, int l, int n1, int n2);
    void add_cell();
-   int add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int nld );
+   void add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc, int nld );
    void add_qrtt(
          double symm_fac, int la, int lb, int lc, int ld, 
          int inla, int inlb, int inlc, int inld,
@@ -63,14 +60,14 @@ class libGint {
    void add_set();
    void set_Atom( int i, double* R_, double*Z_, int np_ );
    void set_Atom_L( int i, int l_, int nl_, double* K_  );
-   void set_max_n_prm( int max_n3 );
    void init();
    void set_Potential_Truncated( double R_cut, double * C0, int ld_C0, int C0_size );
+   void set_hf_fac(double fac);
+   void set_max_mem(int max_mem);
    void compute_max_vector_size();
-   size_t memory_needed();
 
-   void dispatch(bool skip_cpu);
-   size_t out_size = 0;
+   void dispatch(bool dispatch_all);
+   size_t data_size = 0, AUX_size = 0, FP_size_omp = 0, byte_scratch_size = 0, byte_idx_arr_size = 0; 
 
    std::vector<double> OUT;
    bool periodic = false;
@@ -78,7 +75,10 @@ class libGint {
    void report_througput(bool skip_gpu);
 //   private:
 
-   void reset_indices();
+   Timer prm_timer, shl_timer, qrt_timer, qrtt_timer, set_timer, dis_timer;
+   double prm_ms=0.0, shl_ms=0.0, qrt_ms=0.0, qrtt_ms=0.0, set_ms=0.0, dis_ms=0.0;
+   int prm_cnt = 0, shl_cnt=0, qrt_cnt=0, qrtt_cnt=0, set_cnt=0, dis_cnt;
+   void reset_indices(unsigned int L);
    int my_thr = 0;
    std::vector<int> np;
    std::vector<unsigned int> idx_R;
@@ -89,22 +89,28 @@ class libGint {
    cublasHandle_t cublas_handle;
    cudaStream_t cuda_stream;
 
+   int max_n_prm = 0;
+   double hf_fac; // K += fac * I @@ P
+   int Nomp = 0;
+   size_t max_mem = 0;
+   size_t max_mem_per_thread = 0;
+
    int nspin = 0 ;
    double * K_a; // not owned 
    double * P_a; // not owned  
-   double * K_a_dev; // owned and managed 
-   double * P_a_dev; // owned and managed 
+   double * K_a_dev = 0; // owned and managed 
+   double * P_a_dev = 0; // owned and managed 
 
    double * K_b; // not owned
    double * P_b; // not owned
-   double * K_b_dev; // owned and managed
-   double * P_b_dev; // owned and managed
+   double * K_b_dev = 0; // owned and managed
+   double * P_b_dev = 0; // owned and managed
 
-   double hf_fac; // K += fac * I @@ P
- 
    size_t FP_size;
    void set_P( double * P, int P_size );
    void set_P( double * Pa, double * Pb, int P_size );
+   void zero_K( int K_size );
+   void zero_K( int K_size, int K_size_ );
    void set_K( double * K, int K_size );
    void set_K( double * Ka, double * Kb, int K_size );
 
@@ -118,16 +124,12 @@ class libGint {
    void get_K( std::vector<double> & K );
    void get_K( std::vector<double> & K_a, std::vector<double> & K_b );
 
-   void set_cell( bool periodic, double * cell_ );
- 
+   void set_cell( bool periodic, double * cell_, double * cell_inv_);
+   void set_neighs( double * neighs_, int nneighs );
+
    size_t max_integral_scratch_size = 0;
+   size_t max_idx_arr_size = 0;
    size_t max_plan_size = 0;
-   size_t max_OF_size = 0;
-   size_t max_PMX_size = 0;
-   size_t max_FVH_size = 0;
-   size_t max_SPH_size = 0;
-   size_t max_KS_size = 0;
-   size_t max_TRA_size = 0;
 
    unsigned int offset_F[NL4] = {0};
    unsigned int offset_V[NL4] = {0};
@@ -140,18 +142,15 @@ class libGint {
    std::vector<unsigned int> FVH[NL4];
    std::vector<unsigned int> OF[NL4];
    std::vector<unsigned int> PMX[NL4];
-   std::vector<unsigned int> SPH[NL4];
-   std::vector<unsigned int> TRA[NL4];
    std::vector<unsigned int> KS[NL4];
 
-   unsigned int dest=0;
    std::vector<unsigned int> prm_tmp_list;
    UniqueArray ua;
-//   bool is_gamma = true;
+
    unsigned int n_set = 0;
    unsigned int prm_in_set = 0;
    unsigned int n_prm = 0;
-   int max_n_prm;
+   int max_ncells = 0;
    unsigned int p0 = 0;
    unsigned int cell_in_set = 0;
    PlanCollection plans;
@@ -166,14 +165,14 @@ class libGint {
    unsigned int ABCD_size[NL4] = {0};
    unsigned int ABCD0_size[NL4] = {0};
    unsigned int SPHER_size[NL4] = {0};
-   unsigned int OUT_size[NL4] = {0};
 
    double cell_h[9] = {0};
    double cell_inv_h[9] = {0};
+   std::vector<double> neighs;
 
    std::unordered_set<unsigned int> encoded_moments ;
    bool first = true;
-   bool all_moments[NL4] ;
+   bool all_moments[NL4] = {false} ;
    std::vector<size_t> record_of_out_sizes[NL4];
    std::vector<double> record_of_times_cpu[NL4];
    std::vector<double> record_of_times_gpu[NL4];

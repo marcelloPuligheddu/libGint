@@ -1,9 +1,13 @@
 #include "libGint.h"
+#include <vector>
 
 extern "C" {
 
 void * libgint_create_handle () {
-   libGint * handle = new libGint() ;
+   libGint * handle;
+   handle = new libGint() ;
+//#pragma omp critical
+//   cout << "Thr " << omp_get_thread_num() << " using handle " << handle << endl;
    return (void*) handle ;
 }
 
@@ -17,22 +21,32 @@ void libgint_set_Potential_Truncated( void * handle, double R_cut_, double * C0_
    g_handle -> set_Potential_Truncated( R_cut_, C0_, ld_C0_, C0_size_ );
 }
 
+void libgint_set_hf_fac( void * handle, double fac ){
+   libGint * g_handle = ( libGint * ) handle ;
+   g_handle -> set_hf_fac( fac );
+}
+
+void libgint_set_max_mem( void * handle, int max_mem ){
+   libGint * g_handle = ( libGint * ) handle ;
+   g_handle -> set_max_mem( max_mem );
+}
+
+
 void libgint_set_P( void * handle, double * P, int P_size ){
    libGint * g_handle = (libGint *) handle ;
-   cout << " Setting P with handle " << handle << "|" << g_handle << " @ " << P << " x " << P_size << endl;
    g_handle -> set_P( P, P_size );
+   g_handle -> zero_K( P_size );
 }
 
 void libgint_set_P_polarized( void * handle, double * Pa, double * Pb, int P_size ){
    libGint * g_handle = (libGint *) handle ;
-   g_handle -> set_P( Pa, Pb, P_size ); 
+   g_handle -> set_P( Pa, Pb, P_size );
+   g_handle -> zero_K( P_size, P_size );
 }
 
-void libgint_set_K( void * handle, double * K, int K_size, double fac ){
+void libgint_set_K( void * handle, double * K, int K_size ){
    libGint * g_handle = (libGint *) handle ;
-   cout << " Setting K with handle " << handle << "|" << g_handle << " @ " << K << " x " << K_size << " fac: " << fac << endl;
    g_handle -> set_K( K, K_size ); 
-   g_handle -> hf_fac = fac ;
 }
 
 void libgint_set_K_polarized( void * handle, double * Ka, double * Kb, int K_size ){
@@ -50,18 +64,21 @@ void libgint_get_K_polarized( void * handle, double * Ka, double * Kb ){
    g_handle -> get_K( Ka, Kb ); 
 }
 
-void libgint_set_cell( void * handle, bool periodic, double * cell_h ){
+void libgint_set_cell( void * handle, bool periodic, double * cell_h, double * cell_i ){
    libGint * g_handle = (libGint *) handle ;
-   g_handle -> set_cell( periodic, cell_h );
+   g_handle -> set_cell( periodic, cell_h, cell_i );
+}
+
+void libgint_set_neighs( void * handle, double * neighs_, int nneighs ){
+   libGint * g_handle = (libGint *) handle ;
+   g_handle -> set_neighs( neighs_, nneighs );
 }
 
 void libgint_set_Atom( void * handle, int i, double * R, double * Z, int np ){
    libGint * g_handle = (libGint *) handle ;
-
-   cout << " Setting Atom(set) " << i << " at " << R[0] << " " << R[1] << " " << R[2] << " w Z: | " ;
-   for ( int i = 0 ; i < np ; i++ ){ cout << Z[i] << " " ; }
-   cout << " | " << np << endl;
-
+//   cout << " Setting Atom(set) " << i << " at " << R[0] << " " << R[1] << " " << R[2] << " w Z: | " ;
+//   for ( int i = 0 ; i < np ; i++ ){ cout << Z[i] << " " ; }
+//   cout << " | " << np << endl;
    g_handle -> set_Atom( i, R, Z, np );
 }
 
@@ -75,12 +92,17 @@ double compute_norm_psi( double * K, double * z, int np, int l ){
       }
    }
    ans *= pow(M_PI,1.5) / pow(2.0,l);
-//   cout << " norm at l " << l << " of " << K[0] << " ^ " << z[0] << " [." << np << ".] = " << K[0] / sqrt(ans) << endl ;
+//   cout << " norm at l " << l << " of " ;
+//   for (int i=0; i<np;i++){
+//      if (i!=0){cout << " + " ;}
+//      cout << K[i] << " ^ " << z[i] << " " ;
+//   }
+//   cout << "[" << np << "] = " << sqrt(ans) << endl ;
    return sqrt(ans);
 
 }
 
-#include <vector>
+
 void libgint_set_Atom_L( void * handle, int i, int l, int nl, double * K ){
    libGint * g_handle = (libGint *) handle ;
 
@@ -95,12 +117,14 @@ void libgint_set_Atom_L( void * handle, int i, int l, int nl, double * K ){
       }
    }
 
-   cout << " Setting Atom L (set) " << " as " << i << " " << l << " " << nl << "x" << np << " K: " << endl;
-   for ( int inl=0; inl < nl ; inl++ ){
-      for ( int ip = 0; ip < np ; ip ++ ){
-         cout << K[ inl * np + ip ] << " ( " <<  K_normalized[inl * np + ip] << " ) " ;
-      } cout << endl ;
-   } cout << endl;
+//   cout << " Setting Atom L (set) " << " as " << i << " " << l << " " << nl << "x" << np << " K: " << endl;
+//   for ( int inl=0; inl < nl ; inl++ ){
+//      for ( int ip = 0; ip < np ; ip ++ ){
+//         cout << K[ inl * np + ip ] << " ( " <<  K_normalized[inl * np + ip] << " ) " ;
+//      } cout << endl ;
+//   } cout << endl;
+
+
 
    g_handle -> set_Atom_L( i, l, nl, K_normalized.data() );
 }
@@ -115,14 +139,9 @@ void libgint_set_AtomInfo( void * handle, int i, double * R, double * Z, int np,
    }
 }
 
-void libgint_set_max_n_cell( void * handle , int n3 ){
+void libgint_add_prm( void * handle, int ipa, int ipb, int ipc, int ipd ){
    libGint * g_handle = (libGint *) handle ;
-   g_handle -> set_max_n_prm( n3 );
-}
-
-void libgint_add_prm( void * handle, int ipa, int ipb, int ipc, int ipd, int n1, int n2, int n3 ){
-   libGint * g_handle = (libGint *) handle ;
-   g_handle -> add_prm( ipa, ipb, ipc, ipd, n1, n2, n3 );
+   g_handle -> add_prm( ipa, ipb, ipc, ipd );
 }
 
 void libgint_add_shell( void * handle, int i, int j ,int k, int l, int n1, int n2 ){
@@ -156,11 +175,6 @@ void libgint_add_qrtt(
 void libgint_add_set( void * handle ){
    libGint * g_handle = (libGint *) handle ;
    g_handle -> add_set();
-}
-
-void libgint_memory_needed( void * handle, int * mem ){
-   libGint * g_handle = (libGint *) handle ;
-   (*mem) = ( g_handle -> memory_needed() );
 }
 
 void libgint_dispatch( void * handle ){

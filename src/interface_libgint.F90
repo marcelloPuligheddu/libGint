@@ -19,6 +19,24 @@ module libgint
    end interface
 
    interface
+   subroutine libgint_internal_set_hf_fac( libgint_handle, fac ) bind(C,name="libgint_set_hf_fac")
+      import :: c_ptr
+      implicit none
+      real(kind=8), value :: fac
+      type(c_ptr), value :: libgint_handle
+   end subroutine libgint_internal_set_hf_fac
+   end interface
+
+   interface
+   subroutine libgint_internal_set_max_mem( libgint_handle, max_mem ) bind(C,name="libgint_set_max_mem")
+      import :: c_ptr, c_int
+      implicit none
+      integer(kind=c_int), value :: max_mem
+      type(c_ptr), value :: libgint_handle
+   end subroutine libgint_internal_set_max_mem
+   end interface
+
+   interface
    subroutine libgint_internal_set_P( libgint_handle, P, P_size ) bind(C,name="libgint_set_P")
       import :: c_ptr, c_int
       implicit none
@@ -99,28 +117,29 @@ module libgint
    end interface
 
    interface
-   subroutine libgint_internal_set_cell( libgint_handle, periodic, cell ) bind(C,name="libgint_set_cell")
+   subroutine libgint_internal_set_cell( libgint_handle, periodic, cell_h, cell_i ) bind(C,name="libgint_set_cell")
       import :: c_ptr, c_int, c_bool
       implicit none
       logical(kind=c_bool) :: periodic
-      type(c_ptr), value :: libgint_handle, cell
+      type(c_ptr), value :: libgint_handle, cell_h,cell_i
    end subroutine libgint_internal_set_cell
    end interface
 
+! void libgint_set_neighs( void * handle, double * neighs_, int nneighs ){
    interface
-   subroutine libgint_internal_set_max_n_cell( libgint_handle, max_n ) bind(C,name="libgint_set_max_n_cell")
+   subroutine libgint_internal_set_neighs( libgint_handle, neighs, nneighs ) bind(C,name="libgint_set_neighs")
       import :: c_ptr, c_int
       implicit none
-      integer(kind=c_int), value :: max_n
-      type (c_ptr), value :: libgint_handle
-   end subroutine libgint_internal_set_max_n_cell
+      type(c_ptr), value :: libgint_handle, neighs
+      integer(kind=c_int), value :: nneighs
+   end subroutine libgint_internal_set_neighs
    end interface
 
    interface
-   subroutine libgint_internal_add_prm( libgint_handle, ipa,ipb,ipc,ipd,n1,n2,n3 ) bind (C,name="libgint_add_prm")
+   subroutine libgint_internal_add_prm( libgint_handle, ipa,ipb,ipc,ipd ) bind (C,name="libgint_add_prm")
       import :: c_ptr, c_int
       implicit none
-      integer(kind=c_int), value :: ipa,ipb,ipc,ipd, n1,n2,n3
+      integer(kind=c_int), value :: ipa,ipb,ipc,ipd
       type (c_ptr), value :: libgint_handle
    end subroutine libgint_internal_add_prm
    end interface
@@ -176,15 +195,6 @@ module libgint
    end interface
 
    interface
-   subroutine libgint_internal_memory_needed( libgint_handle, mem ) bind (C,name="libgint_memory_needed")
-      import :: c_ptr, c_int
-      implicit none
-      integer(kind=c_int) :: mem
-      type (c_ptr), value :: libgint_handle
-   end subroutine libgint_internal_memory_needed
-   end interface
-
-   interface
    subroutine libgint_internal_dispatch ( libgint_handle ) bind (C,name="libgint_dispatch")
       import :: c_ptr
       implicit none
@@ -203,146 +213,175 @@ module libgint
    end subroutine libgint_internal_set_Potential_Truncated
    end interface
 
-   type(c_ptr), save :: obj = c_null_ptr
-   public :: libgint_init, libgint_set_Potential_Truncated
+
+
+   public :: libgint_init, libgint_set_Potential_Truncated, libgint_set_hf_fac, libgint_set_max_mem
    public :: libgint_set_P, libgint_set_P_polarized, libgint_set_K, libgint_set_K_polarized
    public :: libgint_get_K, libgint_get_K_polarized, libgint_set_Atom, libgint_set_Atom_L, libgint_set_cell
-   public :: libgint_set_max_n_cell, libgint_add_prm, libgint_add_shell, libgint_add_cell, libgint_add_qrt
-   public :: libgint_add_qrtt, libgint_add_set, libgint_memory_needed, libgint_dispatch
+   public :: libgint_set_neighs
+   public :: libgint_add_prm, libgint_add_shell, libgint_add_cell, libgint_add_qrt
+   public :: libgint_add_qrtt, libgint_add_set, libgint_dispatch
 
 contains
-   subroutine libgint_init ()
-      obj = libgint_internal_create_handle()
-      call libgint_internal_init( obj )
+   subroutine libgint_init ( handle )
+      type (c_ptr) :: handle
+      handle = libgint_internal_create_handle()
+      call libgint_internal_init( handle )
    end subroutine libgint_init
 
-   subroutine libgint_set_Potential_Truncated( R_cut, C0 )
+   subroutine libgint_set_Potential_Truncated( handle, R_cut, C0 )
+      type (c_ptr) :: handle
       real(kind=8) :: R_cut
       integer(kind=c_int) :: ld_C0, C0_size
       real(kind=8), dimension(:,:), target :: C0
       C0_size = size(C0,kind=c_int)
       ld_C0 = size(C0, dim=1, kind=c_int)
-      call libgint_internal_set_Potential_Truncated( obj, %val(R_cut), c_loc(C0), %val(ld_C0), %val(C0_size) )
+      call libgint_internal_set_Potential_Truncated( handle, %val(R_cut), c_loc(C0), %val(ld_C0), %val(C0_size) )
    end subroutine libgint_set_Potential_Truncated
 
-   subroutine libgint_set_P ( P )
+   subroutine libgint_set_hf_fac( handle, fac )
+      type(c_ptr) :: handle
+      real(kind=8), value :: fac
+      call libgint_internal_set_hf_fac( handle, fac )
+   end subroutine libgint_set_hf_fac
+
+   subroutine libgint_set_max_mem( handle, max_mem )
+      type(c_ptr) :: handle
+      integer(kind=c_int), value :: max_mem
+      call libgint_internal_set_max_mem( handle, max_mem )
+   end subroutine libgint_set_max_mem
+
+   subroutine libgint_set_P ( handle, P )
+      type (c_ptr) :: handle
       integer(kind=c_int) :: P_size
       real(kind=8), dimension(:), target :: P
       P_size = size(P, kind=c_int )
-      call libgint_internal_set_P( obj, c_loc(P), %val(P_size) )
+      call libgint_internal_set_P( handle, c_loc(P), %val(P_size) )
    end subroutine libgint_set_P
    
-   subroutine libgint_set_P_polarized ( Pa, Pb )
+   subroutine libgint_set_P_polarized ( handle, Pa, Pb )
+      type (c_ptr) :: handle
       integer(kind=c_int) :: P_size
       real(kind=8), dimension(:), target :: Pa, Pb
       P_size = size(Pa, kind=c_int )
-      call libgint_internal_set_P_polarized( obj, c_loc(Pa), c_loc(Pb), %val(P_size) )
+      call libgint_internal_set_P_polarized( handle, c_loc(Pa), c_loc(Pb), %val(P_size) )
    end subroutine libgint_set_P_polarized
 
-   subroutine libgint_set_K ( K, fac )
+   subroutine libgint_set_K ( handle, K, fac )
+      type (c_ptr) :: handle
       integer(kind=c_int) :: K_size
       real(kind=8), dimension(:), target :: K
       real(kind=8), value :: fac
       K_size = size(K, kind=c_int )
-      call libgint_internal_set_K( obj, c_loc(K), %val(K_size), fac )
+      call libgint_internal_set_K( handle, c_loc(K), %val(K_size), fac )
    end subroutine libgint_set_K
    
-   subroutine libgint_set_K_polarized ( Ka, Kb )
+   subroutine libgint_set_K_polarized ( handle, Ka, Kb )
+      type (c_ptr) :: handle
       integer(kind=c_int) :: K_size
       real(kind=8), dimension(:), target :: Ka, Kb
       K_size = size(Ka, kind=c_int )
-      call libgint_internal_set_K_polarized( obj, c_loc(Ka), c_loc(Kb), %val(K_size) )
+      call libgint_internal_set_K_polarized( handle, c_loc(Ka), c_loc(Kb), %val(K_size) )
    end subroutine libgint_set_K_polarized
 
-   subroutine libgint_get_K ( K )
+   subroutine libgint_get_K ( handle, K )
+      type (c_ptr) :: handle
       real(kind=8), dimension(:), target :: K
-      call libgint_internal_get_K( obj, c_loc(K) )
+      call libgint_internal_get_K( handle, c_loc(K) )
    end subroutine libgint_get_K
 
-   subroutine libgint_get_K_polarized ( Ka, Kb )
+   subroutine libgint_get_K_polarized ( handle, Ka, Kb )
+      type (c_ptr) :: handle
       real(kind=8), dimension(:), target :: Ka, Kb
-      call libgint_internal_get_K_polarized( obj, c_loc(Ka), c_loc(Kb) )
+      call libgint_internal_get_K_polarized( handle, c_loc(Ka), c_loc(Kb) )
    end subroutine libgint_get_K_polarized
 
-   subroutine libgint_set_cell( periodic, cell )
+   subroutine libgint_set_cell( handle, periodic, cell_h, cell_i )
+      type (c_ptr) :: handle
       logical(kind=c_bool), value :: periodic
-      real(kind=8), dimension(:), target :: cell
-      call libgint_internal_set_cell( obj, periodic, c_loc(cell) )
+      real(kind=8), dimension(:,:), target :: cell_h, cell_i
+      call libgint_internal_set_cell( handle, periodic, c_loc(cell_h), c_loc(cell_i) )
    end subroutine libgint_set_cell
 
-   subroutine libgint_set_Atom( i, R, Z, np )
+   subroutine libgint_set_neighs( handle, neighs, nneighs )
+      type (c_ptr) :: handle
+      integer(kind=c_int) :: nneighs
+      real(kind=8), dimension(:,:), target :: neighs
+!      write (*,*) " Setting neigh as " , neighs
+      call libgint_internal_set_neighs( handle, c_loc(neighs), nneighs )
+   end subroutine libgint_set_neighs
+
+   subroutine libgint_set_Atom( handle, i, R, Z, np )
+      type (c_ptr) :: handle
       integer(kind=c_int), value :: i, np
       real(kind=8), dimension(:), target :: R, Z
 !      write(*,*) " calling set Atom(set) ", i, R, Z, np
-      call libgint_internal_set_Atom( obj, i, c_loc(R), c_loc(Z), np )
+      call libgint_internal_set_Atom( handle, i, c_loc(R), c_loc(Z), np )
    end subroutine libgint_set_Atom
 
-   subroutine libgint_set_Atom_L( i, l, nl, K )
+   subroutine libgint_set_Atom_L( handle, i, l, nl, K )
+      type (c_ptr) :: handle
       integer(kind=c_int), value :: i, l , nl
-      real(kind=8), dimension(:,:), target :: K
+      real(kind=8), dimension(:), target :: K
 !      write(*,*) " calling set Atom L ", i, l, nl , K
-      call libgint_internal_set_Atom_L( obj, i, l, nl, c_loc(K) )
+      call libgint_internal_set_Atom_L( handle, i, l, nl, c_loc(K) )
    end subroutine libgint_set_Atom_L
 
-   subroutine ligbint_set_AtomInfo( i, R, Z, np, lmin, Lmax, nl, K )
+   subroutine ligbint_set_AtomInfo( handle, i, R, Z, np, lmin, Lmax, nl, K )
+      type (c_ptr) :: handle
       integer(kind=c_int), value :: i, np, lmin, Lmax
       integer(kind=4), dimension(:), target :: nl
       real(kind=8), dimension(:), target :: R,Z,K
-      call libgint_internal_set_AtomInfo( obj, i, c_loc(R), c_loc(Z), np, lmin, Lmax, c_loc(nl) , c_loc(K) )
+      call libgint_internal_set_AtomInfo( handle, i, c_loc(R), c_loc(Z), np, lmin, Lmax, c_loc(nl) , c_loc(K) )
    end subroutine ligbint_set_AtomInfo
 
-   subroutine libgint_set_max_n_cell( max_periodic_cells )
-      integer(kind=c_int), value :: max_periodic_cells
-      call libgint_internal_set_max_n_cell( obj, max_periodic_cells )
-   end subroutine libgint_set_max_n_cell
-
-   subroutine libgint_add_prm( ipa, ipb, ipc, ipd, n1, n2, n3 )
-      integer(kind=c_int), value :: ipa,ipb,ipc,ipd,n1,n2,n3
-      call libgint_internal_add_prm( obj, ipa,ipb,ipc,ipd,n1,n2,n3 )
+   subroutine libgint_add_prm( handle, ipa, ipb, ipc, ipd )
+      type (c_ptr) :: handle
+      integer(kind=c_int), value :: ipa,ipb,ipc,ipd
+      call libgint_internal_add_prm( handle, ipa,ipb,ipc,ipd )
    end subroutine libgint_add_prm
 
-   subroutine libgint_add_shell( i, j, k, l, n1, n2 )
+   subroutine libgint_add_shell( handle, i, j, k, l, n1, n2 )
+      type (c_ptr) :: handle
       integer(kind=c_int), value :: i,j,k,l,n1,n2
-      call libgint_internal_add_shell( obj, i,j,k,l,n1,n2 )
+      call libgint_internal_add_shell( handle, i,j,k,l,n1,n2 )
    end subroutine libgint_add_shell
 
-   subroutine libgint_add_cell( )
-      call libgint_internal_add_cell( obj )
+   subroutine libgint_add_cell( handle )
+      type (c_ptr) :: handle
+      call libgint_internal_add_cell( handle )
    end subroutine libgint_add_cell
 
-   subroutine libgint_add_qrt( la,lb,lc,ld, nla,nlb,nlc,nld )
+   subroutine libgint_add_qrt( handle, la,lb,lc,ld, nla,nlb,nlc,nld )
+      type (c_ptr) :: handle
       integer(kind=c_int), value :: la,lb,lc,ld, nla,nlb,nlc,nld
-      call libgint_internal_add_qrt( obj, la,lb,lc,ld,nla,nlb,nlc,nld )
+      call libgint_internal_add_qrt( handle, la,lb,lc,ld,nla,nlb,nlc,nld )
    end subroutine libgint_add_qrt
 
-   subroutine libgint_add_qrtt( symm_fac, la,lb,lc,ld, inla,inlb,inlc,inld, &
+   subroutine libgint_add_qrtt( handle, symm_fac, la,lb,lc,ld, inla,inlb,inlc,inld, &
          ld_ac,ld_ad,ld_bc,ld_bd, offset_ac_L_set,offset_ad_L_set, &
          offset_bc_L_set,offset_bd_L_set, Tac,Tad,Tbc,Tbd )
+      type (c_ptr) :: handle
       real( kind=8), value :: symm_fac
       integer(kind=c_int), value :: la,lb,lc,ld, inla,inlb,inlc,inld
       integer(kind=c_int), value :: ld_ac,ld_ad,ld_bc,ld_bd
       integer(kind=c_int), value :: offset_ac_L_set, offset_ad_L_set 
       integer(kind=c_int), value :: offset_bc_L_set, offset_bd_L_set
       logical(kind=c_bool), value :: Tac,Tad,Tbc,Tbd
-      call libgint_internal_add_qrtt( obj, symm_fac, la,lb,lc,ld,inla,inlb,inlc,inld, &
+      call libgint_internal_add_qrtt( handle, symm_fac, la,lb,lc,ld,inla,inlb,inlc,inld, &
          ld_ac,ld_ad,ld_bc,ld_bd, offset_ac_L_set,offset_ad_L_set, &
          offset_bc_L_set,offset_bd_L_set, Tac,Tad,Tbc,Tbd )
    end subroutine libgint_add_qrtt
 
-   subroutine libgint_add_set()
-      call libgint_internal_add_set( obj )
+   subroutine libgint_add_set( handle )
+      type (c_ptr) :: handle
+      call libgint_internal_add_set( handle )
    end subroutine libgint_add_set
 
-   function libgint_memory_needed() result( mem )
-      integer(kind=c_int) :: mem
-      call libgint_internal_memory_needed( obj, mem )
-      return
-   end function libgint_memory_needed
-
-   subroutine libgint_dispatch()
-      call libgint_internal_dispatch( obj )
+   subroutine libgint_dispatch( handle )
+      type (c_ptr) :: handle
+      call libgint_internal_dispatch( handle )
    end subroutine libgint_dispatch
-
 
 end module libgint
 

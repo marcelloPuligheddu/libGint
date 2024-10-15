@@ -475,7 +475,7 @@ __device__ void execute_VRR6_gpu(
 __device__ void execute_CP2S_gpu( 
       const int AL, const int CL, 
       const double* __restrict__ pr_mem,
-      double* sh_mem, // sh is -very much- not restrict-ed. It is only written/read to by this block, however
+      double* sh_mem, // sh is -very much- not restrict-ed.
       const int my_vrr_rank, const int vrr_team_size, const int hrr_blocksize,
       const unsigned int ipa, const unsigned int ipb, const unsigned int ipc, const unsigned int ipd,
       const unsigned int nla, const int unsigned nlb, const int unsigned nlc, const int unsigned nld, 
@@ -486,72 +486,7 @@ __device__ void execute_CP2S_gpu(
    const int NcoA = NLco_dev(AL);
    const int NcoC = NLco_dev(CL);
    const int NcoAC = NcoA*NcoC;
-
-//   if ( nla == 1 and nlb == 1 and nlc == 1 and nld == 1 ){
-//      double K = Ka[ ipa ] * Kb[ ipb ] * Kc[ ipc ] * Kd[ ipd ];
-//      for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-//         // double tmp = K * pr_mem[i];
-//         // printf( " CP2S at i: %d.%d.%d | %d %d %d %d | Adding : %4.10lg = %4.10lg * %4.10lg * to %4.10lg \n ", blockIdx.x, threadIdx.x, i, ipa,ipb,ipc,ipd, tmp, K, pr_mem[i], sh_mem[i] );
-//         // must be block atomic 
-//         atomicAdd( &sh_mem[ i ] , K * pr_mem[i]);
-//      }
-//   } else {
-
-      const unsigned int nl___d = nld;
-      const unsigned int nl__cd = nlc*nl___d;
-      const unsigned int nl_bcd = nlb*nl__cd;
-      const unsigned int nlabcd = nla*nl_bcd;
-      // index over the contract basis sets
-      for( unsigned int ilabcd = 0; ilabcd < nlabcd; ilabcd++ ){
-         unsigned int a = (ilabcd / nl_bcd) ;
-         unsigned int b = (ilabcd / nl__cd) % nlb ;
-         unsigned int c = (ilabcd / nl___d) % nlc ;
-         unsigned int d = ilabcd % nld ;
-         double K = Ka[ a*nga + ipa ] * Kb[ b*ngb + ipb ] * Kc[ c*ngc + ipc ] * Kd[ d*ngd + ipd ];
-//         double K = Ka[ ipa*nla + a ] * Kb[ ipb*nlb + b ] * Kc[ ipc*nlc + c ] * Kd[ ipd*nld + d ];
-
-         for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-           // must be atomic
-           atomicAdd( &sh_mem[ ilabcd*hrr_blocksize + i ] , K * pr_mem[i]);
-         }
-      }
-//   }
-}
-
-
-void execute_CP2S_v2( 
-      const int AL, const int CL, 
-      const double* __restrict__ pr_mem,
-      double* sh_mem, // sh is -very much- not restrict-ed. It is only written/read to by this block, however
-      const int my_vrr_rank, const int vrr_team_size, const int hrr_blocksize,
-      const unsigned int ipa, const unsigned int ipb, const unsigned int ipc, const unsigned int ipd,
-      const unsigned int nla, const int unsigned nlb, const int unsigned nlc, const int unsigned nld, 
-      const int unsigned nga, const int unsigned ngb, const int unsigned ngc, const int unsigned ngd,
-      const double* const __restrict__ Ka, const double* const __restrict__ Kb,
-      const double* const __restrict__ Kc, const double* const __restrict__ Kd ){
-
-   // Early returns 
-   if (nla+nlb+nlc+nld == 4 ){
-      double K = Ka[ipa] * Kb[ipb] * Kc[ipc] * Kd[ipd];
-      if ( AL+CL == 0 ){
-         // must be atomic
-//         cout << "Adding " << K << " * " << pr_mem[0] << " to " << sh_mem[ 0 ] << endl;
-//         cout << "IP: " << ipa << " " << ipb << " " << ipc << " " << ipd << endl;
-//         cout << Ka[ipa] << " " <<  Kb[ipb] << " " <<  Kc[ipc] << " " << Kd[ipd] << endl;
-         sh_mem[ 0 ] += K * pr_mem[0];
-      } else {
-         const int NcoA = NLco(AL);
-         const int NcoC = NLco(CL);
-         const int NcoAC = NcoA*NcoC;
-         for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-            // must be atomic
-            sh_mem[ i ] += K * pr_mem[i];
-         }
-      }
-      return;
-   }
-
-   // index over the contract basis sets
+  
    const unsigned int nl___d = nld;
    const unsigned int nl__cd = nlc*nl___d;
    const unsigned int nl_bcd = nlb*nl__cd;
@@ -562,23 +497,17 @@ void execute_CP2S_v2(
       unsigned int b = (ilabcd / nl__cd) % nlb ;
       unsigned int c = (ilabcd / nl___d) % nlc ;
       unsigned int d = ilabcd % nld ;
+
       double K = Ka[ a*nga + ipa ] * Kb[ b*ngb + ipb ] * Kc[ c*ngc + ipc ] * Kd[ d*ngd + ipd ];
 
-      if ( AL+CL == 0 ){
-         // must be atomic 
-         sh_mem[ ilabcd*hrr_blocksize ] += K * pr_mem[0];
-      } else {
-         const int NcoA = NLco(AL);
-         const int NcoC = NLco(CL);
-         const int NcoAC = NcoA*NcoC;
-         for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
-            // must be atomic
-            sh_mem[ ilabcd*hrr_blocksize + i ] += K * pr_mem[i];
-         }
+      for( int i=my_vrr_rank; i < NcoAC; i+=vrr_team_size){
+        // must be atomic if different warps/blocks share the ABCD array
+//        printf("CP2S %d %d adding %lg %lg @ %p : %lg \n", blockIdx.x, threadIdx.x, K , pr_mem[i], &sh_mem[ilabcd*hrr_blocksize+i], sh_mem[ilabcd*hrr_blocksize+i] );
+        atomicAdd( &sh_mem[ ilabcd*hrr_blocksize + i ] , K * pr_mem[i]);
+//        sh_mem[ ilabcd*hrr_blocksize + i ] += K * pr_mem[i];
       }
    }
 }
-
 
 __global__ void compute_VRR_batched_gpu_low(
       const int Ncells, const int* __restrict__ plan,
@@ -588,65 +517,53 @@ __global__ void compute_VRR_batched_gpu_low(
       const double* const __restrict__ data,
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
-
+      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng ){
    
-//   assert(num_vrr_teams*vrr_team_size == blockDim.x);
+   int F_size = L+1;
+   if (L > 0){ F_size += 4*3+5; }
 
-   for( int block=blockIdx.x; block < Ncells ; block += gridDim.x ){
-
-      unsigned int Ov     = FVH[block*FVH_SIZE+FVH_OFFSET_OV];
-      unsigned int Og     = FVH[block*FVH_SIZE+FVH_OFFSET_OG];
-      unsigned int n_prm  = FVH[block*FVH_SIZE+FVH_OFFSET_NPRM];
-      unsigned int nlabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
-      unsigned int npabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NPABCD];
-      unsigned int idx_Ka = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KA];
-      unsigned int idx_Kb = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KB];
-      unsigned int idx_Kc = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KC];
-      unsigned int idx_Kd = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KD];
-
-      const double* Ka = &data[idx_Ka];
-      const double* Kb = &data[idx_Kb];
-      const double* Kc = &data[idx_Kc];
-      const double* Kd = &data[idx_Kd];
-
-      int F_size = L+1;
-      if (L > 0){ F_size += 4*3+5; }
- 
-      unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
-      decode4( nlabcd, &nla,&nlb,&nlc,&nld );
-      decode4( npabcd, &npa,&npb,&npc,&npd );
-      double* sh_mem = &ABCD[ Og * hrr_blocksize ];
-
-      int n_cc = nla*nlb*nlc*nld;
-      for ( unsigned i= threadIdx.x; i < hrr_blocksize * n_cc ; i+= blockDim.x ){
-         sh_mem[i] = 0.0 ;
-      }
-      __syncthreads();
-
-      int best_vrr_team_size = max( 1, (L*L+1) / n_prm);
-      int vrr_team_size = 32;
-      while ( vrr_team_size > best_vrr_team_size ){ vrr_team_size /= 2; }
+   // arguable
+   const int best_vrr_team_size = (L+1) * (L+2) ;
+   int vrr_team_size = blockDim.x;
+   while ( vrr_team_size > best_vrr_team_size ){ vrr_team_size /= 2; }
 
 //      if ( blockIdx.x + threadIdx.x == 0  ){ printf( " VTS calc: L = %d N = %d  -> %d \n" , L, n_prm, vrr_team_size); }
 
-      int num_vrr_teams = blockDim.x / vrr_team_size;
-      int my_vrr_team = threadIdx.x / vrr_team_size;
-      int my_vrr_rank = threadIdx.x % vrr_team_size;
+   int num_vrr_teams = blockDim.x / vrr_team_size;
+   int my_vrr_team = threadIdx.x / vrr_team_size;
+   int my_vrr_rank = threadIdx.x % vrr_team_size;
+
+   for( int block=blockIdx.x; block < Ncells*Ng ; block += gridDim.x ){
+
+      unsigned int p      = block / Ng; 
+      int n3 = block % Ng;
+
+      unsigned int Ov     = FVH[p*FVH_SIZE+FVH_OFFSET_OV];
+      unsigned int n_prm  = FVH[p*FVH_SIZE+FVH_OFFSET_NPRM];
 
       for ( unsigned i = my_vrr_team; i < n_prm ;  i += num_vrr_teams ){
 
-         unsigned int Of   = ( Ov + i ) * F_size;
-         unsigned int ipzn = PMX[(Ov + i )];
-         unsigned int ipa,ipb,ipc,ipd;
+         // Screening on the (ab.n1|cd.n2@n3) fondamental integrals
+         bool found = false;
+         unsigned int Of = 0;
 
-         decode_ipabcd_none( ipzn, &ipa,&ipb,&ipc,&ipd );
+         while ( not found and i < n_prm ){
+            Of = ((Ov+i) * Ng + n3 ) * F_size;
+            // copy Fm[0] ( the ssss(0) integral ) to AC for later screening in ECO
+            double* pr_mem = &AC[ ((Ov+i) * Ng + n3) * vrr_blocksize ];
+            pr_mem[0] = Fm[Of];
+            // Immediate screening
+            if (Fm[Of] > 1.e-30 ){ found = true ; }
+            else { i += num_vrr_teams; }
+         }
+         if ( not found or i >= n_prm ){ break; }
 
-         double* pr_mem = &AC[ (Ov + i) * vrr_blocksize ];
-
+         // Copy the sss(m) integrals         
+         double* pr_mem = &AC[ ((Ov+i) * Ng + n3) * vrr_blocksize ];
          for( int il=0; il < L+1; il++ ){
             pr_mem[il] = Fm[Of+il];
          }
+
          const double* PA = nullptr;
          const double* WP = nullptr;
          const double* QC = nullptr;
@@ -687,9 +604,7 @@ __global__ void compute_VRR_batched_gpu_low(
             double* m3 = &pr_mem[off_m3];
             double *m4, *m5, *m6 ;
 
-//            const int my_vrr_rank = 0;
-//            const int vrr_team_size = 1;
-
+            // TODO is it worth it to unify the VRRs types as a single, maybe individually less efficient, call ?
             if ( t == VRR1 ){ 
                execute_VRR1_gpu( m, m1, m2, m3, PA, WP, my_vrr_rank, vrr_team_size );
             } else if ( t == VRR2 ){
@@ -708,11 +623,11 @@ __global__ void compute_VRR_batched_gpu_low(
             } else if ( t == VRR6 ){ 
                m4 = &pr_mem[off_m4];
                execute_VRR6_gpu( la, m, m1, m2, m3, m4, QC, WQ, inv_2z, my_vrr_rank, vrr_team_size);
-            } else if ( t == CP2S){
-               m2 = &sh_mem[off_m2];
-               execute_CP2S_gpu( 
-                  la, lc, m1, m2, my_vrr_rank, vrr_team_size, hrr_blocksize,
-                  ipa, ipb, ipc, ipd, nla, nlb, nlc, nld, npa, npb, npc, npd, Ka, Kb, Kc, Kd );
+//            } else if ( t == CP2S){
+//               m2 = &sh_mem[off_m2];
+//               execute_CP2S_gpu( 
+//                  la, lc, m1, m2, my_vrr_rank, vrr_team_size, hrr_blocksize,
+//                  ipa, ipb, ipc, ipd, nla, nlb, nlc, nld, npa, npb, npc, npd, Ka, Kb, Kc, Kd );
             } else if ( t == SYTM ){
                __syncthreads();
             }
@@ -723,143 +638,4 @@ __global__ void compute_VRR_batched_gpu_low(
 
 
 
-
-void compute_VRR_batched_low(
-      const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ PMX,
-      const unsigned int* const __restrict__ FVH,
-      const double* const __restrict__ Fm,
-      const double* const __restrict__ data,
-      double* const __restrict__ AC,
-      double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
-
-   for( int block=0; block < Ncells ; block++ ){
-
-      unsigned int Ov     = FVH[block*FVH_SIZE+FVH_OFFSET_OV];
-      unsigned int Og     = FVH[block*FVH_SIZE+FVH_OFFSET_OG];
-      unsigned int n_prm  = FVH[block*FVH_SIZE+FVH_OFFSET_NPRM];
-      unsigned int nlabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
-      unsigned int npabcd = FVH[block*FVH_SIZE+FVH_OFFSET_NPABCD];
-      unsigned int idx_Ka = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KA];
-      unsigned int idx_Kb = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KB];
-      unsigned int idx_Kc = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KC];
-      unsigned int idx_Kd = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_KD];
-
-      const double* Ka = &data[idx_Ka];
-      const double* Kb = &data[idx_Kb];
-      const double* Kc = &data[idx_Kc];
-      const double* Kd = &data[idx_Kd];
-
-      int F_size = L+1;
-      if (L > 0){ F_size += 4*3+5; }
- 
-      unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
-      decode4( nlabcd, &nla,&nlb,&nlc,&nld );
-      decode4( npabcd, &npa,&npb,&npc,&npd );
-      double* sh_mem = &ABCD[ Og * hrr_blocksize ];
-
-      int N_cc = nla*nlb*nlc*nld;
-      for ( unsigned i=0; i < hrr_blocksize * N_cc ; i++ ){
-         sh_mem[i] = 0.0 ;
-      }
-
-      for ( unsigned thread=0; thread < n_prm; thread++ ){
-         unsigned int Of   = ( Ov + thread ) * F_size;
-         unsigned int ipzn = PMX[(Ov + thread)];
-         unsigned int ipa,ipb,ipc,ipd;
-
-         decode_ipabcd_none( ipzn, &ipa,&ipb,&ipc,&ipd );
-
-         double* pr_mem = &AC[ (Ov + thread) * vrr_blocksize ];
-
-         // copies ssss(m) to starting positions
-         for( int il=0; il < L+1; il++ ){
-            pr_mem[il] = Fm[Of+il];
-         }
-
-         // finds precalculated coefficients
-         const double* PA = nullptr;
-         const double* WP = nullptr;
-         const double* QC = nullptr;
-         const double* WQ = nullptr;
-         double inv_2zab = 0.;
-         double min_rho_zab2 = 0.;
-         double inv_2zcd = 0.;
-         double min_rho_zcd2 = 0.;
-         double inv_2z = 0.;
-
-         if (L > 0){
-            PA = &Fm[Of+L+1];
-            WP = &Fm[Of+L+4];
-            QC = &Fm[Of+L+7];
-            WQ = &Fm[Of+L+10];
-            inv_2zab = Fm[Of+L+13];
-            min_rho_zab2  = Fm[Of+L+14]; // - rho/zab**2
-            inv_2zcd = Fm[Of+L+15];
-            min_rho_zcd2  = Fm[Of+L+16]; // - rho/zcd**2
-            inv_2z = Fm[Of+L+17];
-         }
-
-         for ( int op=0; op < numVC; op++ ){
-            const int t  = plan[ op*OP_SIZE + T__OFFSET ];
-            const int la = plan[ op*OP_SIZE + LA_OFFSET ];
-            const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
-            const int max_m  = plan[ op*OP_SIZE + M__OFFSET ];
-            const int min_m  = plan[ op*OP_SIZE + H__OFFSET ];
-            const int m = max_m - min_m + 1 ; 
-            const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
-            const int off_m2 = plan[ op*OP_SIZE + M2_OFFSET ];
-            const int off_m3 = plan[ op*OP_SIZE + M3_OFFSET ];
-            const int off_m4 = plan[ op*OP_SIZE + M4_OFFSET ];
-            const int off_m5 = plan[ op*OP_SIZE + M5_OFFSET ];
-            const int off_m6 = plan[ op*OP_SIZE + M6_OFFSET ];
-            double* m1 = &pr_mem[off_m1];
-            double* m2 = &pr_mem[off_m2];
-            double* m3 = &pr_mem[off_m3];
-            double *m4, *m5, *m6 ;
-
-            const int my_vrr_rank = 0;
-            const int vrr_team_size = 1;
-
-            if ( t == VRR1 ){ 
-               execute_VRR1( m, m1, m2, m3, PA, WP, my_vrr_rank, vrr_team_size );
-            } else if ( t == VRR2 ){
-               m4 = &pr_mem[off_m4]; m5 = &pr_mem[off_m5]; 
-               execute_VRR2( la, m, m1, m2, m3, m4, m5, PA, WP, inv_2zab, min_rho_zab2, my_vrr_rank, vrr_team_size);
-            } else if ( t == VRR3 ){ 
-               execute_VRR1( m, m1, m2, m3, QC, WQ, my_vrr_rank, vrr_team_size );
-            } else if ( t == VRR4 ){ 
-               m4 = &pr_mem[off_m4]; m5 = &pr_mem[off_m5];
-               execute_VRR2( lc, m, m1, m2, m3, m4, m5, QC, WQ, inv_2zcd, min_rho_zcd2, my_vrr_rank, vrr_team_size );
-            } else if ( t == VRR5 ){ 
-               m4 = &pr_mem[off_m4]; m5 = &pr_mem[off_m5]; m6 = &pr_mem[off_m6];
-               execute_VRR5(
-                  la, lc, m, m1, m2, m3, m4, m5, m6, 
-                  QC, WQ, inv_2zcd, min_rho_zcd2, inv_2z, my_vrr_rank, vrr_team_size );
-            } else if ( t == VRR6 ){ 
-               m4 = &pr_mem[off_m4];
-               execute_VRR6( la, m, m1, m2, m3, m4, QC, WQ, inv_2z, my_vrr_rank, vrr_team_size);
-            } else if ( t == CP2S){
-               m2 = &sh_mem[off_m2];
-               execute_CP2S_v2( 
-                  la, lc, m1, m2, my_vrr_rank, vrr_team_size, hrr_blocksize,
-                  ipa, ipb, ipc, ipd, nla, nlb, nlc, nld, npa, npb, npc, npd, Ka, Kb, Kc, Kd );
-            }
-         } // end of loop over op  
-      }
-   }
-}
-
-
-
-void compute_VRR_batched(
-      const int Ncells, const std::vector<int>& plan, const std::vector<unsigned int>& PMX,
-      const std::vector<unsigned int>& FVH, const std::vector<double>& Fm, const std::vector<double>& data,
-      std::vector<double>& AC, std::vector<double>& ABCD, int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC ){
-
-   compute_VRR_batched_low(
-      Ncells, plan.data(), PMX.data(), FVH.data(), Fm.data(),
-      data.data(), AC.data(), ABCD.data(), vrr_blocksize, hrr_blocksize, L, numV, numVC );
-}
 

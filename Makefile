@@ -3,21 +3,18 @@ NVCC = nvcc
 MPICPP = mpic++
 GFORTRAN = gfortran
 
-NVCC_C_OPTS = -rdc=true -g -std=c++14 -gencode arch=compute_70,code=sm_70 -lcudart -Xcompiler -fPIC -lcublas -Xcompiler -fopenmp -Xcompiler -O3 -Xcompiler -g
-NVCC_D_OPTS = -arch=sm_70 -lgomp
+ARCH_NUM ?= 70
+NVCC_C_OPTS = -rdc=true -g -std=c++14 -gencode arch=compute_$(ARCH_NUM),code=sm_$(ARCH_NUM) -lcudart -Xcompiler -fPIC -lcublas -Xcompiler '-fopenmp -O3 -g'
+NVCC_D_OPTS = -arch=sm_$(ARCH_NUM) -lgomp
 MPICPP_EX_OPTS = -std=c++14 -Wall -fPIC -O3
 GFORTRAN_OPTS = -O3 -g -fopenmp
 
-LIS = #-I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -I/usr/lib/x86_64-linux-gnu/openmpi/include -L/usr/lib/x86_64-linux-gnu/o -lmpi -lcudart -lstdc++ -lcudadevrt -lnvToolsExt
-
+LIS = 
 # Directories
 SRC_DIR = src
 OBJ_DIR = obj
 
-#CP2K_LIB_DIR = /home/qjn24437/cp2k/lib/local_cuda/psmp/
-#CP2K_PKG_DIR = /home/qjn24437/cp2k/src/Gint/
-
-# Objects
+# Objects. libGint.o is a bit special
 OBJECTS_1 = $(OBJ_DIR)/libGint.o
 OBJECTS_2 =  $(OBJ_DIR)/interface_libgint.o $(OBJ_DIR)/extern_functions.o $(OBJ_DIR)/plan.o $(OBJ_DIR)/UniqueArray.o  $(OBJ_DIR)/libGint_unlinked.o $(OBJ_DIR)/util.o $(OBJ_DIR)/fgamma.o $(OBJ_DIR)/compute_Fm.o $(OBJ_DIR)/compute_VRR.o $(OBJ_DIR)/compute_ECO.o $(OBJ_DIR)/compute_HRR.o $(OBJ_DIR)/compute_SPH.o $(OBJ_DIR)/compute_TRA.o $(OBJ_DIR)/compute_KS.o
 
@@ -49,21 +46,12 @@ pre_install:
 
 # File copying and packaging
 install: all
-#	echo $(PREFIX)
 	mkdir -p $(PREFIX)
 	mkdir -p $(PREFIX)/lib
 	mkdir -p $(PREFIX)/include
 	
-#	cp $(SRC_DIR)/*.cpp $(CP2K_PKG_DIR)
 	cp libcp2kGint.a $(PREFIX)/lib
 	cp libgint.mod $(PREFIX)/include
-##	touch $(CP2K_PKG_DIR)/libGint_unlinked.cpp
-#	touch $(CP2K_PKG_DIR)/libgint.F
-#	echo "{\n   \"description\": \"interface for the calculation of 4 centres 2 electrons integrals\",\n      \"requires\": [\"../base\"],\n}" > $(CP2K_PKG_DIR)/PACKAGE
-#	rm -f /home/qjn24437/cp2k/obj/local_cuda/psmp/cp2k.o
-#	cd /home/qjn24437/cp2k
-#	make  -j 32 ARCH=local_cuda VERSION="psmp"
-#	cd -
 
 # Clean the build
 clean:

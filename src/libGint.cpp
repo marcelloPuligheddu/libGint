@@ -647,7 +647,7 @@ void libGint::dispatch( bool dispatch_all ){
      
       // Early exit moments with a small number of integrals
       // No worry, they are guaranteed to be computed before get_K returns
-      if ( integral_scratch_size < MIN_INT_BATCH_SIZE and not dispatch_all ) { continue; }
+//      if ( integral_scratch_size < MIN_INT_BATCH_SIZE and not dispatch_all ) { continue; }
       if ( SPHER_size[L] == 0 ){ continue; }
 
 //      double t0 = dis_timer.elapsedMilliseconds();

@@ -4,7 +4,7 @@ MPICPP = mpic++
 GFORTRAN = gfortran
 
 ARCH_NUM ?= 70
-NVCC_C_OPTS = -rdc=true -g -std=c++14 -gencode arch=compute_$(ARCH_NUM),code=sm_$(ARCH_NUM) -lcudart -Xcompiler -fPIC -lcublas -Xcompiler '-fopenmp -O3 -g'
+NVCC_C_OPTS = -rdc=true -g -std=c++14 -gencode arch=compute_$(ARCH_NUM),code=sm_$(ARCH_NUM) -lcudart -lcublas -Xcompiler -fPIC -Xcompiler -fopenmp -Xcompiler -O3 -Xcompiler -g
 NVCC_D_OPTS = -arch=sm_$(ARCH_NUM) -lgomp
 MPICPP_EX_OPTS = -std=c++14 -Wall -fPIC -O3
 GFORTRAN_OPTS = -O3 -g -fopenmp

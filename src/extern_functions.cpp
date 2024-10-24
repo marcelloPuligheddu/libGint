@@ -6,8 +6,8 @@ extern "C" {
 void * libgint_create_handle () {
    libGint * handle;
    handle = new libGint() ;
-//#pragma omp critical
-//   cout << "Thr " << omp_get_thread_num() << " using handle " << handle << endl;
+#pragma omp critical
+   cout << "Thr " << omp_get_thread_num() << " using handle " << handle << endl;
    return (void*) handle ;
 }
 
@@ -23,6 +23,8 @@ void libgint_set_Potential_Truncated( void * handle, double R_cut_, double * C0_
 
 void libgint_set_hf_fac( void * handle, double fac ){
    libGint * g_handle = ( libGint * ) handle ;
+#pragma omp critical
+   cout << "Thr " << omp_get_thread_num() << " using handle " << handle << endl;
    g_handle -> set_hf_fac( fac );
 }
 

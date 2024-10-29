@@ -683,13 +683,13 @@ void libGint::dispatch( bool dispatch_all ){
 //      std::string Lname = std::to_string(la) + "_" + std::to_string(lb) + "_" + std::to_string(lc) + "_" + std::to_string(ld);
 
 //#pragma omp critical
-      {
-      size_t tot_mem_L = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L];
-      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
-      cout << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << max_ncells << " Ng | " ;
-      cout << int(100*tot_mem_L/max_integral_scratch_size) << " % " << Fm_size[L] << " " << AC_size[L] << " " << ABCD_size[L] << " " << ABCD0_size[L] << " " << SPHER_size[L] << " | " ;
-      cout << endl ; // dis_timer.elapsedMilliseconds() << " | " ;
-      }
+//      {
+//      size_t tot_mem_L = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L];
+//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
+//      cout << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << max_ncells << " Ng | " ;
+//      cout << int(100*tot_mem_L/max_integral_scratch_size) << " % " << Fm_size[L] << " " << AC_size[L] << " " << ABCD_size[L] << " " << ABCD0_size[L] << " " << SPHER_size[L] << " | " ;
+//      cout << endl ; // dis_timer.elapsedMilliseconds() << " | " ;
+//      }
 
 //      PUSH_RANGE(Lname.c_str(),3);
 

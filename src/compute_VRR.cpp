@@ -628,7 +628,7 @@ __global__ void compute_VRR_batched_gpu_low(
 //               execute_CP2S_gpu( 
 //                  la, lc, m1, m2, my_vrr_rank, vrr_team_size, hrr_blocksize,
 //                  ipa, ipb, ipc, ipd, nla, nlb, nlc, nld, npa, npb, npc, npd, Ka, Kb, Kc, Kd );
-            } else if ( t == SYTM ){
+            } else if ( t == SYTM and vrr_team_size > CUDA_WARPSIZE ){
                __syncthreads();
             }
          } // end of loop over op  

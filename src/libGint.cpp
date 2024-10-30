@@ -765,7 +765,12 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
      
       unsigned int Nop = numVC - numV + 1;
-      compute_ECO_batched_gpu_low<<<Ncells*max_ncells*Nop,64,0,cuda_stream>>>(
+
+      compute_SFT_batched_gpu_low<<<Ncells*Nop,64,0,cuda_stream>>>(
+         Ncells, plan_dev, PMX_dev, FVH_dev, nullptr, data_dev,
+         AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
+
+      compute_ECO_batched_gpu_low<<<Ncells*Nop,64,0,cuda_stream>>>(
          Ncells, plan_dev, PMX_dev, FVH_dev, nullptr, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
 

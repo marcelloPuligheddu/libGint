@@ -18,26 +18,6 @@ __global__ void compute_SFT_batched_gpu_low(
 
    unsigned int Nop = numVC - numV + 1;
 
-   // Find the contraction we are doing
-   const int t  = plan[ op*OP_SIZE + T__OFFSET ];
-   if ( t != CP2S){ continue; }
-   const int la = plan[ op*OP_SIZE + LA_OFFSET ];
-   const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
-   const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
-   const int NcoA = NLco_dev(la);
-   const int NcoC = NLco_dev(lc);
-   const int NcoAC = NcoA*NcoC;
-   const int VBS = vrr_blocksize;
-
-   // arguable
-   const int best_eco_team_size = NcoAC ;
-   int eco_team_size = blockDim.x;
-   while ( eco_team_size > best_eco_team_size ){ eco_team_size /= 2; }
-
-   int num_eco_teams = blockDim.x / eco_team_size;
-   int my_eco_team = threadIdx.x / eco_team_size;
-   int my_eco_rank = threadIdx.x % eco_team_size;
-
 
    for( int block=blockIdx.x; block < Ncells*Nop ; block += gridDim.x ){
 
@@ -46,6 +26,26 @@ __global__ void compute_SFT_batched_gpu_low(
 
       unsigned int Ov     = FVH[p*FVH_SIZE+FVH_OFFSET_OV];
       unsigned int n_prm  = FVH[p*FVH_SIZE+FVH_OFFSET_NPRM];
+      // Find the contraction we are doing
+      const int t  = plan[ op*OP_SIZE + T__OFFSET ];
+      if ( t != CP2S){ continue; }
+      const int la = plan[ op*OP_SIZE + LA_OFFSET ];
+      const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
+      const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
+      const int NcoA = NLco_dev(la);
+      const int NcoC = NLco_dev(lc);
+      const int NcoAC = NcoA*NcoC;
+      const int VBS = vrr_blocksize;
+
+      // arguable
+      const int best_eco_team_size = NcoAC ;
+      int eco_team_size = blockDim.x;
+      while ( eco_team_size > best_eco_team_size ){ eco_team_size /= 2; }
+
+      int num_eco_teams = blockDim.x / eco_team_size;
+      int my_eco_team = threadIdx.x / eco_team_size;
+      int my_eco_rank = threadIdx.x % eco_team_size;
+
 
       for ( int idx_prm = my_eco_team ; idx_prm < n_prm ; idx_prm += num_eco_teams ){
          double * pr = &AC[ Ov*Ng*VBS + off_m1 + Ng*VBS*idx_prm]; 

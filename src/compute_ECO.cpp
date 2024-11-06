@@ -25,46 +25,49 @@ __global__ void compute_ECO_batched_gpu_low(
 
    for( int block=blockIdx.x; block < Ncells*Nop ; block += gridDim.x ){
 
-      unsigned int ibk   =  block / (Nop); 
-      int op              =  block % Nop + numV ;
+      // thr 1 load / compute block wide constants that will then be bcast to all thrs.
+      __shared__ unsigned int ibk, op,Ov,Og,n_prm,nlabcd,npabcd;
+      __shared__ unsigned int idx_Ka,idx_Kb,idx_Kc,idx_Kd;
+      __shared__ unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
+      __shared__ int nlcd,nlbcd,t,la,lc,off_m1,off_m2,NcoA,NcoC,NcoAC;
 
-      unsigned int Ov     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OV];
-      unsigned int Og     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OG];
-      unsigned int n_prm  = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPRM];
-      unsigned int nlabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NLABCD];
-      unsigned int npabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPABCD];
-      unsigned int idx_Ka = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KA];
-      unsigned int idx_Kb = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KB];
-      unsigned int idx_Kc = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KC];
-      unsigned int idx_Kd = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KD];
+      if ( threadIdx.x == 0 ){
+         ibk = block / (Nop); 
+         op              =  block % Nop + numV ;
+         Ov     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OV];
+         Og     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OG];
+         n_prm  = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPRM];
+         nlabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NLABCD];
+         npabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPABCD];
+         idx_Ka = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KA];
+         idx_Kb = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KB];
+         idx_Kc = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KC];
+         idx_Kd = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KD];
+         decode_shell( nlabcd, &nla,&nlb,&nlc,&nld, &npa,&npb);
+         decode4( npabcd, &npa,&npb,&npc,&npd );
+         nlcd = nlc*nld;
+         nlbcd = nlb*nlcd;
+         nlabcd = nla*nlbcd;
+         t  = plan[ op*OP_SIZE + T__OFFSET ];
+         la = plan[ op*OP_SIZE + LA_OFFSET ];
+         lc = plan[ op*OP_SIZE + LC_OFFSET ];
+         off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
+         off_m2 = plan[ op*OP_SIZE + M2_OFFSET ];
+         NcoA = NLco_dev(la);
+         NcoC = NLco_dev(lc);
+         NcoAC = NcoA*NcoC;
+      }
+      __syncthreads();
 
-      const double* Ka = &data[idx_Ka];
-      const double* Kb = &data[idx_Kb];
-      const double* Kc = &data[idx_Kc];
-      const double* Kd = &data[idx_Kd];
+      if ( t != CP2S){ continue; }
 
-      unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
-      decode_shell( nlabcd, &nla,&nlb,&nlc,&nld, &npa,&npb);
-      decode4( npabcd, &npa,&npb,&npc,&npd );
-      const unsigned int nl___d = nld;
-      const unsigned int nl__cd = nlc*nl___d;
-      const unsigned int nl_bcd = nlb*nl__cd;
-      nlabcd = nla*nl_bcd;
-
-      // Find the contraction we are doing
-      const int t  = plan[ op*OP_SIZE + T__OFFSET ];
-      if ( t != CP2S){ continue; } // TODO probably off by 1, so block 0 is skipped
-      const int la = plan[ op*OP_SIZE + LA_OFFSET ];
-      const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
-      const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
-      const int off_m2 = plan[ op*OP_SIZE + M2_OFFSET ];
-
-      const int NcoA = NLco_dev(la);
-      const int NcoC = NLco_dev(lc);
-      const int NcoAC = NcoA*NcoC;
+      const double * const Ka = &data[idx_Ka];
+      const double * const Kb = &data[idx_Kb];
+      const double * const Kc = &data[idx_Kc];
+      const double * const Kd = &data[idx_Kd];
 
       double * out = &ABCD[ Og*hrr_blocksize + off_m2];
-      double * inp = &AC[Ov*Ng*vrr_blocksize + off_m1];
+      const double * const inp = &AC[Ov*Ng*vrr_blocksize + off_m1];
 
       __shared__ double sKa[MAX_N_L * MAX_N_PRM];
       __shared__ double sKb[MAX_N_L * MAX_N_PRM];
@@ -78,8 +81,6 @@ __global__ void compute_ECO_batched_gpu_low(
 
       __syncthreads();
 
-
-
       const int TS_l = 2;
       const int TS_j = 2;
       const int F1 = 8;
@@ -92,7 +93,6 @@ __global__ void compute_ECO_batched_gpu_low(
       const int numThrBlkT = totResBlkT / (TS_l*TS_j); // = F1 * F2 = 64 = 1024 / 4 / 4 
       const int strideK = numThrBlkT / BS_p; // = BS_l * BS_j / TS_l*TS_j / BS_p = dim / BS_p = 64 / 64 = 1
       const int strideI = numThrBlkT / BS_j; // = BS_l * BS_j / TS_l*TS_j / BS_j = BS_l / TS_l / TS_j = F1 / TS_j = 64 / 32 = 2
-
 
       assert( numThrBlkT == dim );
       assert( numThrBlkT == blockDim.x );
@@ -142,9 +142,9 @@ __global__ void compute_ECO_batched_gpu_low(
                unsigned int p = iB_p + IB_p*BS_p;
 
                if ( p < n_prm and l < nlabcd ){
-                  unsigned int a = (l / nl_bcd ) % nla;
-                  unsigned int b = (l / nl__cd ) % nlb ;
-                  unsigned int c = (l / nl___d ) % nlc ;
+                  unsigned int a = (l / nlbcd ) % nla;
+                  unsigned int b = (l / nlcd ) % nlb ;
+                  unsigned int c = (l / nld ) % nlc ;
                   unsigned int d =  l            % nld ;
                   unsigned int ipzn = PMX[Ov+p];
                   unsigned int ipa,ipb,ipc,ipd;
@@ -183,12 +183,8 @@ __global__ void compute_ECO_batched_gpu_low(
                // Sums over the block of primitives for all TS_l and TS_j
                for ( unsigned int iB_p = 0; iB_p < BS_p; iB_p++ ){
                   // sets local register caches
-                  for( int iT_l = 0 ; iT_l < TS_l; iT_l ++ ){
-                     regL[iT_l] = sK[ (tRow*TS_l+iT_l)*BS_p+iB_p ];
-                  }
-                  for( int iT_j = 0 ; iT_j < TS_j; iT_j ++ ){
-                     regJ[iT_j] = sI[ (iB_p)*BS_j + (tCol*TS_j+iT_j) ];
-                  }
+                  for( int iT_l = 0 ; iT_l < TS_l; iT_l ++ ){ regL[iT_l] = sK[ (tRow*TS_l+iT_l)*BS_p + iB_p             ]; }
+                  for( int iT_j = 0 ; iT_j < TS_j; iT_j ++ ){ regJ[iT_j] = sI[ (iB_p          )*BS_j + (tCol*TS_j+iT_j) ]; }
 
                   for ( unsigned int res_l = 0 ; res_l < TS_l ; res_l++ ){
                      for ( unsigned int res_j = 0 ; res_j < TS_j ; res_j++ ){

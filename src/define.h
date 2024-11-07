@@ -173,6 +173,12 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 #define CELL_HMAT_OFF 0
 #define CELL_HINV_OFF 9
 
+
+#define POT_TRUNC_N1 128
+#define POT_TRUNC_N2 128
+
+
+
 #include<stdio.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>

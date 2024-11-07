@@ -25,6 +25,7 @@ SOFTWARE.
 
 #include <vector>
 
+/*
 void compute_Fm_batched(
       const std::vector<unsigned int>& FVH, const std::vector<unsigned int>& OF, const std::vector<unsigned int>& PMX,
       const std::vector<double>& data, std::vector<double>& Fm, int NFm, int L, bool periodic, double* cell, double* neighs,
@@ -42,7 +43,7 @@ void compute_Fm_batched_low(
       const double* const __restrict__ neighs,
       const double* const __restrict__ ftable, const int ftable_ld,
       const double R_cut, const double * const __restrict__ C0, const int ld_C0, int potential_type );
-
+*/
 __global__ void compute_Fm_batched_low_gpu(
       unsigned int* __restrict__ FVH,
       unsigned int*  __restrict__ OF,
@@ -53,7 +54,11 @@ __global__ void compute_Fm_batched_low_gpu(
       double* __restrict__ cell,
       double* __restrict__ neighs,
       double* __restrict__ ftable, int ftable_ld,
-      const double R_cut, const double * const __restrict__ C0, const int ld_C0, int potential_type, const int Ng );
+      const double R_cut, const double * const __restrict__ C0, const int ld_C0,
+      const   int*  const __restrict__ x12_to_patch_low_R,
+      const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ BW_by_patch,
+      int potential_type, const int Ng );
 
 
 #endif // COMPUTE_FM_H_COMPILE_GUARD

@@ -158,6 +158,12 @@ class libGint {
    double R_cut;
    double * C0, * C0_dev;
    int ld_C0, C0_size;
+   int * x12_to_patch_low_R ;
+   int * x12_to_patch_high_R;
+   int * x12_to_patch_low_R_dev;
+   int * x12_to_patch_high_R_dev;
+   double * BW_by_patch_dev;
+
    int potential_type = COULOMB; // default
 
    unsigned int Fm_size[NL4] = {0};

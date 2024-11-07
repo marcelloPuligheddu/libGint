@@ -103,7 +103,7 @@ __host__ __device__ void decode_shell(
 int max( std::vector<int> x ){
    if ( x.size() == 0 ){ return 0; };
    int ret = x[0];
-   for( int idx=1; idx<x.size(); idx++ ){ ret = max(ret, x[idx]); }
+   for( unsigned int idx=1; idx<x.size(); idx++ ){ ret = max(ret, x[idx]); }
    return ret;
 }
 

@@ -17,7 +17,7 @@ OBJ_DIR = obj
 
 # Objects. libGint.o is a bit special
 OBJECTS_1 = $(OBJ_DIR)/libGint.o
-OBJECTS_2 =  $(OBJ_DIR)/interface_libgint.o $(OBJ_DIR)/extern_functions.o $(OBJ_DIR)/plan.o $(OBJ_DIR)/UniqueArray.o  $(OBJ_DIR)/libGint_unlinked.o $(OBJ_DIR)/util.o $(OBJ_DIR)/fgamma.o $(OBJ_DIR)/compute_Fm.o $(OBJ_DIR)/compute_VRR.o $(OBJ_DIR)/compute_ECO.o $(OBJ_DIR)/compute_HRR.o $(OBJ_DIR)/compute_SPH.o $(OBJ_DIR)/compute_TRA.o $(OBJ_DIR)/compute_KS.o
+OBJECTS_2 =  $(OBJ_DIR)/interface_libgint.o $(OBJ_DIR)/extern_functions.o $(OBJ_DIR)/plan.o $(OBJ_DIR)/UniqueArray.o  $(OBJ_DIR)/libGint_unlinked.o $(OBJ_DIR)/util.o $(OBJ_DIR)/fgamma.o $(OBJ_DIR)/compute_Fm.o $(OBJ_DIR)/compute_VRR.o $(OBJ_DIR)/compute_ECO.o $(OBJ_DIR)/compute_HRR.o $(OBJ_DIR)/compute_SPH.o $(OBJ_DIR)/compute_TRA.o $(OBJ_DIR)/compute_KS.o $(OBJ_DIR)/t_c_g0_n.o
 
 # Targets
 all: pre_install libcp2kGint.a

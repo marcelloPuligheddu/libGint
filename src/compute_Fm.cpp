@@ -4,7 +4,7 @@
 #include "define.h"
 #include "util.h"
 #include "fgamma.h"
-#include "t_c_g0_n.cpp"
+#include "t_c_g0_n.h"
 #include "compute_Fm.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -38,6 +38,9 @@ __device__ void compute_Fm_batched_single( int p,
       const double R_cut, 
       const double * const __restrict__ C0,
       const int ld_C0,
+      const   int*  const __restrict__ x12_to_patch_low_R, 
+      const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ bias_and_weight_by_patch,
       int potential_type, const int Ng ){
 
    unsigned int i    =  OF[p];
@@ -199,7 +202,22 @@ __device__ void compute_Fm_batched_single( int p,
          break;
          case TRUNCATED :
             double R = R_cut * sqrt(rho) ;
-            bool use_gamma = t_c_g0_n( &Fm[Of], R, T, L, C0, ld_C0 );
+//            double ref = 0.0;
+//            bool use_gamma_v = t_c_g0_n( &ref, R, T, 0, C0, ld_C0 );
+            bool use_gamma = t_c_g0_n_v2( 
+               &Fm[Of], R, T, L, C0, ld_C0,
+               POT_TRUNC_N1, POT_TRUNC_N2,
+               x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 0 );
+
+//            assert(use_gamma_v1 == use_gamma );
+
+//            if ( (not use_gamma) and (abs(ref-Fm[Of]) > 1.e-12) ){
+//               printf("Wrong F[0] at %lg %lg : %lg != %lg -> %lg \n", R, T, Fm[Of], ref, ref-Fm[Of] );
+//               use_gamma = t_c_g0_n_v2(
+//                  &Fm[Of], R, T, L, C0, ld_C0,
+//                  POT_TRUNC_N1, POT_TRUNC_N2,
+//                  x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 12 );
+//            }
             if (use_gamma) { fgamma0( L, T, &Fm[Of], ftable, ftable_ld ); }
          break;
       } // end switch potential_type
@@ -249,6 +267,7 @@ __device__ void compute_Fm_batched_single( int p,
 
 }
 
+/*
 void compute_Fm_batched_low(
       const unsigned int* const __restrict__ FVH,
       const unsigned int* const __restrict__ OF,
@@ -267,7 +286,7 @@ void compute_Fm_batched_low(
 //      compute_Fm_batched_single( p, FVH, OF,PMX,data,Fm,NFm,L,periodic,cell,neighs,ftable,ftable_ld,R_cut,C0,ld_C0,potential_type );
 //   }
 }
-
+*/
 __global__ void compute_Fm_batched_low_gpu(
       unsigned int* __restrict__ FVH,
       unsigned int* __restrict__ OF,
@@ -278,12 +297,20 @@ __global__ void compute_Fm_batched_low_gpu(
       double* __restrict__ cell,
       double* __restrict__ neighs,
       double* __restrict__ ftable, int ftable_ld,
-      const double R_cut, const double * const __restrict__ C0, const int ld_C0, int potential_type, const int Ng  ){
+      const double R_cut, const double * const __restrict__ C0, const int ld_C0,
+      const   int*  const __restrict__ x12_to_patch_low_R, 
+      const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ bias_and_weight_by_patch,   
+      int potential_type, const int Ng  ){
    for( int p = threadIdx.x + blockIdx.x*blockDim.x ; p < NFm ; p += blockDim.x*gridDim.x ){
-      compute_Fm_batched_single( p, FVH, OF,PMX,data,Fm,NFm,L,periodic,cell,neighs,ftable,ftable_ld,R_cut,C0,ld_C0,potential_type,Ng );
+      compute_Fm_batched_single( 
+            p, FVH, OF,PMX,data,Fm,NFm,L,periodic,cell,neighs,
+            ftable,ftable_ld,R_cut,C0,ld_C0,x12_to_patch_low_R,x12_to_patch_high_R,bias_and_weight_by_patch,
+            potential_type,Ng );
    }
 }
 
+/*
 void compute_Fm_batched(
       const std::vector<unsigned int>& FVH,const std::vector<unsigned int>& OF, const std::vector<unsigned int>& PMX,
       const std::vector<double>& data, std::vector<double>& Fm, int NFm, int L, bool periodic, double* cell, double* neighs,
@@ -296,4 +323,4 @@ void compute_Fm_batched(
       ftable, ftable_ld,
       R_cut,C0,ld_C0, potential_type  );
 } 
-
+*/

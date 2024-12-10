@@ -201,38 +201,24 @@ __device__ void compute_Fm_batched_single( int p,
             fgamma0( L, T, &Fm[Of], ftable, ftable_ld );
          break;
          case TRUNCATED :
-            double R = R_cut * sqrt(rho) ;
-//            double ref = 0.0;
-//            bool use_gamma_v = t_c_g0_n( &ref, R, T, 0, C0, ld_C0 );
-            bool use_gamma = t_c_g0_n_v2( 
-               &Fm[Of], R, T, L, C0, ld_C0,
-               POT_TRUNC_N1, POT_TRUNC_N2,
-               x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 0 );
-
-//            assert(use_gamma_v1 == use_gamma );
-
-//            if ( (not use_gamma) and (abs(ref-Fm[Of]) > 1.e-12) ){
-//               printf("Wrong F[0] at %lg %lg : %lg != %lg -> %lg \n", R, T, Fm[Of], ref, ref-Fm[Of] );
-//               use_gamma = t_c_g0_n_v2(
-//                  &Fm[Of], R, T, L, C0, ld_C0,
-//                  POT_TRUNC_N1, POT_TRUNC_N2,
-//                  x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 12 );
+//            if ( rpq2 > (R_cut*R_cut) ){
+//               for( int ii = 0; ii < L+1; ii++ ){ Fm[Of+ii] = 0.0; }
 //            }
-            if (use_gamma) { fgamma0( L, T, &Fm[Of], ftable, ftable_ld ); }
+//            else {
+               double R = R_cut * sqrt(rho) ;
+               bool use_gamma = t_c_g0_n_v2( 
+                  &Fm[Of], R, T, L, C0, ld_C0,
+                  POT_TRUNC_N1, POT_TRUNC_N2,
+                  x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 0 );
+               if (use_gamma) { fgamma0( L, T, &Fm[Of], ftable, ftable_ld ); }
+//            }
          break;
       } // end switch potential_type
-
-   //   for( unsigned int m=0; m < L+1; m++ ){
-   //      double tmp = Fm[Of+m]*Kfactor;
-   //      double F0 = 0.0;
-   //      double R = R_cut * sqrt(rho) ;
-   //      printf ( " Fm[%d @ %d](T=%lg,R=%lg) = %4.12lg = %4.12lg * %4.12lg || F00 = %4.12lg \n", p, m, T, R, tmp, Fm[Of+m], Kfactor, F0 );
-   //   }
 
       // Don't forget to scale by Zn, Ka and Kb
       for( unsigned int m=0; m < L+1; m++ ){ Fm[Of+m] *= Kfactor; }
 
-      if ( L > 0 ){
+      if ( L > 0 ){ // and not screened
          double inv_2zab = inv_zab * 0.5;
          double inv_2zcd = inv_zcd * 0.5;
          double inv_2z = inv_z * 0.5;

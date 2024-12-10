@@ -88,7 +88,7 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 // T is the type of an operation. LA,LB,LC,LD are the moments of the results of the operation. 
 // M and H are used for the m index of the operand. H is also used for the priority of the operation
 // M1 to M6 are memory location. M1 is always the result.
-#define OP_SIZE 13
+#define OP_SIZE 19
 #define T__OFFSET 0
 #define LA_OFFSET 1
 #define LB_OFFSET 2
@@ -96,12 +96,20 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 #define LD_OFFSET 4
 #define M__OFFSET 5
 #define H__OFFSET 6
+
 #define M1_OFFSET 7
 #define M2_OFFSET 8
 #define M3_OFFSET 9
 #define M4_OFFSET 10
 #define M5_OFFSET 11
 #define M6_OFFSET 12
+
+#define L1_OFFSET 13
+#define L2_OFFSET 14
+#define L3_OFFSET 15
+#define L4_OFFSET 16
+#define L5_OFFSET 17
+#define L6_OFFSET 18
 
 #define MAX_NUM_VRR_TEAMS 16
 #define MAX_NUM_QUARTETS 100000

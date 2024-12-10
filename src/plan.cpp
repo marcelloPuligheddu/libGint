@@ -35,7 +35,7 @@ inline bool ArrayOpGreater( const OpArray& a, const std::array<int,OP_SIZE>& b )
    return false;
 }
 
-inline int NLco( const int L ){ return (L+1)*(L+2)/2; }
+inline int NLco( const int L ){ return ((L+1)*(L+2))/2; }
 
 
 int mem( const int la, const int lb, const int lc, const int ld){
@@ -77,12 +77,20 @@ void rec_add( int h, int la, int lb, int lc, int ld, int m, OpDict *G ){
    }
    // find which VRR should be used
    if (lc == 0){
+      // VRR of the first and second kind:
+      // (a,0,m) = PA # X_(a,a-1) # (a-1,0,m) + WP # X_(a,a-1) (a-1,0,m)
+      //         + e2 * ( 1/2zab * X_(a,c;a-2,c) # (a-2,c,m) + (-r/zab2) * X_(a,c,a-2,c) # (a-2,c,m+1) )
       tmp.t = VRR1;
       if (la > 1) tmp.t = VRR2;
    } else {
+      // VRR of the first kind but with c and a swapped
       tmp.t = VRR3;
       if (lc > 1){
          tmp.t = VRR4;
+         // General VRR
+         // (a,c,m) = QC # X_(a,c;a,c-1) # (a,c-1,m) + WQ # X_(a,c;a,c-1) # (a,c-1,m+1) 
+         //         + f2  *( 1/2zcd * X_(a,c;a,c-2) # (a,c-2,m) + (-r/zcd2) #  X_(a,c;a,c-2) # (a,c-2,m+1) )
+         //         + e2 * 1/2z * X_(a,c,a-1,c-1) # (a-1,c-1,m+1)
          if (la > 0) tmp.t = VRR5;
       } else {
          if (la > 0) tmp.t = VRR6;
@@ -259,8 +267,12 @@ std::vector<int> plan( const int LA, const int LB, const int LC, const int LD, i
       curr_pr_mem_loc += 1;
    }
 
+   //
    // create the tree of operations
+   //
    rec_add( 0, LA, LB, LC, LD, 0, &G );
+   //
+   //
 
    // change from unordered map to list
    for ( const auto& Op_h : G ) {
@@ -279,6 +291,11 @@ std::vector<int> plan( const int LA, const int LB, const int LC, const int LD, i
    // sort the order of operations by the value of h
    G_list.sort( CompareOp );
 
+//   printf(" L %d%d%d%d: la %d lc %d min %d max %d \n", LA,LB,LC,LD, 0, 0, vrr_min_m[0][0], vrr_max_m[0][0] );
+   vrr_min_m[0][0] = 0;
+   vrr_max_m[0][0] = L;
+//   printf(" L %d%d%d%d: la %d lc %d min %d max %d \n", LA,LB,LC,LD, 0, 0, vrr_min_m[0][0], vrr_max_m[0][0] );
+
    // find the max and min m for all a0c0 operations
    int n_ops = int( G_list.size() );
    for ( std::list<OpArray>::const_iterator it = G_list.begin(); it != G_list.end(); it++ ){
@@ -296,7 +313,7 @@ std::vector<int> plan( const int LA, const int LB, const int LC, const int LD, i
              vrr_min_m[la][lc] = m;
              vrr_max_m[la][lc] = m;
           }
-//          printf(" la %d lc %d min %d max %d \n", la, lc, vrr_min_m[la][lc], vrr_max_m[la][lc] );
+//          printf(" L %d%d%d%d: la %d lc %d min %d max %d \n", LA,LB,LC,LD, la, lc, vrr_min_m[la][lc], vrr_max_m[la][lc] );
       }
    }
 
@@ -473,23 +490,47 @@ std::vector<int> plan( const int LA, const int LB, const int LC, const int LD, i
             G_vec[i*OP_SIZE + M1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M2_OFFSET] = priv_addr.at(la-1).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M3_OFFSET] = priv_addr.at(la-1).at(lc  ).at(m+1);
+
+            G_vec[i*OP_SIZE + L1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(vrr_max_m[la  ][lc  ]) + mem(la  ,0,lc  ,0);
+            G_vec[i*OP_SIZE + L2_OFFSET] = priv_addr.at(la-1).at(lc  ).at(vrr_max_m[la-1][lc  ]) + mem(la-1,0,lc  ,0);
+            G_vec[i*OP_SIZE + L3_OFFSET] = priv_addr.at(la-1).at(lc  ).at(vrr_max_m[la-1][lc  ]) + mem(la-1,0,lc  ,0);
+
          } else if ( t == VRR2 ){
             G_vec[i*OP_SIZE + M1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M2_OFFSET] = priv_addr.at(la-1).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M3_OFFSET] = priv_addr.at(la-1).at(lc  ).at(m+1);
             G_vec[i*OP_SIZE + M4_OFFSET] = priv_addr.at(la-2).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M5_OFFSET] = priv_addr.at(la-2).at(lc  ).at(m+1);
+
+            G_vec[i*OP_SIZE + L1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(vrr_max_m[la  ][lc  ]) + mem(la  ,0,lc  ,0);
+            G_vec[i*OP_SIZE + L2_OFFSET] = priv_addr.at(la-1).at(lc  ).at(vrr_max_m[la-1][lc  ]) + mem(la-1,0,lc  ,0);
+            G_vec[i*OP_SIZE + L3_OFFSET] = priv_addr.at(la-1).at(lc  ).at(vrr_max_m[la-1][lc  ]) + mem(la-1,0,lc  ,0);
+            G_vec[i*OP_SIZE + L4_OFFSET] = priv_addr.at(la-2).at(lc  ).at(vrr_max_m[la-2][lc  ]) + mem(la-2,0,lc  ,0);
+            G_vec[i*OP_SIZE + L5_OFFSET] = priv_addr.at(la-2).at(lc  ).at(vrr_max_m[la-2][lc  ]) + mem(la-2,0,lc  ,0);
+
          } else if ( t == VRR3 ){
             G_vec[i*OP_SIZE + M1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(m  );
             G_vec[i*OP_SIZE + M3_OFFSET] = priv_addr.at(la  ).at(lc-1).at(m+1);
+
+            G_vec[i*OP_SIZE + L1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(vrr_max_m[la  ][lc  ]) + mem(la  ,0,lc  ,0); 
+            G_vec[i*OP_SIZE + L2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0);
+            G_vec[i*OP_SIZE + L3_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0);
+
          } else if ( t == VRR4 ){
             G_vec[i*OP_SIZE + M1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(m  );
             G_vec[i*OP_SIZE + M3_OFFSET] = priv_addr.at(la  ).at(lc-1).at(m+1);
             G_vec[i*OP_SIZE + M4_OFFSET] = priv_addr.at(la  ).at(lc-2).at(m  );
             G_vec[i*OP_SIZE + M5_OFFSET] = priv_addr.at(la  ).at(lc-2).at(m+1);
-         // VRR5 requires 6 memory addresses. It (currently) sets the value of OP_SIZE
+
+            G_vec[i*OP_SIZE + L1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(vrr_max_m[la  ][lc  ]) + mem(la  ,0,lc  ,0);
+            G_vec[i*OP_SIZE + L2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0);
+            G_vec[i*OP_SIZE + L3_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0);
+            G_vec[i*OP_SIZE + L4_OFFSET] = priv_addr.at(la  ).at(lc-2).at(vrr_max_m[la  ][lc-2]) + mem(la  ,0,lc-2,0);
+            G_vec[i*OP_SIZE + L5_OFFSET] = priv_addr.at(la  ).at(lc-2).at(vrr_max_m[la  ][lc-2]) + mem(la  ,0,lc-2,0);
+
+            // VRR5 requires 6 memory addresses. It (currently) sets the value of OP_SIZE
          } else if ( t == VRR5 ){         
             G_vec[i*OP_SIZE + M1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(m  );
@@ -497,11 +538,24 @@ std::vector<int> plan( const int LA, const int LB, const int LC, const int LD, i
             G_vec[i*OP_SIZE + M4_OFFSET] = priv_addr.at(la  ).at(lc-2).at(m  );
             G_vec[i*OP_SIZE + M5_OFFSET] = priv_addr.at(la  ).at(lc-2).at(m+1);
             G_vec[i*OP_SIZE + M6_OFFSET] = priv_addr.at(la-1).at(lc-1).at(m+1);
+
+            G_vec[i*OP_SIZE + L1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(vrr_max_m[la  ][lc  ]) + mem(la  ,0,lc  ,0); 
+            G_vec[i*OP_SIZE + L2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0); 
+            G_vec[i*OP_SIZE + L3_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0);
+            G_vec[i*OP_SIZE + L4_OFFSET] = priv_addr.at(la  ).at(lc-2).at(vrr_max_m[la  ][lc-2]) + mem(la  ,0,lc-2,0);
+            G_vec[i*OP_SIZE + L5_OFFSET] = priv_addr.at(la  ).at(lc-2).at(vrr_max_m[la  ][lc-2]) + mem(la  ,0,lc-2,0);
+            G_vec[i*OP_SIZE + L6_OFFSET] = priv_addr.at(la-1).at(lc-1).at(vrr_max_m[la-1][lc-1]) + mem(la-1,0,lc-1,0);
+
          } else if ( t == VRR6 ){
             G_vec[i*OP_SIZE + M1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(m  );
             G_vec[i*OP_SIZE + M2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(m  );
             G_vec[i*OP_SIZE + M3_OFFSET] = priv_addr.at(la  ).at(lc-1).at(m+1);
             G_vec[i*OP_SIZE + M4_OFFSET] = priv_addr.at(la-1).at(lc-1).at(m+1);
+
+            G_vec[i*OP_SIZE + L1_OFFSET] = priv_addr.at(la  ).at(lc  ).at(vrr_max_m[la  ][lc  ]) + mem(la  ,0,lc  ,0); 
+            G_vec[i*OP_SIZE + L2_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0);
+            G_vec[i*OP_SIZE + L3_OFFSET] = priv_addr.at(la  ).at(lc-1).at(vrr_max_m[la  ][lc-1]) + mem(la  ,0,lc-1,0);
+            G_vec[i*OP_SIZE + L4_OFFSET] = priv_addr.at(la-1).at(lc-1).at(vrr_max_m[la-1][lc-1]) + mem(la-1,0,lc-1,0);
          } else if ( t == SYTM ){
             // We don't need any other info
          }
@@ -574,6 +628,15 @@ std::vector<int> plan( const int LA, const int LB, const int LC, const int LD, i
       }
    }
    (*numVCH) = i;
-   //
+
+//   using std::cout;
+//   using std::endl;
+//   cout << " Plan for " << LA << LB << LC << LD << endl;
+//   for ( i = 0; i < G_vec.size(); i ++ ){
+//      cout << G_vec[i] << " ";
+//      if ( i % OP_SIZE == OP_SIZE-1 ){ cout << endl; }
+//   }
+//   cout << endl ;
+
    return G_vec;
 }

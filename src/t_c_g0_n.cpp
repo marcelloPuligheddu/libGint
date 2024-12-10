@@ -174,7 +174,7 @@ __device__ __host__ bool t_c_g0_n_v2(
 }
 
 ///////////////////////////////////// v1 /////////////////////////////////
-
+/*
 __device__ __host__ void PD2VAL( double* res, int Nder, double TG1, double TG2, const double* C0_row ){
    double T1[14], T2[14];
 //   printf(" TG1 %lf TG2 %lf ", TG1, TG2 );
@@ -1473,4 +1473,4 @@ __device__ __host__ bool t_c_g0_n( double* res, double R, double T, int Nder, co
 return false;
 }
 
-
+*/

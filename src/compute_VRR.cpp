@@ -7,7 +7,54 @@ using std::cout;
 using std::endl;
 
 
-#define VTS 8
+__constant__ int SA [] = {0,1,4,10,20,35,56, 84,120,165,231};
+
+// lx ly lz (i-(ly+lz)) tabulated
+__constant__ uint8_t xyz_tab [] = {
+    
+  0, 0, 0,   0,
+    
+  1, 0, 0,   0,
+  0, 1, 0,   0,
+  0, 0, 1,   1,
+    
+  2, 0, 0,   0,
+  1, 1, 0,   0,
+  1, 0, 1,   1,
+  0, 2, 0,   1,
+  0, 1, 1,   2,
+  0, 0, 2,   3,
+
+  3, 0, 0,   0,
+  2, 1, 0,   0,
+  2, 0, 1,   1,
+  1, 2, 0,   1,
+  1, 1, 1,   2,
+  1, 0, 2,   3,
+  0, 3, 0,   3,
+  0, 2, 1,   4,
+  0, 1, 2,   5,
+  0, 0, 3,   6,
+    
+  4, 0, 0,   0,
+  3, 1, 0,   0,
+  3, 0, 1,   1,
+  2, 2, 0,   1,
+  2, 1, 1,   2,
+  2, 0, 2,   3,
+  1, 3, 0,   3,
+  1, 2, 1,   4,
+  1, 1, 2,   5,
+  1, 0, 3,   6,
+  0, 4, 0,   6,
+  0, 3, 1,   7,
+  0, 2, 2,   8,
+  0, 1, 3,   9,
+  0, 0, 4,  10
+};
+
+
+#define VTS 16
 #define NVT 8
 
 __device__ void execute_VRR1_gpu( // int AL, int CL, int m, 
@@ -58,9 +105,9 @@ __device__ void execute_VRR2_gpu(
       int i  = imm % NcoA ;
       int mm = imm / NcoA ;
 
-      int ex = lx_dev(i,AL);
-      int ey = ly_dev(i,AL);
-      int ez = AL - ex - ey ;
+      uint8_t ex = xyz_tab[(SA[AL]+i)*4+0];
+      uint8_t ey = xyz_tab[(SA[AL]+i)*4+1];
+      uint8_t ez = xyz_tab[(SA[AL]+i)*4+2];
       int d, im, iw, e2 ;
       if ( i < NcoAxx ){
          d  = 0;
@@ -128,12 +175,13 @@ __device__ void execute_VRR5_gpu(
       i  = (mik/NcoC)%NcoA;
       mm = mik/NcoC/NcoA;
 
-      ex = lx_dev(i,AL);
-      ez = lz_dev(i,AL);
-      ey = AL - ex - ez ; // lz(i,AL);
-      fx = lx_dev(k,CL);
-      fz = lz_dev(k,CL);
-      fy = CL - fx - fz ; // lz(k,CL);
+      ex = xyz_tab[(SA[AL]+i)*4+0];
+      ey = xyz_tab[(SA[AL]+i)*4+1];
+      ez = xyz_tab[(SA[AL]+i)*4+2];
+      fx = xyz_tab[(SA[CL]+k)*4+0];
+      fy = xyz_tab[(SA[CL]+k)*4+1];
+      fz = xyz_tab[(SA[CL]+k)*4+2];
+
       // if the x moment of k is more than zero, than apply the vrr along x
       if (k < NcoCw){ 
          d  = 0;
@@ -208,7 +256,7 @@ __device__ void execute_VRR6_gpu(
    const int NcoC = 3 ; // NLco_dev(CL);
    // k is the faster variable, followed by i, then m
    for ( int mik=my_vrr_rank; mik < NcoA*NcoC*m; mik+=VTS ){
-      int ex, ey, ez ;
+
       int i, k, mm, d, im, e2 ;
       int idx_000, idx_0m0, idx_mmp;
       double i_0m0, i_0mp, i_mmp;
@@ -217,9 +265,9 @@ __device__ void execute_VRR6_gpu(
       i  = (mik/NcoC)%NcoA;
       mm = mik/NcoC/NcoA;
 
-      ex = lx_dev(i,AL);
-      ey = ly_dev(i,AL);
-      ez = AL - ex - ey ; // lz(i,AL);
+      uint8_t ex = xyz_tab[(SA[AL]+i)*4+0];
+      uint8_t ey = xyz_tab[(SA[AL]+i)*4+1];
+      uint8_t ez = xyz_tab[(SA[AL]+i)*4+2];
 
       if (k == 0 ){
          d  = 0;
@@ -257,8 +305,7 @@ __global__ void compute_VRR_batched_gpu_low(
       double* const __restrict__ ABCD,
       int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng ){
    
-   int F_size = L+1;
-   if (L > 0){ F_size += 4*3+5; }
+   int F_size = Fsize(L);
 
    int my_vrr_rank = threadIdx.x % VTS ;
    int my_vrr_team = threadIdx.x / VTS ;
@@ -299,12 +346,19 @@ __global__ void compute_VRR_batched_gpu_low(
             // Copy PA WP QC WQ z1-5 to shared memory for each team
             for( int ii = my_vrr_rank; ii < 17 ; ii += VTS ){ PQZ[my_vrr_team*17+ii] = Fm[Of+L+1+ii]; }
             pqz = &PQZ[my_vrr_team*17];
+
+
          }
 
-         __syncwarp();
+         __syncthreads();
 
 
          if ( found and i < n_prm ){ 
+	     
+//	    printf("S | PQZ: %lf | %lf %lf %lf | %lf %lf %lf | %lf %lf %lf | %lf %lf %lf | %lf %lf %lf %lf %lf \n", 
+//			    pr_mem[0], pqz[ 0], pqz[ 1], pqz[ 2], pqz[ 3], pqz[ 4], pqz[ 5], pqz[ 6], pqz[ 7], pqz[ 8], pqz[ 9], pqz[10], pqz[11],
+//			    pqz[12], pqz[13], pqz[14], pqz[15], pqz[16]
+//			    );
 
             for ( int op=0; op < numVC; op++ ){
                const int t  = plan[ op*OP_SIZE + T__OFFSET ];
@@ -351,7 +405,6 @@ __global__ void compute_VRR_batched_gpu_low(
       }
    }
 }
-
 
 
 

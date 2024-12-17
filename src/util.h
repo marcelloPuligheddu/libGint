@@ -25,12 +25,17 @@ SOFTWARE.
 
 
 #include <vector>
+#include <cstdlib>
+#include <stdint.h>
 
+#include "define.h"
 unsigned int encode4( int a, int b, int c, int d );
 __device__ __host__ void decode4(
       unsigned int abcd, unsigned int* a, unsigned int* b,
       unsigned int* c, unsigned int* d );
+__device__ __host__ void decode4( unsigned int abcd, uint8_t a[4] );
 
+__device__ __host__ int Fsize( int L );
 unsigned int encodeL( int la, int lb, int lc, int ld );
 __device__ __host__ void decodeL( unsigned int L, int* la, int* lb, int* lc, int* ld );
 /*
@@ -48,6 +53,7 @@ __device__ __host__ void decode_shell(
       unsigned int* __restrict__ nla, unsigned int* __restrict__ nlb,
       unsigned int* __restrict__ nlc, unsigned int* __restrict__ nld,
       unsigned int* __restrict__ n1 , unsigned int* __restrict__ n2 );
+__host__ __device__ void decode_shell( const unsigned int shell, uint8_t nl[4], uint8_t np[2] );
 
 __device__ __host__ int compute_Nc( int la, int lb=0, int lc=0, int ld=0 );
 __device__ __host__ int compute_Ns( int la, int lb=0, int lc=0, int ld=0 );
@@ -55,16 +61,21 @@ __device__ __host__ int compute_Ns( int la, int lb=0, int lc=0, int ld=0 );
 __device__ __host__ inline void compute_weighted_distance(
       double X12[3], const double X1[3], const double X2[3],
       const double c1, const double c2, const double c12 ){
-   X12[0] = ( c1*X1[0] + c2*X2[0] ) / c12;
-   X12[1] = ( c1*X1[1] + c2*X2[1] ) / c12;
-   X12[2] = ( c1*X1[2] + c2*X2[2] ) / c12;
+   X12[0] = ( c1*X1[0] + c2*X2[0] ) * c12;
+   X12[1] = ( c1*X1[1] + c2*X2[1] ) * c12;
+   X12[2] = ( c1*X1[2] + c2*X2[2] ) * c12;
 }
 
 
 int max( std::vector<int> x );
 
-__device__ __host__ void compute_pbc( const double A[3], const double B[3], const double * cell, double * AB );
-__device__ __host__ void compute_pbc_shift( const double A[3], const double B[3], const double * cell, double * shift );
+
+
+//template< bool ortho >
+__device__ __host__ void compute_pbc( const double A[3], const double B[3], const double * const cell, double * AB );
+
+//__device__ __host__ void compute_pbc( const double A[3], const double B[3], const double * cell, double * AB );
+//__device__ __host__ void compute_pbc_shift( const double A[3], const double B[3], const double * cell, double * shift );
 
 
 __host__ int NLco( int L );
@@ -86,7 +97,6 @@ __device__ int L_lx_dev(const int i );
 __device__ int lx_dev( const int i, const int L );
 __device__ int lz_dev( const int i, const int L );
 __device__ int ly_dev( const int i, const int L );
-
 
 
 #endif

@@ -4,19 +4,34 @@
 #include "define.h"
 
 
-#define BASE4 100
+#define BASE4 256
 unsigned int encode4( int a, int b, int c, int d ){
    return a*BASE4*BASE4*BASE4 + b*BASE4*BASE4 + c*BASE4 + d;
 }
-
 __device__ __host__ void decode4(
-   unsigned int abcd, unsigned int* a, unsigned int* b,
-   unsigned int* c, unsigned int * d ){
-(*d) = abcd % BASE4;
-(*c) = abcd / BASE4 % BASE4 ;
-(*b) = abcd / (BASE4*BASE4) % BASE4 ;
-(*a) = abcd / (BASE4*BASE4*BASE4) ;
+      unsigned int abcd, unsigned int* a, unsigned int* b,
+      unsigned int* c, unsigned int * d ){
+   (*d) = abcd % BASE4;
+   (*c) = abcd / BASE4 % BASE4 ;
+   (*b) = abcd / (BASE4*BASE4) % BASE4 ;
+   (*a) = abcd / (BASE4*BASE4*BASE4) ;
 }
+__device__ __host__ void decode4( unsigned int abcd, uint8_t a[4] ){
+   a[3] = abcd % BASE4;
+   a[2] = abcd / BASE4 % BASE4 ;
+   a[1] = abcd / (BASE4*BASE4) % BASE4 ;
+   a[0] = abcd / (BASE4*BASE4*BASE4) ;
+}
+#undef BASE4
+
+#define FM_N_VEC 4
+#define FM_N_SCA 5
+__device__ __host__ int Fsize( int L ){
+//    if ( L == 0 ){ return 1 ; }
+    return L + 1 + FM_N_VEC * 3 + FM_N_SCA;
+}
+#undef FM_N_VEC
+#undef FM_N_SCA
 
 
 unsigned int encodeL( int la, int lb, int lc, int ld ){
@@ -29,40 +44,7 @@ __device__ __host__ void decodeL( unsigned int L, int* la, int* lb, int* lc, int
    (*lb) = L / NL2 % NL ;
    (*la) = L / NL3 ;
 }
-/*
-unsigned int encode_prm( const int ipa, const int ipb, const int ipc, const int ipd, const int n3 ){
-    assert(ipa >= 0);
-    assert(ipa < MAX_N_PRM);
-    assert(ipb >= 0);
-    assert(ipb < MAX_N_PRM);
-    assert(ipc >= 0);
-    assert(ipc < MAX_N_PRM);
-    assert(ipd >= 0);
-    assert(ipd < MAX_N_PRM);
-    assert(n3 >= 0);
-    assert(n3 < MAX_N_CELL);
 
-    unsigned int ret = 0;
-    ret +=  n3;
-    ret += ipd * MAX_N_CELL;
-    ret += ipc * MAX_N_CELL * MAX_N_PRM;
-    ret += ipb * MAX_N_CELL * MAX_N_PRM * MAX_N_PRM;
-    ret += ipa * MAX_N_CELL * MAX_N_PRM * MAX_N_PRM * MAX_N_PRM;
-    return ret;
-}
-
-__host__ __device__ void decode_prm( 
-      const unsigned int prm,
-      unsigned int* __restrict__ ipa, unsigned int* __restrict__ ipb,
-      unsigned int* __restrict__ ipc, unsigned int* __restrict__ ipd,
-      unsigned int* __restrict__ n3 ){
-   (*ipa) = (prm / (MAX_N_CELL * MAX_N_PRM * MAX_N_PRM * MAX_N_PRM));
-   (*ipb) = (prm / (MAX_N_CELL * MAX_N_PRM * MAX_N_PRM)) % MAX_N_PRM;
-   (*ipc) = (prm / (MAX_N_CELL * MAX_N_PRM)) % MAX_N_PRM;
-   (*ipd) = (prm / (MAX_N_CELL)) % MAX_N_PRM;
-   (*n3)  = (prm) % MAX_N_CELL;
-}
-*/
 unsigned int encode_shell( const int nla, const int nlb, const int nlc, const int nld, const int n1, const int n2 ){
     assert(nla >= 0);
     assert(nla < MAX_N_L);
@@ -86,6 +68,24 @@ unsigned int encode_shell( const int nla, const int nlb, const int nlc, const in
     ret += nla * MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L * MAX_N_L;
     return ret;
 }
+
+__host__ __device__ void decode_shell(
+      const unsigned int shell,
+      uint8_t nl[4], 
+      uint8_t np[2] ){
+
+   static_assert( MAX_N_CELL <= 256 );
+   static_assert( MAX_N_L    <= 256 );
+   static_assert( (long int)MAX_N_L*MAX_N_L*MAX_N_L*MAX_N_L*MAX_N_CELL*MAX_N_CELL <= ((long int )2<<31) );
+
+   nl[0] = (shell / (MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L * MAX_N_L));
+   nl[1] = (shell / (MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L)) % MAX_N_L;
+   nl[2] = (shell / (MAX_N_CELL * MAX_N_CELL * MAX_N_L)) % MAX_N_L;
+   nl[3] = (shell / (MAX_N_CELL * MAX_N_CELL)) % MAX_N_L;
+   np[0]  = (shell / MAX_N_CELL) % MAX_N_CELL;
+   np[1]  = (shell) % MAX_N_CELL;
+}
+
 
 __host__ __device__ void decode_shell(
       const unsigned int shell,
@@ -128,62 +128,38 @@ __device__ __host__ double my_wrap( double s ){
    return s - round(s);
 }
 
-__device__ __host__ void compute_pbc( const double A[3], const double B[3], const double * cell, double * AB ){
+//template< bool ortho >
+__device__ __host__ void compute_pbc( const double A[3], const double B[3], const double * const cell, double * AB ){
    // modifies AB = B - A + R such that:
    // AB is inside cell
    // R  is a lattice vector
-   const double * h_mat = &cell[CELL_HMAT_OFF];
-   const double * h_inv = &cell[CELL_HINV_OFF];
+   const double * const h_mat = &cell[CELL_HMAT_OFF];
+   const double * const h_inv = &cell[CELL_HINV_OFF];
+
    AB[0] = B[0]-A[0];
    AB[1] = B[1]-A[1];
    AB[2] = B[2]-A[2];
-   // note it is a 3x3 by 3 matrix vector product
-   double s0 = h_inv[0*3+0] * AB[0] + h_inv[1*3+0] * AB[1] + h_inv[2*3+0] * AB[2] ;
-   double s1 = h_inv[0*3+1] * AB[0] + h_inv[1*3+1] * AB[1] + h_inv[2*3+1] * AB[2] ;
-   double s2 = h_inv[0*3+2] * AB[0] + h_inv[1*3+2] * AB[1] + h_inv[2*3+2] * AB[2] ;
 
-//   double old_s0 = s0;
-//   s0 = s0 - round( old_s0 );
-//   printf("wrapped %lg (%lg|%lg) to %lg \n", old_s0, old_s0 - 0.5, old_s0+0.5, s0 );
-//   printf("wrapping %lg(%lg,%lg) %lg(%lg,%lg) %lg(%lg,%lg) to %lg %lg %lg \n", s0,s0-0.5,s0+0.5, s1,s1-0.5,s1+0.5, s2,s2-0.5,s2+0.5, my_wrap(s0),my_wrap(s1),my_wrap(s2) );
+//   if constexpr ( ortho ) {
+//      AB[0] = AB[0] - h_mat[0*3+0]*round(h_inv[0*3+0]*AB[0]);
+//      AB[1] = AB[1] - h_mat[1*3+1]*round(h_inv[1*3+1]*AB[1]);
+//      AB[2] = AB[2] - h_mat[2*3+2]*round(h_inv[2*3+2]*AB[2]);
+//   } else {
+      // note it is a 3x3 by 3 matrix vector product
+      double s0 = h_inv[0*3+0] * AB[0] + h_inv[1*3+0] * AB[1] + h_inv[2*3+0] * AB[2] ;
+      double s1 = h_inv[0*3+1] * AB[0] + h_inv[1*3+1] * AB[1] + h_inv[2*3+1] * AB[2] ;
+      double s2 = h_inv[0*3+2] * AB[0] + h_inv[1*3+2] * AB[1] + h_inv[2*3+2] * AB[2] ;
 
-   s0 = my_wrap(s0); // s0 - my_round( s0 );
-   s1 = my_wrap(s1); // s1 = s1 - my_round( s1 );
-   s2 = my_wrap(s2); // s2 = s2 - my_round( s2 );
+      s0 -= round(s0);
+      s1 -= round(s1);
+      s2 -= round(s2);
 
-   // note it is a 3x3 by 3 matrix vector product
-   AB[0] = h_mat[0*3+0] * s0 + h_mat[1*3+0] * s1 + h_mat[2*3+0] * s2;
-   AB[1] = h_mat[0*3+1] * s0 + h_mat[1*3+1] * s1 + h_mat[2*3+1] * s2;
-   AB[2] = h_mat[0*3+2] * s0 + h_mat[1*3+2] * s1 + h_mat[2*3+2] * s2;
-}
-
-
-
-__device__ __host__ void compute_pbc_shift( const double A[3], const double B[3], const double * cell, double * shift ){
-   const double * h_mat = &cell[CELL_HMAT_OFF];
-   const double * h_inv = &cell[CELL_HINV_OFF];
-   double AB[3];
-   AB[0] = B[0]-A[0];
-   AB[1] = B[1]-A[1];
-   AB[2] = B[2]-A[2];
-   // note it is a 3x3 by 3 matrix vector product
-   double s0 = h_inv[0*3+0] * AB[0] + h_inv[1*3+0] * AB[1] + h_inv[2*3+0] * AB[2] ;
-   double s1 = h_inv[0*3+1] * AB[0] + h_inv[1*3+1] * AB[1] + h_inv[2*3+1] * AB[2] ;
-   double s2 = h_inv[0*3+2] * AB[0] + h_inv[1*3+2] * AB[1] + h_inv[2*3+2] * AB[2] ;
-//   s0 = rint( s0 );
-//   s1 = rint( s1 );
-//   s2 = rint( s2 );
-   s0 = nearbyint( s0 );
-   s1 = nearbyint( s1 );
-   s2 = nearbyint( s2 );
-
-   // note it is a 3x3 by 3 matrix vector product
-   shift[0] = h_mat[0*3+0] * s0 + h_mat[1*3+0] * s1 + h_mat[2*3+0] * s2;
-   shift[1] = h_mat[0*3+1] * s0 + h_mat[1*3+1] * s1 + h_mat[2*3+1] * s2;
-   shift[2] = h_mat[0*3+2] * s0 + h_mat[1*3+2] * s1 + h_mat[2*3+2] * s2;
-   printf( "PBC SHIFT OF %lg %lg is %lg \n", A[0], B[0], shift[0] );
-}
-
+      // note it is a 3x3 by 3 matrix vector product
+      AB[0] = h_mat[0*3+0] * s0 + h_mat[1*3+0] * s1 + h_mat[2*3+0] * s2;
+      AB[1] = h_mat[0*3+1] * s0 + h_mat[1*3+1] * s1 + h_mat[2*3+1] * s2;
+      AB[2] = h_mat[0*3+2] * s0 + h_mat[1*3+2] * s1 + h_mat[2*3+2] * s2;
+//   }
+} 
 
 
 // #### device L ####

@@ -86,6 +86,7 @@ class libGint {
    std::vector<std::vector<int> > all_l;
    std::vector<std::vector<int> > all_nl;
    std::vector<std::vector< unsigned int>> all_idx_K;
+   std::vector<unsigned int> kind_of;
    cublasHandle_t cublas_handle;
    cudaStream_t cuda_stream;
 

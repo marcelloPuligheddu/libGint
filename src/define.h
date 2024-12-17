@@ -185,6 +185,38 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 #define POT_TRUNC_N1 128
 #define POT_TRUNC_N2 128
 
+#define CDPA_COSx  0
+#define CDPA_COSy  1
+#define CDPA_COSz  2
+#define CDPA_DOSx  3
+#define CDPA_DOSy  4
+#define CDPA_DOSz  5
+#define CDPA_Px    6
+#define CDPA_Py    7
+#define CDPA_Pz    8
+#define CDPA_PmAx  9
+#define CDPA_PmAy 10
+#define CDPA_PmAz 11
+
+#define CDPA_Kfac 12
+#define CDPA_invz 13
+#define CDPA_zc   14
+#define CDPA_zd   15
+#define CDPA_zab  16
+
+#define CDPA_zcd  17
+#define CDPA_rho  18
+#define CDPA_R    19
+#define CDPA_izab 20
+#define CDPA_i2ab 21
+#define CDPA_mrab 22
+#define CDPA_izcd 23
+#define CDPA_i2cd 24
+#define CDPA_mrcd 25
+#define CDPA_i2z  26
+
+#define CDPA_SIZE 27
+
 
 
 #include<stdio.h>

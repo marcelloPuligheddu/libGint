@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include <vector>
 
-__global__ void prepare_Fm_batched_gpu_low(
+__global__ void prepare_Fm_batched_gpu_low_private(
       const unsigned int* const __restrict__ FVH,
       const unsigned int* const __restrict__ OF,
       const unsigned int* const __restrict__ PMX,
@@ -36,7 +36,42 @@ __global__ void prepare_Fm_batched_gpu_low(
       const double* const __restrict__ neighs,
       const int Ng );
 
-__global__ void compute_Fm_batched_gpu_low( 
+__global__ void compute_Fm_batched_gpu_low_private( 
+      double* __restrict__ Fm,
+      int NFm, int L, bool periodic,
+      double* __restrict__ neighs,
+      double* __restrict__ ftable, int ftable_ld,
+      const double R_cut, const double * const __restrict__ C0, const int ld_C0,
+      const   int*  const __restrict__ x12_to_patch_low_R, 
+      const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ bias_and_weight_by_patch,   
+      int potential_type, const int Ng );
+
+
+__global__ void compute_Vm_batched_gpu_low_private( 
+      double* __restrict__ Fm,
+      int NFm, int L, bool periodic,
+      double* __restrict__ neighs,
+      double* __restrict__ ftable, int ftable_ld,
+      const double R_cut, const double * const __restrict__ C0, const int ld_C0,
+      const   int*  const __restrict__ x12_to_patch_low_R, 
+      const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ bias_and_weight_by_patch,   
+      int potential_type, const int Ng );
+
+
+__global__ void prepare_Fm_batched_gpu_low_shared(
+      const unsigned int* const __restrict__ FVH,
+      const unsigned int* const __restrict__ OF,
+      const unsigned int* const __restrict__ PMX,
+      const double* const __restrict__ data,
+      double* const __restrict__ Fm,
+      int NFm, int L, bool periodic,
+      const double* const __restrict__ cell,
+      const double* const __restrict__ neighs,
+      const int Ng );
+
+__global__ void compute_Fm_batched_gpu_low_shared( 
       double* __restrict__ Fm,
       int NFm, int L, bool periodic,
       double* __restrict__ neighs,

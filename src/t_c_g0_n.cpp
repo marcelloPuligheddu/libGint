@@ -70,9 +70,11 @@ __device__ __host__ bool t_c_g0_n_v2(
       const   int*  const __restrict__ x12_to_patch_low_R, 
       const   int*  const __restrict__ x12_to_patch_high_R, 
       const double* const __restrict__ BW_by_patch,
-      int iw=0 ){
+      int iw, const double Kfac ){
+
 //   printf(" computing tcg R: %lg T: %lg ", R, T );
 //   bool use_gamma = false;
+
    double upper = R*R + 11.0*R + 50.0;
    double lower = R*R - 11.0*R +  0.0;
    double X1, X2;
@@ -136,7 +138,7 @@ __device__ __host__ bool t_c_g0_n_v2(
 //   if ( iw > 0 ){
 //      printf(" Computing tcg @ %lg %lg -> X12p = %lg %lg %d | BW = %lg %lg %lg %lg \n", R,T,X1,X2,patch,B1,W1,B2,W2 );
 //   }
-//   
+   
    const double * const C0_row = &C0[ld_C0*patch];
 
    double TG1 = (2.*X1-B1)*W1;
@@ -171,9 +173,174 @@ __device__ __host__ bool t_c_g0_n_v2(
 //         printf(" T2[j]: %lg dot : %lg || j k %d %d || \n", T2[j], dot, j, k );
          tmp += dot * T2[j];
       }
-      res[k] = tmp;
+      res[k] = tmp*Kfac;
    }
 
    return false;
 }
+
+
+
+__device__ bool t_c_g0_n_v3(
+      double* res, double R, double T, int Nder, const double* C0, int ld_C0,
+      int N1, int N2,
+      const   int*  const __restrict__ x12_to_patch_low_R,
+      const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ BW_by_patch,
+      int iw=0 ){
+
+   constexpr int NFT =   2;
+   constexpr int SFT =  32;
+   constexpr int NPT =   1;
+
+   assert( NFT*SFT/NPT == blockDim.x );
+
+   int my_fm_rank = threadIdx.x % SFT;
+   int my_fm_team = threadIdx.x / SFT;
+ 
+   double upper = R*R + 11.0*R + 50.0;
+   double lower = R*R - 11.0*R +  0.0;
+   double X1, X2;
+   int patch = 255;
+
+//   printf(" %d.%d v3 %lg %lg \n", blockIdx.x, threadIdx.x, T,R );
+
+   if (T > upper) {
+      for ( int n = 0; n <= Nder ; n++ ){
+         res[n] = 0.0;
+      }
+      return false;
+   }
+
+   if (R <= 11.0) {
+      X2 = R/11.0;
+      upper = R*R + 11.0*R + 50.0;
+      lower = 0.0;
+      X1 = (T - lower)/(upper - lower);
+
+      int i1 = (X1 * N1);
+      int i2 = (X2 * N2);
+
+      if ( i1 == N1 ){ i1 = N1-1; }
+      if ( i2 == N2 ){ i2 = N2-1; }
+
+      patch = x12_to_patch_low_R[ i1*N2+i2 ];
+   } else {
+      if ( T < lower ) { // if R > 11 and T < R2 - 11 R use gamma
+         // why even zero? Res is going to get overwritten by gamma
+         for ( int n = 0; n <= Nder ; n++ ){
+            res[n] = 0.0;
+         }
+         return true;
+      }
+      X2 = 11.0/R;
+      X1 = (T-lower)/(upper-lower);
+
+      int i1 = (X1 * N1);
+      int i2 = (X2 * N2);
+
+      if ( i1 == N1 ){ i1 = N1-1; }
+      if ( i2 == N2 ){ i2 = N2-1; }
+
+      patch = x12_to_patch_high_R[ i1*N2+i2 ];
+   }
+
+   const double B1 = BW_by_patch[ patch*4 + 0 ];
+   const double W1 = BW_by_patch[ patch*4 + 1 ];
+   const double B2 = BW_by_patch[ patch*4 + 2 ];
+   const double W2 = BW_by_patch[ patch*4 + 3 ];
+
+   double TG1 = (2.*X1-B1)*W1;
+   double TG2 = (2.*X2-B2)*W2;
+
+//   printf(" Computing tcg @ %lg %lg -> X12p = %lg %lg %d | BW = %lg %lg %lg %lg \n", T,R, X1,X2,patch, B1,W1,B2,W2 );
+
+   double T1[16];
+   double T2[16];
+
+   constexpr int s_ld = SFT+8;
+
+   __shared__ double s_tmp[NFT*s_ld];
+   __shared__ double s_dot_jt[NFT*s_ld]; // TODO reuse s_tmp (?)
+   __shared__ double dot[NFT*SFT]; // TODO not shared (?)
+
+   unsigned int tid = threadIdx.x;
+
+   T1[0] = 1.0;
+   T2[0] = 1.0;
+   T1[1] = SQRT2*TG1;
+   T2[1] = SQRT2*TG2;
+   T1[2] = 2.*TG1*T1[1] - SQRT2;
+   T2[2] = 2.*TG2*T2[1] - SQRT2;
+   for ( int i=3; i < 14; i++ ) {
+      // NOTE: this is the recurrence relation for Chebishev polynomial of the first kind
+      T1[i] = 2.*TG1*T1[i-1] - T1[i-2];
+      T2[i] = 2.*TG2*T2[i-1] - T2[i-2];
+   }
+   T1[14] = 0.0;
+   T2[14] = 0.0;
+   T1[15] = 0.0;
+   T2[15] = 0.0;
+
+
+   // NOTE: this horror has the structure v1(k) @ L(k) @ v2(k).T[::-1]
+   // where v1 and v2 are vector and L is a (flattened) Triangular matrix
+
+   // Zero the extra 8 doubles at the end of the shared memory assigned to this team
+   s_dot_jt[my_fm_team*s_ld+my_fm_rank+8] = 0.0;
+   s_tmp[my_fm_team*s_ld+my_fm_rank+8] = 0.0;
+
+   for ( int k=0; k <= Nder; k++ ){
+      int jl = 0;
+      for ( int j=0; j < 14; j++ ){
+         // Step 1: load C and multiply by T1 into shared memory
+         // TODO: reshape C0 into 16*16 square matrix
+         // NOTE: each thread will only ever use T1[my_fm_rank]
+         // TODO: compute multiple T1 and T2 for different n3 in the same team and share
+         int l = my_fm_rank;
+         if ( l < 14-j ) {
+            s_dot_jt[my_fm_team*s_ld+l] = C0[ld_C0*patch + k*105 + jl + l] * T1[l];
+//            printf(" %d.%d.%d | C0.T1 = %lg %lg %lg \n", blockIdx.x, threadIdx.x, j, C0[ld_C0*patch + k*105 + jl + l] * T1[l], C0[ld_C0*patch + k*105 + jl + l], T1[l] );
+         } else {
+            s_dot_jt[my_fm_team*s_ld+l] = 0.0;
+         }
+         __syncwarp();
+
+         // Step 2: sum over l to compute dot[j]
+         const unsigned int sid = my_fm_team*s_ld+l;
+         s_dot_jt[sid] += s_dot_jt[sid + 8];__syncwarp();
+         s_dot_jt[sid] += s_dot_jt[sid + 4];__syncwarp();
+         s_dot_jt[sid] += s_dot_jt[sid + 2];__syncwarp();
+         s_dot_jt[sid] += s_dot_jt[sid + 1];__syncwarp();
+
+         // s_dot_jt[0] now contains the sum of C0 * T1 for this j and this idx_t
+         dot[my_fm_team*16+j] = s_dot_jt[my_fm_team*s_ld+0];
+//         printf(" %d.%d.%d | C0@T1 = %lg \n", blockIdx.x, threadIdx.x, j, dot[my_fm_team*16+j] );
+         __syncwarp();
+         jl += 14-j;
+      }
+      // Zero extra term in dot. Dot is the size 14 vector product of C(14x14,Triangular) and T1(14)
+      // TODO: Recast as a (16x16,Square) @ 16 product
+      dot[my_fm_team*16+14] = 0.0;
+      dot[my_fm_team*16+15] = 0.0;
+      // Now we have all the C0 @ T1 for all j for this given idx_t and k
+      int j = my_fm_rank;
+      const unsigned int sid = my_fm_team*s_ld+j;
+      // Step 3: multiply by T2 and sum over j
+      s_tmp[my_fm_team*s_ld+j] = dot[my_fm_team*16+j] * T2[j];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 8];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 4];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 2];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 1];__syncwarp();
+
+      if( my_fm_rank == 0 ) {
+         res[k] = s_tmp[my_fm_team*s_ld+0];
+//         printf(" %d.%d | R %lg \n", blockIdx.x, threadIdx.x, res[k] );
+      }
+      __syncwarp();
+   }
+   return false;
+}
+
+
 

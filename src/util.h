@@ -58,9 +58,10 @@ __host__ __device__ void decode_shell( const unsigned int shell, uint8_t nl[4], 
 __device__ __host__ int compute_Nc( int la, int lb=0, int lc=0, int ld=0 );
 __device__ __host__ int compute_Ns( int la, int lb=0, int lc=0, int ld=0 );
 
+template< typename T >
 __device__ __host__ inline void compute_weighted_distance(
-      double X12[3], const double X1[3], const double X2[3],
-      const double c1, const double c2, const double c12 ){
+      T X12[3], const T X1[3], const T X2[3],
+      const T c1, const T c2, const T c12 ){
    X12[0] = ( c1*X1[0] + c2*X2[0] ) * c12;
    X12[1] = ( c1*X1[1] + c2*X2[1] ) * c12;
    X12[2] = ( c1*X1[2] + c2*X2[2] ) * c12;

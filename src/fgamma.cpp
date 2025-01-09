@@ -193,7 +193,7 @@ void fgamma0_ref( int nmax, double T, double* f, const double* ftable, int ftabl
 }
 
 
-__host__ __device__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld, double fac ){
+__host__ __device__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld___, double fac ){
    if ( T < Teps ){
       // eps < T -> T=0
       for( int n = 0 ; n <= nmax ; n++ ){
@@ -203,7 +203,8 @@ __host__ __device__ void fgamma0( int nmax, double T, double* f, const double* f
    }
    if ( T < 12.  ){
       // eps < T < 12 -> Taylor expansion + downward
-      double tdelta = 0.1;
+      constexpr double tdelta = 0.1;
+      constexpr int ftable_ld = 28;
       int itab = int(round(T/tdelta));
       double ttab = double(itab)*tdelta;
       double tmp = 1.0;
@@ -229,10 +230,10 @@ __host__ __device__ void fgamma0( int nmax, double T, double* f, const double* f
       double tmp2 = tmp*tmp;
       double tmp3 = tmp*tmp2;
       double g = 0.4999489092 - 0.2473631686*tmp + 0.321180909*tmp2 - 0.3811559346*tmp3;
-      f[0] = 0.5*sqrt(M_PI*tmp) - g*exp(-T)*tmp;
       // Use the upward recursion relation to
       // generate the remaining F_n(t) values
       double expt = exp(-T);
+      f[0] = 0.5*sqrt(M_PI*tmp) - g*expt*tmp;
       for ( int n=1 ; n <= nmax ; n++ ){
          f[n] = (0.5*tmp)*( (2.*n - 1.)*f[n - 1] - expt );
       }

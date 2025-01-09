@@ -172,10 +172,10 @@ __device__ __host__ bool t_c_g0_n_v2(
          }
 //         printf(" T2[j]: %lg dot : %lg || j k %d %d || \n", T2[j], dot, j, k );
          tmp += dot * T2[j];
+
       }
       res[k] = tmp*Kfac;
    }
-
    return false;
 }
 

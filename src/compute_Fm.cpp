@@ -11,26 +11,11 @@
 #include <iostream>
 
 #define SQRT2 1.4142135623730950488016887242096980785696718753
-
 #define BLKIDX 1
 
 using std::cout;
 using std::endl;
 
-
-#include <cmath>
-#include <omp.h>
-#include <vector>
-#include "define.h"
-#include "util.h"
-#include "fgamma.h"
-#include "t_c_g0_n.h"
-#include "compute_Fm.h"
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <iostream>
-using std::cout;
-using std::endl;
 
 __global__ void prepare_Fm_batched_gpu_low_private(
       const unsigned int* const __restrict__ FVH,
@@ -87,7 +72,7 @@ __global__ void prepare_Fm_batched_gpu_low_private(
 
    int F_size = Fsize(L);
 
-   double A[3], B[3], C[3], D[3];
+   double A[3], B[3], C[3], D[3], Cs[3], Ds[3];
    double ABs[3], CDs[3], PQs[3];
    double P[3], Q[3], shift[3];
 
@@ -139,21 +124,32 @@ __global__ void prepare_Fm_batched_gpu_low_private(
 
    int Of = (p * Ng + 0 ) * F_size ;
 
-   Fm[Of+L+ 1] = Co[0]                           + shift[0];
-   Fm[Of+L+ 2] = Co[1]                           + shift[1];
-   Fm[Of+L+ 3] = Co[2]                           + shift[2];
+   Cs[0] = Co[0]                           + shift[0];
+   Cs[1] = Co[1]                           + shift[1];
+   Cs[2] = Co[2]                           + shift[2];
 
-   Fm[Of+L+ 4] = Co[0] + CDs[0] + neighs[n2*3+0] + shift[0];
-   Fm[Of+L+ 5] = Co[1] + CDs[1] + neighs[n2*3+1] + shift[1];
-   Fm[Of+L+ 6] = Co[2] + CDs[2] + neighs[n2*3+2] + shift[2];
 
-   Fm[Of+L+ 7] = P[0];
-   Fm[Of+L+ 8] = P[1];
-   Fm[Of+L+ 9] = P[2];
+   Ds[0] = Co[0] + CDs[0] + neighs[n2*3+0] + shift[0];
+   Ds[1] = Co[1] + CDs[1] + neighs[n2*3+1] + shift[1];
+   Ds[2] = Co[2] + CDs[2] + neighs[n2*3+2] + shift[2];
 
-   Fm[Of+L+10] = P[0]-A[0];
-   Fm[Of+L+11] = P[1]-A[1];
-   Fm[Of+L+12] = P[2]-A[2];
+   compute_weighted_distance( Q, Cs,Ds,zc ,zd ,inv_zcd );
+
+   Fm[Of+L+ 1] = P[0]-A[0];
+   Fm[Of+L+ 2] = P[1]-A[1];
+   Fm[Of+L+ 3] = P[2]-A[2];
+
+   Fm[Of+L+ 4] = P[0];
+   Fm[Of+L+ 5] = P[1];
+   Fm[Of+L+ 6] = P[2];
+
+   Fm[Of+L+ 7] = Q[0]-Cs[0];
+   Fm[Of+L+ 8] = Q[1]-Cs[1];
+   Fm[Of+L+ 9] = Q[2]-Cs[2];
+
+   Fm[Of+L+10] = Q[0];
+   Fm[Of+L+11] = Q[1];
+   Fm[Of+L+12] = Q[2];
 
    Fm[Of+L+13] = Kfactor;
    Fm[Of+L+14] = inv_z;
@@ -186,32 +182,32 @@ __global__ void compute_Fm_batched_gpu_low_private(
 
    const int Of0 = (p * Ng + 0 ) * F_size ;
 
-   double P[3], C[3], D[3], Q[3], PQ[3];
+   double P[3], Q[3], PQ[3];
    double rpq2, T;
-   double Kfac,invz,zc,zd,zab,zcd,rho,R,izcd;
+   double Kfac,invz,zc,zd,zab,zcd,rho,R;
 
-   C[0] = Fm[Of0+L+1+CDPA_COSx];
-   C[1] = Fm[Of0+L+1+CDPA_COSy];
-   C[2] = Fm[Of0+L+1+CDPA_COSz];
-   D[0] = Fm[Of0+L+1+CDPA_DOSx];
-   D[1] = Fm[Of0+L+1+CDPA_DOSy];
-   D[2] = Fm[Of0+L+1+CDPA_DOSz];
-   P[0] = Fm[Of0+L+1+CDPA_Px  ];
-   P[1] = Fm[Of0+L+1+CDPA_Py  ];
-   P[2] = Fm[Of0+L+1+CDPA_Pz  ];
+//   PA[0] = Fm[Of0+L+1];
+//   PA[1] = Fm[Of0+L+2];
+//   PA[2] = Fm[Of0+L+3];
+   P[0] = Fm[Of0+L+4];
+   P[1] = Fm[Of0+L+5];
+   P[2] = Fm[Of0+L+6];
+//   QC[0] = Fm[Of0+L+7];
+//   QC[1] = Fm[Of0+L+8];
+//   QC[2] = Fm[Of0+L+9];
+   Q[0] =  Fm[Of0+L+10];
+   Q[1] =  Fm[Of0+L+11];
+   Q[2] =  Fm[Of0+L+12];
 
-   Kfac = Fm[Of0+L+1+CDPA_Kfac];
-   invz = Fm[Of0+L+1+CDPA_invz];
-   zc   = Fm[Of0+L+1+CDPA_zc  ];
-   zd   = Fm[Of0+L+1+CDPA_zd  ];
-   zab  = Fm[Of0+L+1+CDPA_zab ];
+   Kfac = Fm[Of0+L+13];
+   invz = Fm[Of0+L+14];
+   zc   = Fm[Of0+L+15];
+   zd   = Fm[Of0+L+16];
+   zab  = Fm[Of0+L+17];
 
    zcd  = zc + zd;
    rho  = zab * zcd * invz;
    R    = R_cut * sqrt(rho);
-   izcd = 1. / zcd;
-
-   compute_weighted_distance( Q, C,D,zc ,zd ,izcd );
 
    for ( int n3 = threadIdx.x; n3 < Ng ; n3 += blockDim.x ){
 
@@ -221,18 +217,19 @@ __global__ void compute_Fm_batched_gpu_low_private(
       PQ[2] = P[2]-Q[2]-neighs[n3*3+2];
       rpq2 = (PQ[0]*PQ[0] + PQ[1]*PQ[1] + PQ[2]*PQ[2]);
       T = rho * rpq2 ;
-      for( int m=0; m<L;m++){ Fm[Of+m] = T * Kfac + R; }
+//      printf("%d.%d %d.%d TR: %lg %lg %lg \n", blockIdx.x, threadIdx.x, p, n3, T, R, Kfac );
+//      for( int m=0; m<L;m++){ Fm[Of+m] = T * Kfac + R; }
 //         switch ( potential_type ){
 //            case COULOMB :
 //               fgamma0( L, T, &Fm[Of], ftable, ftable_ld );
 //            break;
 //            case TRUNCATED :
 
-//               bool use_gamma = t_c_g0_n_v2(
-//                  &Fm[Of], R, T, L, C0, ld_C0,
-//                  POT_TRUNC_N1, POT_TRUNC_N2,
-//                  x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 0, Kfac );
-//               if (use_gamma) { fgamma0( L, T, &Fm[Of], ftable, ftable_ld, Kfac ); }
+               bool use_gamma = t_c_g0_n_v2(
+                  &Fm[Of], R, T, L, C0, ld_C0,
+                  POT_TRUNC_N1, POT_TRUNC_N2,
+                  x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 0, Kfac );
+               if (use_gamma) { fgamma0( L, T, &Fm[Of], ftable, ftable_ld, Kfac ); }
 
 //            break;
 //         } // end switch potential_type
@@ -253,32 +250,33 @@ __global__ void compute_Vm_batched_gpu_low_private(
       int potential_type, const int Ng ){
 
    int F_size = Fsize(L);
-   __shared__ double cdpa[CDPA_SIZE];
    int p = blockIdx.x;
 
    const int Of0 = (p * Ng + 0 ) * F_size ;
 
-   double P[3], C[3], D[3], Q[3], W[3], PA[3];
+   double P[3], QC[3], Q[3], W[3], PA[3], Qp[3];
    double zc,zd,zcd,zab,invz,rho,izab,i2ab,mrab,izcd,i2cd,mrcd,i2z;
 
-   C[0] = Fm[Of0+L+1+CDPA_COSx];
-   C[1] = Fm[Of0+L+1+CDPA_COSy];
-   C[2] = Fm[Of0+L+1+CDPA_COSz];
-   D[0] = Fm[Of0+L+1+CDPA_DOSx];
-   D[1] = Fm[Of0+L+1+CDPA_DOSy];
-   D[2] = Fm[Of0+L+1+CDPA_DOSz];
-   P[0] = Fm[Of0+L+1+CDPA_Px  ];
-   P[1] = Fm[Of0+L+1+CDPA_Py  ];
-   P[2] = Fm[Of0+L+1+CDPA_Pz  ];
-   PA[0] = Fm[Of0+L+1+CDPA_PmAx];
-   PA[1] = Fm[Of0+L+1+CDPA_PmAy];
-   PA[2] = Fm[Of0+L+1+CDPA_PmAz];
+   PA[0] = Fm[Of0+L+1];
+   PA[1] = Fm[Of0+L+2];
+   PA[2] = Fm[Of0+L+3];
+   P[0] = Fm[Of0+L+4];
+   P[1] = Fm[Of0+L+5];
+   P[2] = Fm[Of0+L+6];
+   QC[0] = Fm[Of0+L+7];
+   QC[1] = Fm[Of0+L+8];
+   QC[2] = Fm[Of0+L+9];
+   Q[0] =  Fm[Of0+L+10];
+   Q[1] =  Fm[Of0+L+11];
+   Q[2] =  Fm[Of0+L+12];
 
+//////////
+   invz = Fm[Of0+L+14];
+   zc   = Fm[Of0+L+15];
+   zd   = Fm[Of0+L+16];
+   zab  = Fm[Of0+L+17];
 
-   invz = Fm[Of0+L+1+CDPA_invz];
-   zc   = Fm[Of0+L+1+CDPA_zc  ];
-   zd   = Fm[Of0+L+1+CDPA_zd  ];
-   zab  = Fm[Of0+L+1+CDPA_zab ];
+   __syncthreads(); // sync before Fm[Of0] is wrote over by tid 0
 
    zcd  = zc + zd;
    rho  = zab * zcd * invz;
@@ -291,40 +289,39 @@ __global__ void compute_Vm_batched_gpu_low_private(
    mrcd =  -1. * rho * izcd * i2cd;
    i2z  = 0.5 * invz;
 
-   compute_weighted_distance( Q, C,D,zc ,zd ,izcd );
-
    for ( int n3 = threadIdx.x; n3 < Ng ; n3 += blockDim.x ){
 
       int Of = Of0 + n3 * F_size ;
 
-      C[0] = cdpa[CDPA_COSx] + neighs[n3*3+0];
-      C[1] = cdpa[CDPA_COSy] + neighs[n3*3+1];
-      C[2] = cdpa[CDPA_COSz] + neighs[n3*3+2];
+      Qp[0] = Q[0] + neighs[n3*3+0];
+      Qp[1] = Q[1] + neighs[n3*3+1];
+      Qp[2] = Q[2] + neighs[n3*3+2];
 
-      D[0] = cdpa[CDPA_DOSx] + neighs[n3*3+0];
-      D[1] = cdpa[CDPA_DOSy] + neighs[n3*3+1];
-      D[2] = cdpa[CDPA_DOSz] + neighs[n3*3+2];
+      compute_weighted_distance( W, P, Qp, zab,zcd,invz );
+      if ( Fm[Of+0] > 0.0 ){
 
-      compute_weighted_distance( Q, C,D,zc ,zd ,izcd );
-      compute_weighted_distance( W, P,Q,zab,zcd,invz );
+         Fm[Of+L+ 1] = PA[0];
+         Fm[Of+L+ 2] = PA[1];
+         Fm[Of+L+ 3] = PA[2];
+         Fm[Of+L+ 4] = W[0]-P[0];
+         Fm[Of+L+ 5] = W[1]-P[1];
+         Fm[Of+L+ 6] = W[2]-P[2];
+         Fm[Of+L+ 7] = QC[0];
+         Fm[Of+L+ 8] = QC[1];
+         Fm[Of+L+ 9] = QC[2];
+         Fm[Of+L+10] = W[0]-Qp[0];
+         Fm[Of+L+11] = W[1]-Qp[1];
+         Fm[Of+L+12] = W[2]-Qp[2];
+         Fm[Of+L+13] = i2ab;
+         Fm[Of+L+14] = mrab;
+         Fm[Of+L+15] = i2cd;
+         Fm[Of+L+16] = mrcd;
+         Fm[Of+L+17] = i2z ;
+      }
+//      if ( L == 1 and blockIdx.x == 1024){
+//         printf("%d.%d %d.%d TR: %lg %lg %lg \n", blockIdx.x, threadIdx.x, p, n3, i2ab, mrab, i2z );
+//      }
 
-      Fm[Of+L+ 1] = PA[0];
-      Fm[Of+L+ 2] = PA[1];
-      Fm[Of+L+ 3] = PA[2];
-      Fm[Of+L+ 4] = W[0]-P[0];
-      Fm[Of+L+ 5] = W[1]-P[1];
-      Fm[Of+L+ 6] = W[2]-P[2];
-      Fm[Of+L+ 7] = Q[0]-C[0];
-      Fm[Of+L+ 8] = Q[1]-C[1];
-      Fm[Of+L+ 9] = Q[2]-C[2];
-      Fm[Of+L+10] = W[0]-Q[0];
-      Fm[Of+L+11] = W[1]-Q[1];
-      Fm[Of+L+12] = W[2]-Q[2];
-      Fm[Of+L+13] = i2ab;
-      Fm[Of+L+14] = mrab;
-      Fm[Of+L+15] = i2cd;
-      Fm[Of+L+16] = mrcd;
-      Fm[Of+L+17] = i2z ;
    }
 }
 

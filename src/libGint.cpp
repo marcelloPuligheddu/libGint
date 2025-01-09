@@ -785,7 +785,9 @@ void libGint::dispatch( bool dispatch_all ){
          x12_to_patch_low_R_dev, x12_to_patch_high_R_dev, BW_by_patch_dev,
          potential_type, max_ncells );
 
-      compute_Vm_batched_gpu_low_private<<<Fm_numblocks,Fm_blocksize,0,cuda_stream>>>(
+      int Vm_blocksize = 64;
+      int Vm_numblocks = Nprm;
+      compute_Vm_batched_gpu_low_private<<<Vm_numblocks,Vm_blocksize,0,cuda_stream>>>(
          Fm_dev, Nprm, labcd, periodic, neighs_dev, 
          ftable_dev, ftable_ld,R_cut,C0_dev,ld_C0,
          x12_to_patch_low_R_dev, x12_to_patch_high_R_dev, BW_by_patch_dev,

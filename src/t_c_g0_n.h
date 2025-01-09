@@ -35,6 +35,12 @@ __host__ void fill_x12_to_patch( const int N1, const int N2, int * x12_to_patch_
 __device__ __host__ bool t_c_g0_n_v2(
       double* res, double R, double T, int Nder, const double* C0, int ld_C0, int N1, int N2, 
       const   int*  const __restrict__ x12_to_patch_low_R, const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ BW_by_patch, int iw, const double Kfac);
+
+__device__ bool t_c_g0_n_v3(
+      double* res, double R, double T, int Nder, const double* C0, int ld_C0, int N1, int N2, 
+      const   int*  const __restrict__ x12_to_patch_low_R, const   int*  const __restrict__ x12_to_patch_high_R,
       const double* const __restrict__ BW_by_patch, int iw);
+
 
 #endif

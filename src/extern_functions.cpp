@@ -76,7 +76,7 @@ void libgint_set_neighs( void * handle, double * neighs_, int nneighs ){
    g_handle -> set_neighs( neighs_, nneighs );
 }
 
-void libgint_set_Atom( void * handle, int i, double * R, double * Z, int np ){
+void libgint_set_Atom( void * handle, int i, double * R, double * Z, int np){
    libGint * g_handle = (libGint *) handle ;
 //   cout << " Setting Atom(set) " << i << " at " << R[0] << " " << R[1] << " " << R[2] << " w Z: | " ;
 //   for ( int i = 0 ; i < np ; i++ ){ cout << Z[i] << " " ; }

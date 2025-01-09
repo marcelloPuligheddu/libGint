@@ -21,8 +21,6 @@ __global__ void compute_ECO_batched_gpu_low(
 
    unsigned int Nop = numVC - numV + 1;
 
-
-
    for( int block=blockIdx.x; block < Ncells*Nop ; block += gridDim.x ){
 
       // thr 1 load / compute block wide constants that will then be bcast to all thrs.
@@ -33,7 +31,7 @@ __global__ void compute_ECO_batched_gpu_low(
 
       if ( threadIdx.x == 0 ){
          ibk = block / (Nop); 
-         op              =  block % Nop + numV ;
+         op     =  block % Nop + numV ;
          Ov     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OV];
          Og     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OG];
          n_prm  = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPRM];
@@ -81,18 +79,18 @@ __global__ void compute_ECO_batched_gpu_low(
 
       __syncthreads();
 
-      const int TS_l = 2;
-      const int TS_j = 2;
-      const int F1 = 8;
-      const int F2 = 8;
-      const int BS_p = 8;
-      const int dim = F1*F2; // 64
-      const int BS_l = F1 * TS_l; // 32
-      const int BS_j = F2 * TS_j; // 32
-      const int totResBlkT = BS_l * BS_j; // 32*32 = 1024
-      const int numThrBlkT = totResBlkT / (TS_l*TS_j); // = F1 * F2 = 64 = 1024 / 4 / 4 
-      const int strideK = numThrBlkT / BS_p; // = BS_l * BS_j / TS_l*TS_j / BS_p = dim / BS_p = 64 / 64 = 1
-      const int strideI = numThrBlkT / BS_j; // = BS_l * BS_j / TS_l*TS_j / BS_j = BS_l / TS_l / TS_j = F1 / TS_j = 64 / 32 = 2
+      constexpr int TS_l = 2;
+      constexpr int TS_j = 2;
+      constexpr int F1 = 8;
+      constexpr int F2 = 8;
+      constexpr int BS_p = 8;
+      constexpr int dim = F1*F2; // 64
+      constexpr int BS_l = F1 * TS_l; // 32
+      constexpr int BS_j = F2 * TS_j; // 32
+      constexpr int totResBlkT = BS_l * BS_j; // 32*32 = 1024
+      constexpr int numThrBlkT = totResBlkT / (TS_l*TS_j); // = F1 * F2 = 64 = 1024 / 4 / 4 
+      constexpr int strideK = numThrBlkT / BS_p; // = BS_l * BS_j / TS_l*TS_j / BS_p = dim / BS_p = 64 / 64 = 1
+      constexpr int strideI = numThrBlkT / BS_j; // = BS_l * BS_j / TS_l*TS_j / BS_j = BS_l / TS_l / TS_j = F1 / TS_j = 64 / 32 = 2
 
       assert( numThrBlkT == dim );
       assert( numThrBlkT == blockDim.x );
@@ -247,22 +245,24 @@ __global__ void compute_SFT_batched_gpu_low(
       const int VBS = vrr_blocksize;
 
       // arguable
-      const int best_eco_team_size = NcoAC ;
-      int eco_team_size = blockDim.x;
-      while ( eco_team_size > best_eco_team_size ){ eco_team_size /= 2; }
+      constexpr int ETS = 16;
+      constexpr int NET =  8;
+//      const int best_eco_team_size = NcoAC ;
+//      int eco_team_size = blockDim.x;
+//      while ( eco_team_size > best_eco_team_size ){ eco_team_size /= 2; }
 
-      int num_eco_teams = blockDim.x / eco_team_size;
-      int my_eco_team = threadIdx.x / eco_team_size;
-      int my_eco_rank = threadIdx.x % eco_team_size;
+//      int num_eco_teams = blockDim.x / eco_team_size;
+      int my_eco_team = threadIdx.x / ETS;
+      int my_eco_rank = threadIdx.x % ETS;
 
       double * const pr_0 = &AC[ Ov*Ng*VBS + off_m1];
       const int pr_ld_i = Ng*VBS;
       // PR[i,0,j] = sum( PR[i,n,j] )
       // pr_ld_i = Ng*VBS
       // pr_ld_n = VBS
-      for ( int idx_prm = my_eco_team ; idx_prm < n_prm ; idx_prm += num_eco_teams ){
+      for ( int idx_prm = my_eco_team ; idx_prm < n_prm ; idx_prm += NET ){
          double * pr = pr_0 + pr_ld_i*idx_prm;
-         for( int j = my_eco_rank; j < NcoAC; j+= eco_team_size ){
+         for( int j = my_eco_rank; j < NcoAC; j+= ETS ){
             double s = 0.0;
             for( int n3 = 1 ; n3 < Ng; n3++ ){ s += pr[ VBS*n3 + j ]; }
             pr[j] += s;
@@ -280,9 +280,6 @@ __global__ void compute_ECO_batched_gpu_low_old(
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
       int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng ){
-
-//   int F_size = L+1;
-//   if (L > 0){ F_size += 4*3+5; }
 
 //   // TODO to constant array
 //   unsigned int L1 = L / 2;

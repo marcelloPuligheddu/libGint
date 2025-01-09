@@ -193,30 +193,34 @@ void fgamma0_ref( int nmax, double T, double* f, const double* ftable, int ftabl
 }
 
 
-__host__ __device__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld ){
+__host__ __device__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld___, double fac ){
    if ( T < Teps ){
       // eps < T -> T=0
       for( int n = 0 ; n <= nmax ; n++ ){
-         f[n] = 1.0/(2.*n+1.);
+         f[n] = fac/(2.*n+1.);
       }
-   } else if ( T < 12.  ){
+      return;
+   }
+   if ( T < 12.  ){
       // eps < T < 12 -> Taylor expansion + downward
-      double tdelta = 0.1;
+      constexpr double tdelta = 0.1;
+      constexpr int ftable_ld = 28;
       int itab = int(round(T/tdelta));
       double ttab = double(itab)*tdelta;
       double tmp = 1.0;
       double inv_fac = 1.0; // 1/i!
-      f[nmax] = ftable[itab*ftable_ld+nmax];
+      double fL = ftable[itab*ftable_ld+nmax+0];
       // 6th order Taylor expansion
-      tmp *= (ttab-T); inv_fac = 1.0    ; f[nmax] += ftable[itab*ftable_ld+nmax+1]*tmp*inv_fac;
-      tmp *= (ttab-T); inv_fac = 0.5    ; f[nmax] += ftable[itab*ftable_ld+nmax+2]*tmp*inv_fac;
-      tmp *= (ttab-T); inv_fac = 1./6.  ; f[nmax] += ftable[itab*ftable_ld+nmax+3]*tmp*inv_fac;
-      tmp *= (ttab-T); inv_fac = 1./24. ; f[nmax] += ftable[itab*ftable_ld+nmax+4]*tmp*inv_fac;
-      tmp *= (ttab-T); inv_fac = 1./120.; f[nmax] += ftable[itab*ftable_ld+nmax+5]*tmp*inv_fac;
-      tmp *= (ttab-T); inv_fac = 1./720.; f[nmax] += ftable[itab*ftable_ld+nmax+6]*tmp*inv_fac;
+      tmp *= (ttab-T); inv_fac = 1.0    ; fL += ftable[itab*ftable_ld+nmax+1]*tmp*inv_fac;
+      tmp *= (ttab-T); inv_fac = 0.5    ; fL += ftable[itab*ftable_ld+nmax+2]*tmp*inv_fac;
+      tmp *= (ttab-T); inv_fac = 1./6.  ; fL += ftable[itab*ftable_ld+nmax+3]*tmp*inv_fac;
+      tmp *= (ttab-T); inv_fac = 1./24. ; fL += ftable[itab*ftable_ld+nmax+4]*tmp*inv_fac;
+      tmp *= (ttab-T); inv_fac = 1./120.; fL += ftable[itab*ftable_ld+nmax+5]*tmp*inv_fac;
+      tmp *= (ttab-T); inv_fac = 1./720.; fL += ftable[itab*ftable_ld+nmax+6]*tmp*inv_fac;
       // Use the downward recursion relation to 
       // generate the remaining F_n(t) values   
       double expt = exp(-T);
+      f[nmax] = fL;
       for( int n = nmax-1 ; n >= 0 ; n--){
          f[n] = (2.0*T*f[n + 1] + expt)/(2.*n + 1.);
       }
@@ -226,15 +230,16 @@ __host__ __device__ void fgamma0( int nmax, double T, double* f, const double* f
       double tmp2 = tmp*tmp;
       double tmp3 = tmp*tmp2;
       double g = 0.4999489092 - 0.2473631686*tmp + 0.321180909*tmp2 - 0.3811559346*tmp3;
-      f[0] = 0.5*sqrt(M_PI*tmp) - g*exp(-T)*tmp;
       // Use the upward recursion relation to
       // generate the remaining F_n(t) values
       double expt = exp(-T);
-
+      f[0] = 0.5*sqrt(M_PI*tmp) - g*expt*tmp;
       for ( int n=1 ; n <= nmax ; n++ ){
          f[n] = (0.5*tmp)*( (2.*n - 1.)*f[n - 1] - expt );
       }
    }
+   for( int n = 0 ; n <= nmax ; n++ ){ f[n] *= fac; }
+   return;
 }
 
 #undef Teps

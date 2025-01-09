@@ -88,7 +88,7 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 // T is the type of an operation. LA,LB,LC,LD are the moments of the results of the operation. 
 // M and H are used for the m index of the operand. H is also used for the priority of the operation
 // M1 to M6 are memory location. M1 is always the result.
-#define OP_SIZE 13
+#define OP_SIZE 19
 #define T__OFFSET 0
 #define LA_OFFSET 1
 #define LB_OFFSET 2
@@ -96,12 +96,20 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 #define LD_OFFSET 4
 #define M__OFFSET 5
 #define H__OFFSET 6
+
 #define M1_OFFSET 7
 #define M2_OFFSET 8
 #define M3_OFFSET 9
 #define M4_OFFSET 10
 #define M5_OFFSET 11
 #define M6_OFFSET 12
+
+#define L1_OFFSET 13
+#define L2_OFFSET 14
+#define L3_OFFSET 15
+#define L4_OFFSET 16
+#define L5_OFFSET 17
+#define L6_OFFSET 18
 
 #define MAX_NUM_VRR_TEAMS 16
 #define MAX_NUM_QUARTETS 100000
@@ -176,6 +184,38 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 
 #define POT_TRUNC_N1 128
 #define POT_TRUNC_N2 128
+
+#define CDPA_COSx  0
+#define CDPA_COSy  1
+#define CDPA_COSz  2
+#define CDPA_DOSx  3
+#define CDPA_DOSy  4
+#define CDPA_DOSz  5
+#define CDPA_Px    6
+#define CDPA_Py    7
+#define CDPA_Pz    8
+#define CDPA_PmAx  9
+#define CDPA_PmAy 10
+#define CDPA_PmAz 11
+
+#define CDPA_Kfac 12
+#define CDPA_invz 13
+#define CDPA_zc   14
+#define CDPA_zd   15
+#define CDPA_zab  16
+
+#define CDPA_zcd  17
+#define CDPA_rho  18
+#define CDPA_R    19
+#define CDPA_izab 20
+#define CDPA_i2ab 21
+#define CDPA_mrab 22
+#define CDPA_izcd 23
+#define CDPA_i2cd 24
+#define CDPA_mrcd 25
+#define CDPA_i2z  26
+
+#define CDPA_SIZE 27
 
 
 

@@ -70,9 +70,11 @@ __device__ __host__ bool t_c_g0_n_v2(
       const   int*  const __restrict__ x12_to_patch_low_R, 
       const   int*  const __restrict__ x12_to_patch_high_R, 
       const double* const __restrict__ BW_by_patch,
-      int iw=0 ){
+      int iw, const double Kfac ){
+
 //   printf(" computing tcg R: %lg T: %lg ", R, T );
 //   bool use_gamma = false;
+
    double upper = R*R + 11.0*R + 50.0;
    double lower = R*R - 11.0*R +  0.0;
    double X1, X2;
@@ -97,10 +99,10 @@ __device__ __host__ bool t_c_g0_n_v2(
       if ( i1 == N1 ){ i1 = N1-1; }
       if ( i2 == N2 ){ i2 = N2-1; }
 
-      assert( i1 >= 0 );
-      assert( i1 < N1 );
-      assert( i2 >= 0 );
-      assert( i2 < N2 );
+//      assert( i1 >= 0 );
+//      assert( i1 < N1 );
+//      assert( i2 >= 0 );
+//      assert( i2 < N2 );
 
       patch = x12_to_patch_low_R[ i1*N2+i2 ];
    } else {
@@ -120,10 +122,10 @@ __device__ __host__ bool t_c_g0_n_v2(
       if ( i1 == N1 ){ i1 = N1-1; }
       if ( i2 == N2 ){ i2 = N2-1; }
 
-      assert( i1 >= 0 );
-      assert( i1 < N1 );
-      assert( i2 >= 0 );
-      assert( i2 < N2 );
+//      assert( i1 >= 0 );
+//      assert( i1 < N1 );
+//      assert( i2 >= 0 );
+//      assert( i2 < N2 );
 
       patch = x12_to_patch_high_R[ i1*N2+i2 ];
    }
@@ -133,9 +135,10 @@ __device__ __host__ bool t_c_g0_n_v2(
    const double B2 = BW_by_patch[ patch*4 + 2 ];
    const double W2 = BW_by_patch[ patch*4 + 3 ];
 
-   if ( iw > 0 ){
-      printf(" Computing tcg @ %lg %lg -> X12p = %lg %lg %d | BW = %lg %lg %lg %lg \n", R,T,X1,X2,patch,B1,W1,B2,W2 );
-   }
+//   if ( iw > 0 ){
+//      printf(" Computing tcg @ %lg %lg -> X12p = %lg %lg %d | BW = %lg %lg %lg %lg \n", R,T,X1,X2,patch,B1,W1,B2,W2 );
+//   }
+   
    const double * const C0_row = &C0[ld_C0*patch];
 
    double TG1 = (2.*X1-B1)*W1;
@@ -154,10 +157,11 @@ __device__ __host__ bool t_c_g0_n_v2(
       T1[i] = 2.*TG1*T1[i-1] - T1[i-2];
       T2[i] = 2.*TG2*T2[i-1] - T2[i-2];
    }
+
    // NOTE: this horror has the structure v1(k) @ L(k) @ v2(k).T[::-1]
    // where v1 and v2 are vector and L is a (flattened) Triangular matrix
    for ( int k=0; k <= Nder; k++ ){
-      res[k] = 0.; 
+      double tmp = 0.0;
       int jl = 0; // unlike l, jl does not get reset after the l loop
       for ( int j=0; j < 14; j++ ){
          double dot = 0.0;
@@ -167,17 +171,101 @@ __device__ __host__ bool t_c_g0_n_v2(
             jl++;
          }
 //         printf(" T2[j]: %lg dot : %lg || j k %d %d || \n", T2[j], dot, j, k );
-         res[k] += dot * T2[j];
+         tmp += dot * T2[j];
+
       }
+      res[k] = tmp*Kfac;
    }
    return false;
 }
 
-///////////////////////////////////// v1 /////////////////////////////////
 
-__device__ __host__ void PD2VAL( double* res, int Nder, double TG1, double TG2, const double* C0_row ){
-   double T1[14], T2[14];
-//   printf(" TG1 %lf TG2 %lf ", TG1, TG2 );
+
+__device__ bool t_c_g0_n_v3(
+      double* res, double R, double T, int Nder, const double* C0, int ld_C0,
+      int N1, int N2,
+      const   int*  const __restrict__ x12_to_patch_low_R,
+      const   int*  const __restrict__ x12_to_patch_high_R,
+      const double* const __restrict__ BW_by_patch,
+      int iw=0 ){
+
+   constexpr int NFT =   2;
+   constexpr int SFT =  32;
+   constexpr int NPT =   1;
+
+   assert( NFT*SFT/NPT == blockDim.x );
+
+   int my_fm_rank = threadIdx.x % SFT;
+   int my_fm_team = threadIdx.x / SFT;
+ 
+   double upper = R*R + 11.0*R + 50.0;
+   double lower = R*R - 11.0*R +  0.0;
+   double X1, X2;
+   int patch = 255;
+
+//   printf(" %d.%d v3 %lg %lg \n", blockIdx.x, threadIdx.x, T,R );
+
+   if (T > upper) {
+      for ( int n = 0; n <= Nder ; n++ ){
+         res[n] = 0.0;
+      }
+      return false;
+   }
+
+   if (R <= 11.0) {
+      X2 = R/11.0;
+      upper = R*R + 11.0*R + 50.0;
+      lower = 0.0;
+      X1 = (T - lower)/(upper - lower);
+
+      int i1 = (X1 * N1);
+      int i2 = (X2 * N2);
+
+      if ( i1 == N1 ){ i1 = N1-1; }
+      if ( i2 == N2 ){ i2 = N2-1; }
+
+      patch = x12_to_patch_low_R[ i1*N2+i2 ];
+   } else {
+      if ( T < lower ) { // if R > 11 and T < R2 - 11 R use gamma
+         // why even zero? Res is going to get overwritten by gamma
+         for ( int n = 0; n <= Nder ; n++ ){
+            res[n] = 0.0;
+         }
+         return true;
+      }
+      X2 = 11.0/R;
+      X1 = (T-lower)/(upper-lower);
+
+      int i1 = (X1 * N1);
+      int i2 = (X2 * N2);
+
+      if ( i1 == N1 ){ i1 = N1-1; }
+      if ( i2 == N2 ){ i2 = N2-1; }
+
+      patch = x12_to_patch_high_R[ i1*N2+i2 ];
+   }
+
+   const double B1 = BW_by_patch[ patch*4 + 0 ];
+   const double W1 = BW_by_patch[ patch*4 + 1 ];
+   const double B2 = BW_by_patch[ patch*4 + 2 ];
+   const double W2 = BW_by_patch[ patch*4 + 3 ];
+
+   double TG1 = (2.*X1-B1)*W1;
+   double TG2 = (2.*X2-B2)*W2;
+
+//   printf(" Computing tcg @ %lg %lg -> X12p = %lg %lg %d | BW = %lg %lg %lg %lg \n", T,R, X1,X2,patch, B1,W1,B2,W2 );
+
+   double T1[16];
+   double T2[16];
+
+   constexpr int s_ld = SFT+8;
+
+   __shared__ double s_tmp[NFT*s_ld];
+   __shared__ double s_dot_jt[NFT*s_ld]; // TODO reuse s_tmp (?)
+   __shared__ double dot[NFT*SFT]; // TODO not shared (?)
+
+   unsigned int tid = threadIdx.x;
+
    T1[0] = 1.0;
    T2[0] = 1.0;
    T1[1] = SQRT2*TG1;
@@ -186,1291 +274,73 @@ __device__ __host__ void PD2VAL( double* res, int Nder, double TG1, double TG2, 
    T2[2] = 2.*TG2*T2[1] - SQRT2;
    for ( int i=3; i < 14; i++ ) {
       // NOTE: this is the recurrence relation for Chebishev polynomial of the first kind
-      // BUT : T[1] and T[2] do not follow the same rule
       T1[i] = 2.*TG1*T1[i-1] - T1[i-2];
       T2[i] = 2.*TG2*T2[i-1] - T2[i-2];
    }
+   T1[14] = 0.0;
+   T2[14] = 0.0;
+   T1[15] = 0.0;
+   T2[15] = 0.0;
+
+
    // NOTE: this horror has the structure v1(k) @ L(k) @ v2(k).T[::-1]
    // where v1 and v2 are vector and L is a (flattened) Triangular matrix
+
+   // Zero the extra 8 doubles at the end of the shared memory assigned to this team
+   s_dot_jt[my_fm_team*s_ld+my_fm_rank+8] = 0.0;
+   s_tmp[my_fm_team*s_ld+my_fm_rank+8] = 0.0;
+
    for ( int k=0; k <= Nder; k++ ){
-      res[k] = 0.; 
-      int jl = 0; // unlike l, jl does not get reset after the l loop
+      int jl = 0;
       for ( int j=0; j < 14; j++ ){
-         double dot = 0.0;
-         for ( int l=0; l < 14-j; l++){
-            dot += T1[l] * C0_row[k*105+jl];
-//            printf(" T1[l]: %lg C0_kl : %lg || k j l jl kjl %d %d %d %d %d || \n", T1[l], C0_row[k*105+jl], k, j, l, jl, k*105+jl );
-            jl++;
+         // Step 1: load C and multiply by T1 into shared memory
+         // TODO: reshape C0 into 16*16 square matrix
+         // NOTE: each thread will only ever use T1[my_fm_rank]
+         // TODO: compute multiple T1 and T2 for different n3 in the same team and share
+         int l = my_fm_rank;
+         if ( l < 14-j ) {
+            s_dot_jt[my_fm_team*s_ld+l] = C0[ld_C0*patch + k*105 + jl + l] * T1[l];
+//            printf(" %d.%d.%d | C0.T1 = %lg %lg %lg \n", blockIdx.x, threadIdx.x, j, C0[ld_C0*patch + k*105 + jl + l] * T1[l], C0[ld_C0*patch + k*105 + jl + l], T1[l] );
+         } else {
+            s_dot_jt[my_fm_team*s_ld+l] = 0.0;
          }
-//         printf(" T2[j]: %lg dot : %lg || j k %d %d || \n", T2[j], dot, j, k );
-         res[k] += dot * T2[j];
+         __syncwarp();
+
+         // Step 2: sum over l to compute dot[j]
+         const unsigned int sid = my_fm_team*s_ld+l;
+         s_dot_jt[sid] += s_dot_jt[sid + 8];__syncwarp();
+         s_dot_jt[sid] += s_dot_jt[sid + 4];__syncwarp();
+         s_dot_jt[sid] += s_dot_jt[sid + 2];__syncwarp();
+         s_dot_jt[sid] += s_dot_jt[sid + 1];__syncwarp();
+
+         // s_dot_jt[0] now contains the sum of C0 * T1 for this j and this idx_t
+         dot[my_fm_team*16+j] = s_dot_jt[my_fm_team*s_ld+0];
+//         printf(" %d.%d.%d | C0@T1 = %lg \n", blockIdx.x, threadIdx.x, j, dot[my_fm_team*16+j] );
+         __syncwarp();
+         jl += 14-j;
       }
+      // Zero extra term in dot. Dot is the size 14 vector product of C(14x14,Triangular) and T1(14)
+      // TODO: Recast as a (16x16,Square) @ 16 product
+      dot[my_fm_team*16+14] = 0.0;
+      dot[my_fm_team*16+15] = 0.0;
+      // Now we have all the C0 @ T1 for all j for this given idx_t and k
+      int j = my_fm_rank;
+      const unsigned int sid = my_fm_team*s_ld+j;
+      // Step 3: multiply by T2 and sum over j
+      s_tmp[my_fm_team*s_ld+j] = dot[my_fm_team*16+j] * T2[j];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 8];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 4];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 2];__syncwarp();
+      s_tmp[sid] += s_tmp[sid + 1];__syncwarp();
+
+      if( my_fm_rank == 0 ) {
+         res[k] = s_tmp[my_fm_team*s_ld+0];
+//         printf(" %d.%d | R %lg \n", blockIdx.x, threadIdx.x, res[k] );
+      }
+      __syncwarp();
    }
+   return false;
 }
 
-
-__device__ __host__ bool t_c_g0_n( double* res, double R, double T, int Nder, const double* C0, int ldc0 ){
-//   printf(" computing tcg R: %lg T: %lg ", R, T );
-   bool use_gamma = false;
-   double upper = R*R + 11.0*R + 50.0;
-   double lower = R*R - 11.0*R +  0.0;
-   double X1, X2, TG1, TG2;
-   if (T > upper) { 
-      for ( int n = 0; n <= Nder ; n++ ){
-         res[n] = 0.0;
-      }
-      return use_gamma;
-   }
-   if (R <= 11.0) { 
-      X2 = R/11.0;
-      upper = R*R + 11.0*R + 50.0;
-      lower = 0.0;
-      X1 = (T - lower)/(upper - lower);
-      if (X1 <= 0.500000000000000000E+00) { 
-         if (X2 <= 0.500000000000000000E+00) { 
-            if (X2 <= 0.250000000000000000E+00) { 
-               if (X2 <= 0.125000000000000000E+00) { 
-                  if (X1 <= 0.250000000000000000E+00) { 
-                     if (X2 <= 0.625000000000000000E-01) { 
-                        if (X1 <= 0.125000000000000000E+00) { 
-                           if (X2 <= 0.312500000000000000E-01) { 
-                              if (X1 <= 0.625000000000000000E-01) { 
-                                 if (X2 <= 0.156250000000000000E-01) { 
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.156250000000000000E-01)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*0]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.156250000000000000E-01)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*1]);
-                                    }
-                                 } else {
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*2]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*3]);
-                                    }
-                                 }
-                              } else {
-                                 if (X2 <= 0.156250000000000000E-01) { 
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.156250000000000000E-01)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*4]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*5]);
-                                 }
-                              }
-                           } else {
-                              if (X1 <= 0.625000000000000000E-01) { 
-                                 if (X2 <= 0.468750000000000000E-01) { 
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.781250000000000000E-01)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*6]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.781250000000000000E-01)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*7]);
-                                    }
-                                 } else {
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.109375000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*8]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.109375000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*9]);
-                                    }
-                                 }
-                              } else {
-                                 if (X2 <= 0.468750000000000000E-01) { 
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.781250000000000000E-01)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*10]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.109375000000000000E+00)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*11]);
-                                 }
-                              }
-                           }
-                        } else {
-                           if (X2 <= 0.312500000000000000E-01) { 
-                              if (X1 <= 0.187500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*12]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*13]);
-                              }
-                           } else {
-                              if (X1 <= 0.187500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*14]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*15]);
-                              }
-                           }
-                        }
-                     } else {
-                        if (X1 <= 0.125000000000000000E+00) { 
-                           if (X2 <= 0.937500000000000000E-01) { 
-                              if (X1 <= 0.625000000000000000E-01) { 
-                                 if (X2 <= 0.781250000000000000E-01) { 
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.140625000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*16]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.140625000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*17]);
-                                    }
-                                 } else {
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.171875000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*18]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.171875000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*19]);
-                                    }
-                                 }
-                              } else {
-                                 if (X2 <= 0.781250000000000000E-01) { 
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.140625000000000000E+00)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*20]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.171875000000000000E+00)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*21]);
-                                 }
-                              }
-                           } else {
-                              if (X1 <= 0.625000000000000000E-01) { 
-                                 if (X2 <= 0.109375000000000000E+00) { 
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.203125000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*22]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.203125000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*23]);
-                                    }
-                                 } else {
-                                    if (X1 <= 0.312500000000000000E-01) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.234375000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*24]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.234375000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*25]);
-                                    }
-                                 }
-                              } else {
-                                 if (X2 <= 0.109375000000000000E+00) { 
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.203125000000000000E+00)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*26]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.234375000000000000E+00)*0.640000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*27]);
-                                 }
-                              }
-                           }
-                        } else {
-                           if (X1 <= 0.187500000000000000E+00) { 
-                              if (X2 <= 0.937500000000000000E-01) { 
-                                 TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*28]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*29]);
-                              }
-                           } else {
-                              TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*30]);
-                           }
-                        }
-                     }
-                  } else {
-                     if (X1 <= 0.375000000000000000E+00) { 
-                        TG1 = (2.*X1 - 0.625000000000000000E+00)*0.800000000000000000E+01;
-                        TG2 = (2.*X2 - 0.125000000000000000E+00)*0.800000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*31]);
-                     } else {
-                        TG1 = (2.*X1 - 0.875000000000000000E+00)*0.800000000000000000E+01;
-                        TG2 = (2.*X2 - 0.125000000000000000E+00)*0.800000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*32]);
-                     }
-                  }
-               } else {
-                  if (X1 <= 0.250000000000000000E+00) { 
-                     if (X2 <= 0.187500000000000000E+00) { 
-                        if (X1 <= 0.125000000000000000E+00) { 
-                           if (X2 <= 0.156250000000000000E+00) { 
-                              if (X1 <= 0.625000000000000000E-01) { 
-                                 if (X1 <= 0.312500000000000000E-01) { 
-                                    if (X2 <= 0.140625000000000000E+00) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.265625000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*33]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.296875000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*34]);
-                                    }
-                                 } else {
-                                    TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.281250000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*35]);
-                                 }
-                              } else {
-                                 if (X1 <= 0.937500000000000000E-01) { 
-                                    TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.281250000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*36]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.281250000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*37]);
-                                 }
-                              }
-                           } else {
-                              if (X1 <= 0.625000000000000000E-01) { 
-                                 if (X1 <= 0.312500000000000000E-01) { 
-                                    if (X2 <= 0.171875000000000000E+00) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.328125000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*38]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.359375000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*39]);
-                                    }
-                                 } else {
-                                    TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.343750000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*40]);
-                                 }
-                              } else {
-                                 TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.343750000000000000E+00)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*41]);
-                              }
-                           }
-                        } else {
-                           if (X1 <= 0.187500000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*42]);
-                           } else {
-                              TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*43]);
-                           }
-                        }
-                     } else {
-                        if (X1 <= 0.125000000000000000E+00) { 
-                           if (X1 <= 0.625000000000000000E-01) { 
-                              if (X2 <= 0.218750000000000000E+00) { 
-                                 if (X1 <= 0.312500000000000000E-01) { 
-                                    if (X2 <= 0.203125000000000000E+00) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.390625000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*44]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.421875000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*45]);
-                                    }
-                                 } else {
-                                    TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.406250000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*46]);
-                                 }
-                              } else {
-                                 if (X1 <= 0.312500000000000000E-01) { 
-                                    if (X2 <= 0.234375000000000000E+00) { 
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.453125000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*47]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.484375000000000000E+00)*0.640000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*48]);
-                                    }
-                                 } else {
-                                    TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.468750000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*49]);
-                                 }
-                              }
-                           } else {
-                              if (X2 <= 0.218750000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.406250000000000000E+00)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*50]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.468750000000000000E+00)*0.320000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*51]);
-                              }
-                           }
-                        } else {
-                           if (X1 <= 0.187500000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*52]);
-                           } else {
-                              TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*53]);
-                           }
-                        }
-                     }
-                  } else {
-                     if (X1 <= 0.375000000000000000E+00) { 
-                        if (X1 <= 0.312500000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.562500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.375000000000000000E+00)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*54]);
-                        } else {
-                           TG1 = (2.*X1 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.375000000000000000E+00)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*55]);
-                        }
-                     } else {
-                        TG1 = (2.*X1 - 0.875000000000000000E+00)*0.800000000000000000E+01;
-                        TG2 = (2.*X2 - 0.375000000000000000E+00)*0.800000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*56]);
-                     }
-                  }
-               }
-            } else {
-               if (X1 <= 0.250000000000000000E+00) { 
-                  if (X1 <= 0.125000000000000000E+00) { 
-                     if (X1 <= 0.625000000000000000E-01) { 
-                        if (X2 <= 0.375000000000000000E+00) { 
-                           if (X2 <= 0.312500000000000000E+00) { 
-                              if (X1 <= 0.312500000000000000E-01) { 
-                                 if (X2 <= 0.281250000000000000E+00) { 
-                                    TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*57]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*58]);
-                                 }
-                              } else {
-                                 if (X2 <= 0.281250000000000000E+00) { 
-                                    TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*59]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*60]);
-                                 }
-                              }
-                           } else {
-                              if (X1 <= 0.312500000000000000E-01) { 
-                                 if (X2 <= 0.343750000000000000E+00) { 
-                                    TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.656250000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*61]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.718750000000000000E+00)*0.320000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*62]);
-                                 }
-                              } else {
-                                 TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*63]);
-                              }
-                           }
-                        } else {
-                           if (X1 <= 0.312500000000000000E-01) { 
-                              if (X2 <= 0.437500000000000000E+00) { 
-                                 if (X1 <= 0.156250000000000000E-01) { 
-                                    TG1 = (2.*X1 - 0.156250000000000000E-01)*0.640000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*64]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*65]);
-                                 }
-                              } else {
-                                 if (X1 <= 0.156250000000000000E-01) { 
-                                    TG1 = (2.*X1 - 0.156250000000000000E-01)*0.640000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*66]);
-                                 } else {
-                                    TG1 = (2.*X1 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*67]);
-                                 }
-                              }
-                           } else {
-                              if (X2 <= 0.437500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*68]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*69]);
-                              }
-                           }
-                        }
-                     } else {
-                        if (X2 <= 0.375000000000000000E+00) { 
-                           if (X2 <= 0.312500000000000000E+00) { 
-                              if (X1 <= 0.937500000000000000E-01) { 
-                                 TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.562500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*70]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.562500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*71]);
-                              }
-                           } else {
-                              if (X1 <= 0.937500000000000000E-01) { 
-                                 TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*72]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*73]);
-                              }
-                           }
-                        } else {
-                           if (X1 <= 0.937500000000000000E-01) { 
-                              if (X2 <= 0.437500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*74]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*75]);
-                              }
-                           } else {
-                              if (X2 <= 0.437500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*76]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*77]);
-                              }
-                           }
-                        }
-                     }
-                  } else {
-                     if (X2 <= 0.375000000000000000E+00) { 
-                        if (X1 <= 0.187500000000000000E+00) { 
-                           if (X2 <= 0.312500000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.562500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*78]);
-                           } else {
-                              if (X1 <= 0.156250000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.281250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*79]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.343750000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*80]);
-                              }
-                           }
-                        } else {
-                           if (X2 <= 0.312500000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.562500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*81]);
-                           } else {
-                              TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*82]);
-                           }
-                        }
-                     } else {
-                        if (X1 <= 0.187500000000000000E+00) { 
-                           if (X2 <= 0.437500000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                              TG2 = (2.*X2 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*83]);
-                           } else {
-                              if (X1 <= 0.156250000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.281250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*84]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.343750000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*85]);
-                              }
-                           }
-                        } else {
-                           if (X1 <= 0.218750000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.406250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.875000000000000000E+00)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*86]);
-                           } else {
-                              TG1 = (2.*X1 - 0.468750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.875000000000000000E+00)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*87]);
-                           }
-                        }
-                     }
-                  }
-               } else {
-                  if (X1 <= 0.375000000000000000E+00) { 
-                     if (X2 <= 0.375000000000000000E+00) { 
-                        if (X1 <= 0.312500000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.562500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.625000000000000000E+00)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*88]);
-                        } else {
-                           TG1 = (2.*X1 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.625000000000000000E+00)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*89]);
-                        }
-                     } else {
-                        if (X1 <= 0.312500000000000000E+00) { 
-                           if (X1 <= 0.281250000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.875000000000000000E+00)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*90]);
-                           } else {
-                              TG1 = (2.*X1 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.875000000000000000E+00)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*91]);
-                           }
-                        } else {
-                           TG1 = (2.*X1 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.875000000000000000E+00)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*92]);
-                        }
-                     }
-                  } else {
-                     if (X1 <= 0.437500000000000000E+00) { 
-                        TG1 = (2.*X1 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.750000000000000000E+00)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*93]);
-                     } else {
-                        TG1 = (2.*X1 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.750000000000000000E+00)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*94]);
-                     }
-                  }
-               }
-            }
-         } else {
-            if (X1 <= 0.250000000000000000E+00) { 
-               if (X1 <= 0.125000000000000000E+00) { 
-                  if (X1 <= 0.625000000000000000E-01) { 
-                     if (X1 <= 0.312500000000000000E-01) { 
-                        if (X1 <= 0.156250000000000000E-01) { 
-                           if (X1 <= 0.781250000000000000E-02) { 
-                              if (X2 <= 0.750000000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.781250000000000000E-02)*0.128000000000000000E+03;
-                                 TG2 = (2.*X2 - 0.125000000000000000E+01)*0.400000000000000000E+01;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*95]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.781250000000000000E-02)*0.128000000000000000E+03;
-                                 TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*96]);
-                              }
-                           } else {
-                              if (X2 <= 0.750000000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.234375000000000000E-01)*0.128000000000000000E+03;
-                                 TG2 = (2.*X2 - 0.125000000000000000E+01)*0.400000000000000000E+01;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*97]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.234375000000000000E-01)*0.128000000000000000E+03;
-                                 TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*98]);
-                              }
-                           }
-                        } else {
-                           if (X2 <= 0.750000000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                              TG2 = (2.*X2 - 0.125000000000000000E+01)*0.400000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*99]);
-                           } else {
-                              TG1 = (2.*X1 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                              TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*100]);
-                           }
-                        }
-                     } else {
-                        if (X2 <= 0.750000000000000000E+00) { 
-                           if (X2 <= 0.625000000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*101]);
-                           } else {
-                              TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*102]);
-                           }
-                        } else {
-                           if (X1 <= 0.468750000000000000E-01) { 
-                              TG1 = (2.*X1 - 0.781250000000000000E-01)*0.640000000000000000E+02;
-                              TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*103]);
-                           } else {
-                              TG1 = (2.*X1 - 0.109375000000000000E+00)*0.640000000000000000E+02;
-                              TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*104]);
-                           }
-                        }
-                     }
-                  } else {
-                     if (X2 <= 0.750000000000000000E+00) { 
-                        if (X2 <= 0.625000000000000000E+00) { 
-                           if (X1 <= 0.937500000000000000E-01) { 
-                              TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*105]);
-                           } else {
-                              TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*106]);
-                           }
-                        } else {
-                           if (X1 <= 0.937500000000000000E-01) { 
-                              TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*107]);
-                           } else {
-                              TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*108]);
-                           }
-                        }
-                     } else {
-                        if (X1 <= 0.937500000000000000E-01) { 
-                           TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                           TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*109]);
-                        } else {
-                           TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                           TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*110]);
-                        }
-                     }
-                  }
-               } else {
-                  if (X2 <= 0.750000000000000000E+00) { 
-                     if (X2 <= 0.625000000000000000E+00) { 
-                        if (X1 <= 0.187500000000000000E+00) { 
-                           if (X1 <= 0.156250000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.281250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*111]);
-                           } else {
-                              TG1 = (2.*X1 - 0.343750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*112]);
-                           }
-                        } else {
-                           if (X1 <= 0.218750000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.406250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*113]);
-                           } else {
-                              TG1 = (2.*X1 - 0.468750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*114]);
-                           }
-                        }
-                     } else {
-                        if (X1 <= 0.187500000000000000E+00) { 
-                           if (X1 <= 0.156250000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.281250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*115]);
-                           } else {
-                              TG1 = (2.*X1 - 0.343750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*116]);
-                           }
-                        } else {
-                           if (X1 <= 0.218750000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.406250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*117]);
-                           } else {
-                              TG1 = (2.*X1 - 0.468750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*118]);
-                           }
-                        }
-                     }
-                  } else {
-                     if (X1 <= 0.187500000000000000E+00) { 
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*119]);
-                        } else {
-                           TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*120]);
-                        }
-                     } else {
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           if (X1 <= 0.218750000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.406250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*121]);
-                           } else {
-                              TG1 = (2.*X1 - 0.468750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*122]);
-                           }
-                        } else {
-                           TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*123]);
-                        }
-                     }
-                  }
-               }
-            } else {
-               if (X1 <= 0.375000000000000000E+00) { 
-                  if (X2 <= 0.750000000000000000E+00) { 
-                     if (X1 <= 0.312500000000000000E+00) { 
-                        if (X2 <= 0.625000000000000000E+00) { 
-                           if (X1 <= 0.281250000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*124]);
-                           } else {
-                              TG1 = (2.*X1 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*125]);
-                           }
-                        } else {
-                           if (X1 <= 0.281250000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*126]);
-                           } else {
-                              TG1 = (2.*X1 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*127]);
-                           }
-                        }
-                     } else {
-                        if (X2 <= 0.625000000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*128]);
-                        } else {
-                           if (X1 <= 0.343750000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.656250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*129]);
-                           } else {
-                              TG1 = (2.*X1 - 0.718750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*130]);
-                           }
-                        }
-                     }
-                  } else {
-                     if (X1 <= 0.312500000000000000E+00) { 
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           if (X1 <= 0.281250000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*131]);
-                           } else {
-                              TG1 = (2.*X1 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*132]);
-                           }
-                        } else {
-                           if (X1 <= 0.281250000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*133]);
-                           } else {
-                              TG1 = (2.*X1 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*134]);
-                           }
-                        }
-                     } else {
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           if (X1 <= 0.343750000000000000E+00) { 
-                              TG1 = (2.*X1 - 0.656250000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*135]);
-                           } else {
-                              TG1 = (2.*X1 - 0.718750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*136]);
-                           }
-                        } else {
-                           TG1 = (2.*X1 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*137]);
-                        }
-                     }
-                  }
-               } else {
-                  if (X2 <= 0.750000000000000000E+00) { 
-                     if (X1 <= 0.437500000000000000E+00) { 
-                        if (X2 <= 0.625000000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*138]);
-                        } else {
-                           TG1 = (2.*X1 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*139]);
-                        }
-                     } else {
-                        TG1 = (2.*X1 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.125000000000000000E+01)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*140]);
-                     }
-                  } else {
-                     if (X1 <= 0.437500000000000000E+00) { 
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*141]);
-                        } else {
-                           TG1 = (2.*X1 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*142]);
-                        }
-                     } else {
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*143]);
-                        } else {
-                           TG1 = (2.*X1 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*144]);
-                        }
-                     }
-                  }
-               }
-            }
-         }
-      } else {
-         if (X1 <= 0.750000000000000000E+00) { 
-            if (X2 <= 0.500000000000000000E+00) { 
-               if (X1 <= 0.625000000000000000E+00) { 
-                  if (X2 <= 0.250000000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                     TG2 = (2.*X2 - 0.250000000000000000E+00)*0.400000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*145]);
-                  } else {
-                     TG1 = (2.*X1 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                     TG2 = (2.*X2 - 0.750000000000000000E+00)*0.400000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*146]);
-                  }
-               } else {
-                  TG1 = (2.*X1 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                  TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                  PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*147]);
-               }
-            } else {
-               if (X1 <= 0.625000000000000000E+00) { 
-                  if (X2 <= 0.750000000000000000E+00) { 
-                     if (X1 <= 0.562500000000000000E+00) { 
-                        TG1 = (2.*X1 - 0.106250000000000000E+01)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.125000000000000000E+01)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*148]);
-                     } else {
-                        TG1 = (2.*X1 - 0.118750000000000000E+01)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.125000000000000000E+01)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*149]);
-                     }
-                  } else {
-                     if (X1 <= 0.562500000000000000E+00) { 
-                        TG1 = (2.*X1 - 0.106250000000000000E+01)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*150]);
-                     } else {
-                        TG1 = (2.*X1 - 0.118750000000000000E+01)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*151]);
-                     }
-                  }
-               } else {
-                  if (X1 <= 0.687500000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.131250000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*152]);
-                  } else {
-                     TG1 = (2.*X1 - 0.143750000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*153]);
-                  }
-               }
-            }
-         } else {
-            TG1 = (2.*X1 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-            TG2 = (2.*X2 - 0.100000000000000000E+01)*0.100000000000000000E+01;
-            PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*154]);
-         }
-      }
-   } else {
-      if (T < lower) { 
-         use_gamma = true;
-         return use_gamma;
-      }
-      X2 = 11.0/R;
-      X1 = (T - lower)/(upper - lower);
-      if (X1 <= 0.500000000000000000E+00) { 
-         if (X1 <= 0.250000000000000000E+00) { 
-            if (X2 <= 0.500000000000000000E+00) { 
-               if (X1 <= 0.125000000000000000E+00) { 
-                  if (X2 <= 0.250000000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.125000000000000000E+00)*0.800000000000000000E+01;
-                     TG2 = (2.*X2 - 0.250000000000000000E+00)*0.400000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*155]);
-                  } else {
-                     TG1 = (2.*X1 - 0.125000000000000000E+00)*0.800000000000000000E+01;
-                     TG2 = (2.*X2 - 0.750000000000000000E+00)*0.400000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*156]);
-                  }
-               } else {
-                  TG1 = (2.*X1 - 0.375000000000000000E+00)*0.800000000000000000E+01;
-                  TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                  PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*157]);
-               }
-            } else {
-               if (X1 <= 0.125000000000000000E+00) { 
-                  if (X2 <= 0.750000000000000000E+00) { 
-                     if (X2 <= 0.625000000000000000E+00) { 
-                        TG1 = (2.*X1 - 0.125000000000000000E+00)*0.800000000000000000E+01;
-                        TG2 = (2.*X2 - 0.112500000000000000E+01)*0.800000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*158]);
-                     } else {
-                        if (X1 <= 0.625000000000000000E-01) { 
-                           TG1 = (2.*X1 - 0.625000000000000000E-01)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*159]);
-                        } else {
-                           TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*160]);
-                        }
-                     }
-                  } else {
-                     if (X1 <= 0.625000000000000000E-01) { 
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           if (X1 <= 0.312500000000000000E-01) { 
-                              if (X2 <= 0.812500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.156250000000000000E+01)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*161]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.312500000000000000E-01)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.168750000000000000E+01)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*162]);
-                              }
-                           } else {
-                              TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*163]);
-                           }
-                        } else {
-                           if (X1 <= 0.312500000000000000E-01) { 
-                              if (X2 <= 0.937500000000000000E+00) { 
-                                 if (X1 <= 0.156250000000000000E-01) { 
-                                    if (X2 <= 0.906250000000000000E+00) { 
-                                       TG1 = (2.*X1 - 0.156250000000000000E-01)*0.640000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.178125000000000000E+01)*0.320000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*164]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.156250000000000000E-01)*0.640000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.184375000000000000E+01)*0.320000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*165]);
-                                    }
-                                 } else {
-                                    TG1 = (2.*X1 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.181250000000000000E+01)*0.160000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*166]);
-                                 }
-                              } else {
-                                 if (X1 <= 0.156250000000000000E-01) { 
-                                    if (X2 <= 0.968750000000000000E+00) { 
-                                       if (X1 <= 0.781250000000000000E-02) { 
-                                          if (X2 <= 0.953125000000000000E+00) { 
-                                             TG1 = (2.*X1 - 0.781250000000000000E-02)*0.128000000000000000E+03;
-                                             TG2 = (2.*X2 - 0.189062500000000000E+01)*0.640000000000000000E+02;
-                                             PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*167]);
-                                          } else {
-                                             TG1 = (2.*X1 - 0.781250000000000000E-02)*0.128000000000000000E+03;
-                                             TG2 = (2.*X2 - 0.192187500000000000E+01)*0.640000000000000000E+02;
-                                             PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*168]);
-                                          }
-                                       } else {
-                                          TG1 = (2.*X1 - 0.234375000000000000E-01)*0.128000000000000000E+03;
-                                          TG2 = (2.*X2 - 0.190625000000000000E+01)*0.320000000000000000E+02;
-                                          PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*169]);
-                                       }
-                                    } else {
-                                       if (X1 <= 0.781250000000000000E-02) { 
-                                          if (X2 <= 0.984375000000000000E+00) { 
-                                             TG1 = (2.*X1 - 0.781250000000000000E-02)*0.128000000000000000E+03;
-                                             TG2 = (2.*X2 - 0.195312500000000000E+01)*0.640000000000000000E+02;
-                                             PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*170]);
-                                          } else {
-                                             TG1 = (2.*X1 - 0.781250000000000000E-02)*0.128000000000000000E+03;
-                                             TG2 = (2.*X2 - 0.198437500000000000E+01)*0.640000000000000000E+02;
-                                             PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*171]);
-                                          }
-                                       } else {
-                                          if (X2 <= 0.984375000000000000E+00) { 
-                                             TG1 = (2.*X1 - 0.234375000000000000E-01)*0.128000000000000000E+03;
-                                             TG2 = (2.*X2 - 0.195312500000000000E+01)*0.640000000000000000E+02;
-                                             PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*172]);
-                                          } else {
-                                             TG1 = (2.*X1 - 0.234375000000000000E-01)*0.128000000000000000E+03;
-                                             TG2 = (2.*X2 - 0.198437500000000000E+01)*0.640000000000000000E+02;
-                                             PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*173]);
-                                          }
-                                       }
-                                    }
-                                 } else {
-                                    if (X2 <= 0.968750000000000000E+00) { 
-                                       TG1 = (2.*X1 - 0.468750000000000000E-01)*0.640000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.190625000000000000E+01)*0.320000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*174]);
-                                    } else {
-                                       if (X1 <= 0.234375000000000000E-01) { 
-                                          TG1 = (2.*X1 - 0.390625000000000000E-01)*0.128000000000000000E+03;
-                                          TG2 = (2.*X2 - 0.196875000000000000E+01)*0.320000000000000000E+02;
-                                          PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*175]);
-                                       } else {
-                                          TG1 = (2.*X1 - 0.546875000000000000E-01)*0.128000000000000000E+03;
-                                          TG2 = (2.*X2 - 0.196875000000000000E+01)*0.320000000000000000E+02;
-                                          PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*176]);
-                                       }
-                                    }
-                                 }
-                              }
-                           } else {
-                              if (X2 <= 0.937500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.937500000000000000E-01)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.181250000000000000E+01)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*177]);
-                              } else {
-                                 if (X1 <= 0.468750000000000000E-01) { 
-                                    if (X2 <= 0.968750000000000000E+00) { 
-                                       TG1 = (2.*X1 - 0.781250000000000000E-01)*0.640000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.190625000000000000E+01)*0.320000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*178]);
-                                    } else {
-                                       TG1 = (2.*X1 - 0.781250000000000000E-01)*0.640000000000000000E+02;
-                                       TG2 = (2.*X2 - 0.196875000000000000E+01)*0.320000000000000000E+02;
-                                       PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*179]);
-                                    }
-                                 } else {
-                                    TG1 = (2.*X1 - 0.109375000000000000E+00)*0.640000000000000000E+02;
-                                    TG2 = (2.*X2 - 0.193750000000000000E+01)*0.160000000000000000E+02;
-                                    PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*180]);
-                                 }
-                              }
-                           }
-                        }
-                     } else {
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.187500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*181]);
-                        } else {
-                           if (X1 <= 0.937500000000000000E-01) { 
-                              if (X2 <= 0.937500000000000000E+00) { 
-                                 TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.181250000000000000E+01)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*182]);
-                              } else {
-                                 TG1 = (2.*X1 - 0.156250000000000000E+00)*0.320000000000000000E+02;
-                                 TG2 = (2.*X2 - 0.193750000000000000E+01)*0.160000000000000000E+02;
-                                 PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*183]);
-                              }
-                           } else {
-                              TG1 = (2.*X1 - 0.218750000000000000E+00)*0.320000000000000000E+02;
-                              TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                              PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*184]);
-                           }
-                        }
-                     }
-                  }
-               } else {
-                  if (X2 <= 0.750000000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.375000000000000000E+00)*0.800000000000000000E+01;
-                     TG2 = (2.*X2 - 0.125000000000000000E+01)*0.400000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*185]);
-                  } else {
-                     if (X1 <= 0.187500000000000000E+00) { 
-                        if (X2 <= 0.875000000000000000E+00) { 
-                           TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*186]);
-                        } else {
-                           TG1 = (2.*X1 - 0.312500000000000000E+00)*0.160000000000000000E+02;
-                           TG2 = (2.*X2 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-                           PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*187]);
-                        }
-                     } else {
-                        TG1 = (2.*X1 - 0.437500000000000000E+00)*0.160000000000000000E+02;
-                        TG2 = (2.*X2 - 0.175000000000000000E+01)*0.400000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*188]);
-                     }
-                  }
-               }
-            }
-         } else {
-            if (X1 <= 0.375000000000000000E+00) { 
-               if (X1 <= 0.312500000000000000E+00) { 
-                  if (X1 <= 0.281250000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.531250000000000000E+00)*0.320000000000000000E+02;
-                     TG2 = (2.*X2 - 0.100000000000000000E+01)*0.100000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*189]);
-                  } else {
-                     TG1 = (2.*X1 - 0.593750000000000000E+00)*0.320000000000000000E+02;
-                     TG2 = (2.*X2 - 0.100000000000000000E+01)*0.100000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*190]);
-                  }
-               } else {
-                  if (X2 <= 0.500000000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*191]);
-                  } else {
-                     TG1 = (2.*X1 - 0.687500000000000000E+00)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*192]);
-                  }
-               }
-            } else {
-               if (X1 <= 0.437500000000000000E+00) { 
-                  if (X2 <= 0.500000000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.812500000000000000E+00)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*193]);
-                  } else {
-                     if (X1 <= 0.406250000000000000E+00) { 
-                        TG1 = (2.*X1 - 0.781250000000000000E+00)*0.320000000000000000E+02;
-                        TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*194]);
-                     } else {
-                        TG1 = (2.*X1 - 0.843750000000000000E+00)*0.320000000000000000E+02;
-                        TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                        PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*195]);
-                     }
-                  }
-               } else {
-                  if (X2 <= 0.500000000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*196]);
-                  } else {
-                     TG1 = (2.*X1 - 0.937500000000000000E+00)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*197]);
-                  }
-               }
-            }
-         }
-      } else {
-         if (X1 <= 0.750000000000000000E+00) { 
-            if (X1 <= 0.625000000000000000E+00) { 
-               if (X2 <= 0.500000000000000000E+00) { 
-                  if (X1 <= 0.562500000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.106250000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*198]);
-                  } else {
-                     TG1 = (2.*X1 - 0.118750000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*199]);
-                  }
-               } else {
-                  if (X1 <= 0.562500000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.106250000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*200]);
-                  } else {
-                     TG1 = (2.*X1 - 0.118750000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*201]);
-                  }
-               }
-            } else {
-               if (X2 <= 0.500000000000000000E+00) { 
-                  if (X1 <= 0.687500000000000000E+00) { 
-                     TG1 = (2.*X1 - 0.131250000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*202]);
-                  } else {
-                     TG1 = (2.*X1 - 0.143750000000000000E+01)*0.160000000000000000E+02;
-                     TG2 = (2.*X2 - 0.500000000000000000E+00)*0.200000000000000000E+01;
-                     PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*203]);
-                  }
-               } else {
-                  TG1 = (2.*X1 - 0.137500000000000000E+01)*0.800000000000000000E+01;
-                  TG2 = (2.*X2 - 0.150000000000000000E+01)*0.200000000000000000E+01;
-                  PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*204]);
-               }
-            }
-         } else {
-            if (X1 <= 0.875000000000000000E+00) { 
-               TG1 = (2.*X1 - 0.162500000000000000E+01)*0.800000000000000000E+01;
-               TG2 = (2.*X2 - 0.100000000000000000E+01)*0.100000000000000000E+01;
-               PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*205]);
-            } else {
-               TG1 = (2.*X1 - 0.187500000000000000E+01)*0.800000000000000000E+01;
-               TG2 = (2.*X2 - 0.100000000000000000E+01)*0.100000000000000000E+01;
-               PD2VAL(res, Nder, TG1, TG2, &C0[ldc0*206]);
-            }
-         }
-      }
-   }
-return false;
-}
 
 

@@ -3,16 +3,19 @@ set -x
 CP2K_ROOT=$1 # "/home/ubuntu/cp2k_libgint_integration_project/cp2k/"
 
 make install -j 8 PREFIX=${CP2K_ROOT}/tools/toolchain/install/libGint-EXP
-wait
 
-cd ${CP2K_ROOT}
+if [ $? -eq 0 ]; then
 
-rm -f exe/local_cuda/cp2k.psmp
-make -j 16 ARCH=local_cuda VERSION="psmp"
-wait
+	cd ${CP2K_ROOT}
 
-cd -
+	rm -f exe/local_cuda/cp2k.psmp
+	make -j 16 ARCH=local_cuda VERSION="psmp"
+	wait
 
+	cd -
+else
+	echo " libGint compilation failed"
+fi
 set +x
 
 

@@ -5,9 +5,9 @@ GFORTRAN = gfortran
 
 ARCH_NUM ?= 70
 PREFIX ?= $(shell pwd)
-NVCC_C_OPTS = -rdc=true -g -std=c++14 -gencode arch=compute_$(ARCH_NUM),code=sm_$(ARCH_NUM) -lcudart -lcublas -Xcompiler -fPIC -Xcompiler -fopenmp -Xcompiler -O3 -Xcompiler -g -Xcompiler -Wall
+NVCC_C_OPTS = -Xptxas="-v" -keep -rdc=true -g -std=c++17 -gencode arch=compute_$(ARCH_NUM),code=sm_$(ARCH_NUM) -lcudart -lcublas -Xcompiler -fPIC -Xcompiler -fopenmp -Xcompiler -O3 -Xcompiler -g -Xcompiler -Wall
 NVCC_D_OPTS = -arch=sm_$(ARCH_NUM) -lgomp
-MPICPP_EX_OPTS = -std=c++14 -Wall -fPIC -O3
+MPICPP_EX_OPTS = -std=c++17 -Wall -fPIC -O3
 GFORTRAN_OPTS = -O3 -g -fopenmp
 
 LIS = 

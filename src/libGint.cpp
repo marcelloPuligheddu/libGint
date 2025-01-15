@@ -78,6 +78,7 @@ void libGint::set_Potential_Truncated( double R_cut_, double * C0_, int ld_C0_, 
    }
 
    size_t to_patch_size = POT_TRUNC_N1 * POT_TRUNC_N2 * sizeof(int);
+
 #pragma omp single copyprivate(x12_to_patch_low_R, x12_to_patch_high_R)
    {
    x12_to_patch_low_R  = (int*) malloc( to_patch_size );
@@ -89,23 +90,24 @@ void libGint::set_Potential_Truncated( double R_cut_, double * C0_, int ld_C0_, 
 //      } printf("\n");
 //   } printf("\n");
    }
+
 #pragma omp single copyprivate(x12_to_patch_low_R_dev)
    {
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&x12_to_patch_low_R_dev, to_patch_size ) );
    CUDA_GPU_ERR_CHECK( cudaMemcpy( x12_to_patch_low_R_dev, x12_to_patch_low_R, to_patch_size, cudaMemcpyHostToDevice ));   
    }
+
 #pragma omp single copyprivate(x12_to_patch_high_R_dev)
    {
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&x12_to_patch_high_R_dev, to_patch_size ) );
    CUDA_GPU_ERR_CHECK( cudaMemcpy( x12_to_patch_high_R_dev, x12_to_patch_high_R, to_patch_size, cudaMemcpyHostToDevice ));   
    }
+
 #pragma omp single copyprivate(BW_by_patch_dev)
    {
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&BW_by_patch_dev, 207*4 * sizeof(double) ) );
    CUDA_GPU_ERR_CHECK( cudaMemcpy( BW_by_patch_dev, BW_by_patch, 207*4 * sizeof(double), cudaMemcpyHostToDevice ));
    }
-
-
 
 //   cout << " Setting C0 " << C0_size << " | " << ld_C0 << endl;
 //   for ( int ic=0; ic < C0_size; ic++ ){
@@ -557,9 +559,12 @@ void libGint::get_K( double * K_ ){
 
 #pragma omp single
    CUDA_GPU_ERR_CHECK( cudaMemcpy( K_, K_a_dev, sizeof(double)*FP_size, cudaMemcpyDeviceToHost ));
+
 //#pragma omp critical
 //   cout << " Getting K from " << K_a_dev << " to " << K_ << " x " << FP_size << endl;
+
 }
+
 void libGint::get_K( std::vector<double> & K_a_ ){ get_K( K_a_.data()); }
 
 void libGint::get_K( double * K_a_,  double * K_b_ ){
@@ -608,7 +613,7 @@ void libGint::dispatch( bool dispatch_all ){
 
 //   dis_timer.start();
 //   #pragma omp critical
-//   { cout << "Dispatch on stream " << cuda_stream << " @ " << &cuda_stream << endl; cout.flush(); }
+//   { cout << "Dispatch on stream " << cuda_stream << " @ " << &cuda_stream << " F: " << dispatch_all << endl; cout.flush(); }
 
 //   CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
 //   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
@@ -684,6 +689,8 @@ void libGint::dispatch( bool dispatch_all ){
       if ( integral_scratch_size < MIN_INT_BATCH_SIZE and not dispatch_all ) { continue; }
       if ( SPHER_size[L] == 0 ){ continue; }
 
+
+
 //      double t0 = dis_timer.elapsedMilliseconds();
 //      double t1;
 
@@ -692,6 +699,8 @@ void libGint::dispatch( bool dispatch_all ){
       labcd = la+lb+lc+ld;
       int Nc = compute_Nc(la,lb,lc,ld);
       int Ns = compute_Ns(la,lb,lc,ld);
+
+//      if ( dispatch_all ){ cout << "Running " << la << lb << lc << ld << " " << SPHER_size[L] << endl; }
 
       std::vector<int> * plan = NULL ;
       unsigned int vrr_blocksize, hrr_blocksize, numV, numVC, numVCH;

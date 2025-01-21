@@ -23,7 +23,7 @@
 using std::max;
 
 
-std::vector<LibGint_shared> * libGint::shared_obj_ptr_ptr = nullptr;
+std::vector<LibGint_shared> libGint::shared_obj_ptr; // static // 
 
 void libGint::show_state(){
 
@@ -53,16 +53,18 @@ void libGint::init(){
    }}}}
 
    if ( shared_obj_ptr_ptr == nullptr ){
-
-#pragma omp single copyprivate( shared_obj_ptr )
+#pragma omp single copyprivate( shared_obj_ptr_ptr )
+      {
       shared_obj_ptr = std::vector<LibGint_shared>(omp_get_max_threads());
+      shared_obj_ptr_ptr = &shared_obj_ptr;
+      }
 
       CUDA_GPU_ERR_CHECK( cudaStreamCreate( &cuda_stream ));
       CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
       CUBLAS_GPU_ERR_CHECK( cublasSetStream( cublas_handle, cuda_stream ));
 
       shared_obj_ptr[ my_thr ] = { &cublas_handle, &cuda_stream };
-      shared_obj_ptr_ptr = &shared_obj_ptr;
+
       potential_type = COULOMB; // default
       int dev ; cudaGetDevice(&dev);
       timer.stop();

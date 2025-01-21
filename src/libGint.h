@@ -76,9 +76,9 @@ class libGint {
    void dispatch(bool dispatch_all);
    size_t data_size = 0, AUX_size = 0, FP_size_omp = 0, byte_scratch_size = 0, byte_idx_arr_size = 0; 
 
-   std::vector<LibGint_shared> shared_obj_ptr;
-   static std::vector<LibGint_shared> * shared_obj_ptr_ptr;
-   #pragma omp threadprivate( shared_obj_ptr_ptr )
+   static std::vector<LibGint_shared> shared_obj_ptr;
+   std::vector<LibGint_shared> * shared_obj_ptr_ptr = nullptr;
+//   #pragma omp threadprivate( shared_obj_ptr_ptr )
 
    std::vector<double> OUT;
    bool periodic = false;

@@ -52,37 +52,30 @@ void libGint::init(){
        OF[L].reserve( 10000 );
    }}}}
 
-   if ( shared_obj_ptr.empty() ){
+   // IF the static (shared over OMP) persistent vector is not enough, (re)create it
+   // ELSE read the values (hopefully) already saved there
+   if ( shared_obj_ptr.size() < (std::vector<LibGint_shared>::size_type) omp_get_num_threads() ){
+   // barrier necessary to avoid thread > 0 coming to check the if above after master has already allocated the shared obj memory
 #pragma omp barrier
-#pragma omp single copyprivate( shared_obj_ptr_ptr )
-      {
+#pragma omp master
       shared_obj_ptr = std::vector<LibGint_shared>(omp_get_max_threads());
-      shared_obj_ptr_ptr = &shared_obj_ptr;
-      }
+#pragma omp barrier
 
       CUDA_GPU_ERR_CHECK( cudaStreamCreate( &cuda_stream ));
       CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
       CUBLAS_GPU_ERR_CHECK( cublasSetStream( cublas_handle, cuda_stream ));
-
-#pragma omp critical
-      { cout << my_thr << " A" << endl; }
-
       shared_obj_ptr[ my_thr ] = { &cublas_handle, &cuda_stream };
-
-#pragma omp critical
-      { cout << my_thr << " B" << endl; }
-
       potential_type = COULOMB; // default
       int dev ; cudaGetDevice(&dev);
       timer.stop();
 #pragma omp critical
       { cout << "Cuda CREATE stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
-
    } else {
-//      shared_obj_ptr = * shared_obj_ptr_ptr;
+      // Use the persistent vector to populate the class members
       cublas_handle = * ( shared_obj_ptr[my_thr].cublas_handle );
       cuda_stream   = * ( shared_obj_ptr[my_thr].cuda_stream   );
-
+      // TODO may want to check if we can save other stuff other than just the stram and cublas_h
+      potential_type = COULOMB; // default
       int dev ; cudaGetDevice(&dev);
 #pragma omp critical
       { cout << "Cuda read stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }

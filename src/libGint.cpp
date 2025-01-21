@@ -23,6 +23,8 @@
 using std::max;
 
 
+std::vector<LibGint_shared> * libGint::shared_obj_ptr_ptr = nullptr;
+
 void libGint::show_state(){
 
    for (unsigned int L : encoded_moments ){
@@ -32,6 +34,7 @@ void libGint::show_state(){
    }
 
 }
+
 
 void libGint::init(){
 //   PUSH_RANGE("libGint init",1);
@@ -49,18 +52,32 @@ void libGint::init(){
        OF[L].reserve( 10000 );
    }}}}
 
-   CUDA_GPU_ERR_CHECK( cudaStreamCreate( &cuda_stream ));
-   CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
-   CUBLAS_GPU_ERR_CHECK( cublasSetStream( cublas_handle, cuda_stream ));
+   if ( shared_obj_ptr_ptr == nullptr ){
 
-   potential_type = COULOMB; // default
+#pragma omp single copyprivate( shared_obj_ptr )
+      shared_obj_ptr = std::vector<LibGint_shared>(omp_get_max_threads());
 
-   int dev ; cudaGetDevice(&dev);
+      CUDA_GPU_ERR_CHECK( cudaStreamCreate( &cuda_stream ));
+      CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
+      CUBLAS_GPU_ERR_CHECK( cublasSetStream( cublas_handle, cuda_stream ));
 
-   timer.stop();
-//#pragma omp critical
-//   { cout << "Cuda create stream from omp: " << omp_get_thread_num() << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
+      shared_obj_ptr[ my_thr ] = { &cublas_handle, &cuda_stream };
+      shared_obj_ptr_ptr = &shared_obj_ptr;
+      potential_type = COULOMB; // default
+      int dev ; cudaGetDevice(&dev);
+      timer.stop();
+#pragma omp critical
+      { cout << "Cuda create stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
 
+   } else {
+      shared_obj_ptr = * shared_obj_ptr_ptr;
+      cublas_handle = * ( shared_obj_ptr[my_thr].cublas_handle );
+      cuda_stream   = * ( shared_obj_ptr[my_thr].cuda_stream   );
+
+      int dev ; cudaGetDevice(&dev);
+#pragma omp critical
+      { cout << "Cuda read stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
+   }
 //   POP_RANGE; // libGint init
 }
 

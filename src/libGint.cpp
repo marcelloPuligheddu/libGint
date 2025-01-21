@@ -52,7 +52,8 @@ void libGint::init(){
        OF[L].reserve( 10000 );
    }}}}
 
-   if ( shared_obj_ptr_ptr == nullptr ){
+   if ( shared_obj_ptr.empty() ){
+#pragma omp barrier
 #pragma omp single copyprivate( shared_obj_ptr_ptr )
       {
       shared_obj_ptr = std::vector<LibGint_shared>(omp_get_max_threads());
@@ -63,16 +64,22 @@ void libGint::init(){
       CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
       CUBLAS_GPU_ERR_CHECK( cublasSetStream( cublas_handle, cuda_stream ));
 
+#pragma omp critical
+      { cout << my_thr << " A" << endl; }
+
       shared_obj_ptr[ my_thr ] = { &cublas_handle, &cuda_stream };
+
+#pragma omp critical
+      { cout << my_thr << " B" << endl; }
 
       potential_type = COULOMB; // default
       int dev ; cudaGetDevice(&dev);
       timer.stop();
 #pragma omp critical
-      { cout << "Cuda create stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
+      { cout << "Cuda CREATE stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
 
    } else {
-      shared_obj_ptr = * shared_obj_ptr_ptr;
+//      shared_obj_ptr = * shared_obj_ptr_ptr;
       cublas_handle = * ( shared_obj_ptr[my_thr].cublas_handle );
       cuda_stream   = * ( shared_obj_ptr[my_thr].cuda_stream   );
 

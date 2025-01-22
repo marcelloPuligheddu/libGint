@@ -26,22 +26,18 @@ using std::max;
 std::vector<LibGint_shared> libGint::shared_obj_ptr; // static // 
 
 void libGint::show_state(){
-
    for (unsigned int L : encoded_moments ){
       int la,lb,lc,ld;
       decodeL(L,&la,&lb,&lc,&ld);
       cout << " Moments : " << la << " " << lb << " " << lc << " " << ld << endl;
    }
-
 }
 
 
 void libGint::init(){
 //   PUSH_RANGE("libGint init",1);
-
    Timer timer;
    timer.start();
-
    // TODO Better
    for( int la=0; la <= 1; la++ ){
    for( int lb=0; lb <= 1; lb++ ){
@@ -51,35 +47,34 @@ void libGint::init(){
       PMX[L].reserve( 10000 );
        OF[L].reserve( 10000 );
    }}}}
-
    // IF the static (shared over OMP) persistent vector is not enough, (re)create it
    // ELSE read the values (hopefully) already saved there
    if ( shared_obj_ptr.size() < (std::vector<LibGint_shared>::size_type) omp_get_num_threads() ){
-   // barrier necessary to avoid thread > 0 coming to check the if above after master has already allocated the shared obj memory
+   // barrier necessary to avoid thread > 0 coming to check the if after master has already allocated the shared obj memory
 #pragma omp barrier
 #pragma omp master
-      shared_obj_ptr = std::vector<LibGint_shared>(omp_get_max_threads());
+      shared_obj_ptr = std::vector<LibGint_shared>(omp_get_num_threads());
 #pragma omp barrier
-
       CUDA_GPU_ERR_CHECK( cudaStreamCreate( &cuda_stream ));
       CUBLAS_GPU_ERR_CHECK( cublasCreate(&cublas_handle) );
       CUBLAS_GPU_ERR_CHECK( cublasSetStream( cublas_handle, cuda_stream ));
       shared_obj_ptr[ my_thr ] = { &cublas_handle, &cuda_stream };
       potential_type = COULOMB; // default
-      int dev ; cudaGetDevice(&dev);
-      timer.stop();
-#pragma omp critical
-      { cout << "Cuda CREATE stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
+//      int dev ; cudaGetDevice(&dev);
+//#pragma omp critical
+//      { cout << "Cuda CREATE stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
    } else {
       // Use the persistent vector to populate the class members
       cublas_handle = * ( shared_obj_ptr[my_thr].cublas_handle );
       cuda_stream   = * ( shared_obj_ptr[my_thr].cuda_stream   );
       // TODO may want to check if we can save other stuff other than just the stram and cublas_h
       potential_type = COULOMB; // default
-      int dev ; cudaGetDevice(&dev);
-#pragma omp critical
-      { cout << "Cuda read stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
+//      int dev ; cudaGetDevice(&dev);
+//#pragma omp critical
+//      { cout << "Cuda read stream from omp: " << my_thr << " on dev " << dev << " is " << cuda_stream << " @ " << &cuda_stream << " \n" ; cout.flush(); }
    }
+
+//   timer.stop();
 //   POP_RANGE; // libGint init
 }
 

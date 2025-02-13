@@ -73,7 +73,6 @@ class libGint {
    void set_Potential_Truncated( double R_cut, double * C0, int ld_C0, int C0_size );
    void set_hf_fac(double fac);
    void set_max_mem(int max_mem);
-   void compute_max_vector_size();
 
    void dispatch(bool dispatch_all);
    size_t data_size = 0, AUX_size = 0, FP_size_omp = 0, byte_scratch_size = 0, byte_idx_arr_size = 0; 
@@ -123,6 +122,7 @@ class libGint {
    double *data_dev, *cell_h_dev, *neighs_dev, *ftable_dev, *C2S_dev;
    double *dat_mem_dev;
    unsigned int * idx_mem_dev;
+   unsigned int * idx_mem_stg;
    int *plan_dev;
 
 

@@ -43,9 +43,18 @@ SOFTWARE.
 
 using std::max;
 
+struct LibGint_shared {
+   cublasHandle_t * cublas_handle;
+   cudaStream_t * cuda_stream;
+};
+
+
+
 class libGint {
    public:
+   // Ctor
    libGint(){ my_thr = omp_get_thread_num() ; Nomp = omp_get_num_threads(); }
+
    void add_prm ( const int ipa, const int ipb, const int ipc, const int ipd ) ;
    void add_shell (int i, int j , int k, int l, int n1, int n2);
    void add_cell();
@@ -64,11 +73,11 @@ class libGint {
    void set_Potential_Truncated( double R_cut, double * C0, int ld_C0, int C0_size );
    void set_hf_fac(double fac);
    void set_max_mem(int max_mem);
-   void compute_max_vector_size();
 
    void dispatch(bool dispatch_all);
    size_t data_size = 0, AUX_size = 0, FP_size_omp = 0, byte_scratch_size = 0, byte_idx_arr_size = 0; 
 
+   static std::vector<LibGint_shared> shared_obj_ptr;
    std::vector<double> OUT;
    bool periodic = false;
    void show_state();
@@ -93,19 +102,29 @@ class libGint {
    int max_n_prm = 0;
    double hf_fac; // K += fac * I @@ P
    int Nomp = 0;
-   size_t max_mem = 0;
-   size_t max_mem_per_thread = 0;
+   size_t max_dat_mem_per_thread = 0;
+   size_t max_idx_mem_per_thread = 0;
+   size_t max_dat_mem_needed = 0;
+   size_t max_idx_mem_needed = 0;
+   int ftable_ld;
+
 
    int nspin = 0 ;
    double * K_a; // not owned 
    double * P_a; // not owned  
    double * K_a_dev = 0; // owned and managed 
    double * P_a_dev = 0; // owned and managed 
-
    double * K_b; // not owned
    double * P_b; // not owned
    double * K_b_dev = 0; // owned and managed
    double * P_b_dev = 0; // owned and managed
+
+   double *data_dev, *cell_h_dev, *neighs_dev, *ftable_dev, *C2S_dev;
+   double *dat_mem_dev;
+   unsigned int * idx_mem_dev;
+   unsigned int * idx_mem_stg;
+   int *plan_dev;
+
 
    size_t FP_size;
    void set_P( double * P, int P_size );
@@ -124,6 +143,8 @@ class libGint {
    void get_K( double * K_a, double * K_b ); 
    void get_K( std::vector<double> & K );
    void get_K( std::vector<double> & K_a, std::vector<double> & K_b );
+   void allocate_on_GPU();
+   void free_on_GPU();
 
    void set_cell( bool periodic, double * cell_, double * cell_inv_);
    void set_neighs( double * neighs_, int nneighs );
@@ -136,7 +157,10 @@ class libGint {
    unsigned int offset_V[NL4] = {0};
    unsigned int offset_G[NL4] = {0};
    unsigned int offset_Q[NL4] = {0};
-   unsigned int offset_T[NL4] = {0};
+   unsigned int this_set_offset_F[NL4] = {0};
+   unsigned int this_set_offset_V[NL4] = {0};
+   unsigned int this_set_offset_G[NL4] = {0};
+   unsigned int this_set_offset_Q[NL4] = {0};
    int all_vrr_blocksize[NL4] = {0};
    int all_hrr_blocksize[NL4] = {0};
 
@@ -144,6 +168,10 @@ class libGint {
    std::vector<unsigned int> OF[NL4];
    std::vector<unsigned int> PMX[NL4];
    std::vector<unsigned int> KS[NL4];
+   std::vector<unsigned int> this_set_FVH[NL4];
+   std::vector<unsigned int> this_set_OF[NL4];
+   std::vector<unsigned int> this_set_PMX[NL4];
+   std::vector<unsigned int> this_set_KS[NL4];
 
    std::vector<unsigned int> prm_tmp_list;
    UniqueArray ua;
@@ -167,11 +195,25 @@ class libGint {
 
    int potential_type = COULOMB; // default
 
-   unsigned int Fm_size[NL4] = {0};
-   unsigned int AC_size[NL4] = {0};
-   unsigned int ABCD_size[NL4] = {0};
-   unsigned int ABCD0_size[NL4] = {0};
-   unsigned int SPHER_size[NL4] = {0};
+   size_t Fm_size[NL4] = {0};
+   size_t AC_size[NL4] = {0};
+   size_t ABCD_size[NL4] = {0};
+   size_t ABCD0_size[NL4] = {0};
+   size_t SPHER_size[NL4] = {0};
+
+   size_t this_set_Fm_size[NL4] = {0};
+   size_t this_set_AC_size[NL4] = {0};
+   size_t this_set_ABCD_size[NL4] = {0};
+   size_t this_set_ABCD0_size[NL4] = {0};
+   size_t this_set_SPHER_size[NL4] = {0};
+
+   std::unordered_set<unsigned int> this_set_L;
+   std::unordered_set<unsigned int> add_L_after_dispatch;
+
+   size_t this_set_idx_mem_needed[NL4] = {0};
+   size_t this_set_dat_mem_needed[NL4] = {0};
+   size_t idx_mem_needed[NL4] = {0};
+   size_t dat_mem_needed[NL4] = {0};
 
    double cell_h[9] = {0};
    double cell_inv_h[9] = {0};

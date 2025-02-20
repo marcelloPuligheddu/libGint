@@ -123,6 +123,7 @@ class libGint {
    double *dat_mem_dev;
    unsigned int * idx_mem_dev;
    unsigned int * idx_mem_stg;
+   int * plan_stg;
    int *plan_dev;
 
 

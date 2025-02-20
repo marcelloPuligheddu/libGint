@@ -103,10 +103,7 @@ void libGint::set_hf_fac(double fac){ hf_fac = fac; }
 
 // Set the max gpu memory available to each MPI rank
 // this memory will be shared by all omp threads
-// TODO move to define.h
-// TODO add hook to read from cp2k input
-#define FRACTION_DAT_MEM (0.8)
-#define FRACTION_IDX_MEM (1.0-FRACTION_DAT_MEM)
+// TODO add hook to read fraction mem from cp2k input
 void libGint::set_max_mem(int max_mem_){
    size_t max_dat_mem = size_t(max_mem_) * 1024 * 1024 * FRACTION_DAT_MEM;
    size_t max_idx_mem = size_t(max_mem_) * 1024 * 1024 * FRACTION_IDX_MEM;
@@ -164,6 +161,7 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
    int nnld = all_l[l].size();
    // For each combination of angular moment, add work to be done
    // to the candidate vectors this_set_* 
+   // TODO transpose all_idx_K[i][idx_la],all_nl[i][idx_la],all_l[i][idx_la] to all_idx_K_nl_l[i][idx_la]
    for( int idx_la=0; idx_la < nnla; idx_la++ ){
       unsigned int idx_Ka = all_idx_K[i][idx_la];
       int nla = all_nl[i][idx_la];
@@ -196,7 +194,7 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
 //               TODO FUTURE add ij and kl detailed screening coeff
 //               const unsigned int bra_Radii_ptr  = MAX_N_PRM * MAX_N_PRM * ( kind_set[i] * number_of_sets + kind_set[j] );
 //               const unsigned int ket_Radii_ptr  = MAX_N_PRM * MAX_N_PRM * ( kind_set[k] * number_of_sets + kind_set[l] );
-               // if this is the first time we see thic combination
+               // if this is the first time we see this combination
                // of angular moments, prepare and save the plan
                if ( all_moments[L] == false ){
                   std::vector<int> * plan = NULL ;
@@ -417,8 +415,7 @@ void libGint::add_set(){
 void libGint::set_cell( bool periodic_, double * cell_h_,  double * cell_i_ ){
 //#pragma omp critical
 //   {cout << " Setting cell " << periodic_ << " " << cell_h[0] << " " << cell_i_[8] << endl; cout.flush();}
-   
-   periodic = periodic_; 
+   periodic = periodic_;
    for (int i=0;i<9;i++){ cell_h[CELL_HMAT_OFF+i] = cell_h_[i]; }
    for (int i=0;i<9;i++){ cell_h[CELL_HINV_OFF+i] = cell_i_[i]; }
 }
@@ -507,6 +504,7 @@ void libGint::allocate_on_GPU(){
    #define max_plan_size_possible 1000000
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&plan_dev,sizeof(int)*max_plan_size_possible ));
    CUDA_GPU_ERR_CHECK( cudaHostAlloc( (void**)&idx_mem_stg, max_idx_mem_per_thread, cudaHostAllocPortable ));
+   CUDA_GPU_ERR_CHECK( cudaHostAlloc( (void**)&plan_stg, sizeof(int)*max_plan_size_possible, cudaHostAllocPortable ));
    CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
    CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //   POP_RANGE; // dispatch malloc
@@ -717,9 +715,9 @@ void libGint::dispatch( bool dispatch_all ){
       bool is_too_small = ABCD_size[L] < MIN_INT_BATCH_SIZE;
       if ( can_be_skipped and is_too_small ) { continue; }
       if ( SPHER_size[L] == 0 ){ continue; }
+
       size_t dat_mem_needed_L_1 = max( Fm_size[L], max( ABCD_size[L], SPHER_size[L] ));
       size_t idx_mem_needed_L = OF[L].size() + PMX[L].size() + FVH[L].size() + KS[L].size();
-
 #ifdef LIBGINT_INTERNAL_DEBUG
       size_t dat_mem_needed_L_2 = max( AC_size[L], ABCD0_size[L] );
       size_t dat_mem_needed_L = dat_mem_needed_L_1 + dat_mem_needed_L_2; 
@@ -779,6 +777,7 @@ void libGint::dispatch( bool dispatch_all ){
       memcpy( PMX_stg, PMX[L].data(), sizeof(unsigned int)*(PMX[L].size()) );
       memcpy( FVH_stg, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()) );
       memcpy(  KS_stg,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()) );
+      memcpy(plan_stg,  plan->data(), sizeof(int)*( plan->size()) );
 
       // it is (very) possible that we reach this point before the previous loop completed, so we sync
       // before overwriting index arrays on device
@@ -790,7 +789,7 @@ void libGint::dispatch( bool dispatch_all ){
 //      PUSH_RANGE("transfer indeces",4);
       // TODO plan is not async      
       CUDA_GPU_ERR_CHECK( cudaMemcpyAsync(
-         plan_dev, plan->data(), sizeof(int)*(plan->size()), cudaMemcpyHostToDevice, cuda_stream ));
+         plan_dev, plan_stg, sizeof(int)*(plan->size()), cudaMemcpyHostToDevice, cuda_stream ));
 
 //      CUDA_GPU_ERR_CHECK( cudaMemcpyAsync( 
 //          OF_dev,  OF[L].data(), sizeof(unsigned int)*(Nprm), cudaMemcpyHostToDevice, cuda_stream ));  
@@ -818,8 +817,8 @@ void libGint::dispatch( bool dispatch_all ){
          FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, neighs_dev, max_ncells );
 
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
 //      std::vector<double> FM0_on_cpu(Fm_size[L]);
 //      CUDA_GPU_ERR_CHECK( cudaMemcpy( FM0_on_cpu.data(),  Fm_dev, sizeof(double)*(Fm_size[L]), cudaMemcpyDeviceToHost) );
@@ -836,8 +835,8 @@ void libGint::dispatch( bool dispatch_all ){
          ftable_dev, ftable_ld,R_cut,C0_dev,ld_C0,
          x12_to_patch_low_R_dev, x12_to_patch_high_R_dev, BW_by_patch_dev,
          potential_type, max_ncells );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 
       int Vm_blocksize = 64;
       int Vm_numblocks = Nprm;
@@ -864,12 +863,21 @@ void libGint::dispatch( bool dispatch_all ){
 //      } cout << endl;
 //
 //      // (nvidia?) GPUs adhere to IEEE-754, so a pattern of all 0s represents a floating-point zero.
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+
+//      cout << " Dev is " << dat_mem_dev << " of size " << max_dat_mem_per_thread/1024/1024 << " AC is " << AC_dev << " of size " << AC_size[L]/1024/1024 << " L: " << L << endl;
+
       CUDA_GPU_ERR_CHECK( cudaMemsetAsync( AC_dev, 0, AC_size[L] , cuda_stream ) );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+
+
       compute_VRR_batched_gpu_low<<<Ncells*max_ncells,128,0,cuda_stream>>>(
          Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev, data_dev,
          AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
 //      std::vector<double> AC0_on_cpu(AC_size[L]);
 //      CUDA_GPU_ERR_CHECK( cudaMemcpy( AC0_on_cpu.data(),  AC_dev, sizeof(double)*(AC_size[L]), cudaMemcpyDeviceToHost) );
@@ -879,25 +887,21 @@ void libGint::dispatch( bool dispatch_all ){
 //      } cout << endl;
 
 
-      // (nvidia?) GPUs adhere to IEEE-754, so a pattern of all 0s represents a floating-point zero.
-//      CUDA_GPU_ERR_CHECK( cudaMemsetAsync( ABCD_dev, 0, ABCD_size[L]*sizeof(double) , cuda_stream ) );
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
-     
+    
       unsigned int Nop = numVC - numV + 1;
       CUDA_GPU_ERR_CHECK( cudaMemsetAsync( ABCD_dev, 0, ABCD_size[L] , cuda_stream ) );
       compute_SFT_batched_gpu_low<<<Ncells*Nop,128,0,cuda_stream>>>(
          Ncells, plan_dev, PMX_dev, FVH_dev, nullptr, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
  
 
       compute_ECO_batched_gpu_low<<<Ncells*Nop,64,0,cuda_stream>>>(
          Ncells, plan_dev, PMX_dev, FVH_dev, nullptr, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
 
 //      std::vector<double> AC_on_cpu(AC_size[L]);
@@ -928,17 +932,13 @@ void libGint::dispatch( bool dispatch_all ){
 //         if ( ii % FVH_SIZE == FVH_SIZE-1 ){ cout << endl ; }
 //      } cout << endl;
 
-//      CUDA_GPU_ERR_CHECK( cudaMemsetAsync( ABCD0_dev, 0, ABCD0_size[L]*sizeof(double) , cuda_stream ) );
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
-
       CUDA_GPU_ERR_CHECK( cudaMemsetAsync( ABCD0_dev, 0, ABCD0_size[L] , cuda_stream ) );
       compute_HRR_batched_gpu_low<<<Ncells,128,0,cuda_stream>>>(
          Ncells, plan_dev, FVH_dev, data_dev, ABCD_dev, ABCD0_dev,
          periodic, cell_h_dev, neighs_dev,
          hrr_blocksize, Nc, numVC, numVCH );
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
 //      std::vector<double> ABCD0_on_cpu(ABCD0_size[L]);
 //      CUDA_GPU_ERR_CHECK( cudaMemcpy( ABCD0_on_cpu.data(),  ABCD0_dev, sizeof(double)*(ABCD0_size[L]), cudaMemcpyDeviceToHost) );
@@ -953,12 +953,13 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
       // note: uses ABCD as a scratch space
+
       // (nvidia?) GPUs adhere to IEEE-754, so a pattern of all 0s represents a floating-point zero.
 //      CUDA_GPU_ERR_CHECK( cudaMemsetAsync( SPHER_dev, 0, SPHER_size[L]*sizeof(double) , cuda_stream ) );
 
       compute_SPH_batched_gpu_alt ( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, ABCD_dev, C2S_dev, cublas_handle );
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
@@ -984,12 +985,10 @@ void libGint::dispatch( bool dispatch_all ){
       if ( nspin == 2 ){
          compute_KS_gpu<<<Nqrtt,128,0,cuda_stream>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_b_dev, SPHER_dev, K_b_dev, data_dev, hf_fac );
       }
-//      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
+      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
+      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
 //      cout << endl;
-
-//      compute_TRA_batched_gpu_low<<<Nshell,128>>>( Nshell, la, lb, lc, ld, TRA_dev, SPHER_dev, OUT_dev );
 
 //      POP_RANGE; // compute
 //      POP_RANGE; // Lname

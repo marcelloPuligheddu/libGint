@@ -35,8 +35,10 @@ SOFTWARE.
 // will be deferred for calculations at a later time
 #define MIN_INT_BATCH_SIZE 100
 
+#define FRACTION_DAT_MEM (0.95)
+#define FRACTION_IDX_MEM (1.0-FRACTION_DAT_MEM)
 
-
+#define LIBGINT_INTERNAL_DEBUG true
 
 // max number of periodic cell, 2**8
 #define MAX_N_CELL 256 

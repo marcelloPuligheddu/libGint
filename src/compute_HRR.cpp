@@ -3,7 +3,7 @@
 #include "util.h"
 
 
-//#pragma omp declare target
+// computes HHR of the type ascd = as+- + CD asc-
 __device__ void execute_HRR1_gpu(
       const int AL, const int CL, const int DL,
       double* __restrict__ abcd,
@@ -18,7 +18,6 @@ __device__ void execute_HRR1_gpu(
    const int NcoD  = NLco_dev(DL);
    const int NcoDm = NLco_dev(DL-1);
    
-//#pragma omp parallel for 
    for( int ikl=tid ; ikl < NcoA*NcoC*NcoD ; ikl+=Nt ){
       int l = ikl%NcoD;
       int k = (ikl/NcoD)%NcoC;
@@ -50,7 +49,7 @@ __device__ void execute_HRR1_gpu(
 }
 
 
-//#pragma omp declare target
+// General HHR of the type abcd = +-cd + AB a-cd
 __device__ void execute_HRR2_gpu(
       const int AL, const int BL, const int CL, const int DL,
       double* const __restrict__ abcd,
@@ -65,7 +64,7 @@ __device__ void execute_HRR2_gpu(
    const int NcoC = NLco_dev(CL);
    const int NcoD = NLco_dev(DL);
    const int NcoABCD = NcoA*NcoB*NcoC*NcoD;
-//#pragma omp parallel for
+
    for( int ijkl=tid ; ijkl < NcoABCD ; ijkl+=Nt ){
 
       int l = ijkl%NcoD;
@@ -97,7 +96,7 @@ __device__ void execute_HRR2_gpu(
       }
    }
 }
-//#pragma omp end declare target
+
 
 __global__ void compute_HRR_batched_gpu_low(
       const int Ncells,

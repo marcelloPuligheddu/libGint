@@ -29,9 +29,8 @@ SOFTWARE.
 #define c2s_2_2_2 -0.5/sqrt(3.0)
 #define c2s_2_2_5  1.0/sqrt(3.0)
 
-
-
-
+// matrices for the cartesian to spherical harmonic transformations
+// good for up to max angular moment of 4
 
 static double c2s[1*1+3*3+5*6+7*10+9*15] = {
 1.0, 

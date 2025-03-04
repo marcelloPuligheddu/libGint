@@ -16,7 +16,7 @@
 using std::cout;
 using std::endl;
 
-
+// Fills Fm with intermediate vectors
 __global__ void prepare_Fm_batched_gpu_low_private(
       const unsigned int* const __restrict__ FVH,
       const unsigned int* const __restrict__ OF,
@@ -165,6 +165,7 @@ __global__ void prepare_Fm_batched_gpu_low_private(
    }
 }
 
+// Computes T and the foundamental ssss(m) integrals
 __global__ void compute_Fm_batched_gpu_low_private( 
       double* __restrict__ Fm,
       int NFm, int L, bool periodic,
@@ -237,7 +238,7 @@ __global__ void compute_Fm_batched_gpu_low_private(
    __syncthreads();
 }
 
-
+// Fills Fm with the vectors and values required by VVR
 __global__ void compute_Vm_batched_gpu_low_private( 
       double* __restrict__ Fm,
       int NFm, int L, bool periodic,

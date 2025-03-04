@@ -35,32 +35,38 @@ SOFTWARE.
 // will be deferred for calculations at a later time
 #define MIN_INT_BATCH_SIZE 100
 
+// How much of the available memory is used for
+// integrals and intermediate representations
+// and how much is reserved for indices
+// (idx of atom, index for Pik and F_jl and  so on)
 #define FRACTION_DAT_MEM (0.95)
 #define FRACTION_IDX_MEM (1.0-FRACTION_DAT_MEM)
 
+// if true, we do a few more sanity checks. Performance impact
+// should be noticeable
 #define LIBGINT_INTERNAL_DEBUG true
 
 // max number of periodic cell, 2**8
 #define MAX_N_CELL 256 
 //#define MAX_N_CELL 100 // Useful for debug, so the encoding is human readable
 
-// max number of prm per STO, 2**6. Way larger than sanity should allow
+// max number of prm per STO, 2**4. Larger than sanity should allow
 #define MAX_N_PRM   16
 //#define MAX_N_PRM   10 // Useful for debug, so the encoding is human readable
-// max number of linear combinations of 
-// gassian in the same set and with the same ang. moment, 2**4.
-// E.g. this cp2k set with 23 linear combinations of 32 gaussians is not valid
+
+// max number of linear combinations of gassian in the same set 
+// and with the same ang. moment, 2**2.
+// E.g. this cp2k set with 23 linear combinations of 32 gaussians is not valid (and a bad idea)
 // 1
 // 1 0 0 32 23 
-// [exp and gcc omitted]
-
+// [32 exp and 32*23 gcc omitted]
 #define MAX_N_L     4
 //#define MAX_N_L     10 // Useful for debug, so the encoding is human readable
 
-// Should be 8 + 4*6 = 32 bits
+// Make sure we can fit (cell,prm,prm,prm,prm) into 32 bits
 static_assert( (unsigned long int) MAX_N_CELL * MAX_N_PRM * MAX_N_PRM * MAX_N_PRM * MAX_N_PRM <= 4294967296,
       "Error, MAX_N_PRM or MAX_N_CELL are too large" );
-// Should be 8 + 8 + 4*4 = 32 bits
+// Make sure we can fit (cell,cell,nl,nl,nl,nl) into 32 bits
 static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L * MAX_N_L * MAX_N_L <= 4294967296,
       "Error, MAX_N_L or MAX_N_CELL are too large");
 
@@ -113,11 +119,11 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 #define L5_OFFSET 17
 #define L6_OFFSET 18
 
-#define MAX_NUM_VRR_TEAMS 16
-#define MAX_NUM_QUARTETS 100000
-#define MAX_NUM_BLOCKS 100000
-#define MEGABYTE (1000*1000)
-#define MAX_MEMORY_PER_RUN (1000*MEGABYTE)
+//#define MAX_NUM_VRR_TEAMS 16
+//#define MAX_NUM_QUARTETS 100000
+//#define MAX_NUM_BLOCKS 100000
+//#define MEGABYTE (1024*1024)
+//#define MAX_MEMORY_PER_RUN (1024*MEGABYTE)
 
 #define COULOMB   0
 #define TRUNCATED 1
@@ -128,7 +134,7 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 //#define PRM_TMP_SIZE 1 
 #define FVH_SIZE 18
 //#define PMI_SIZE 2
-#define SPH_SIZE 2
+//#define SPH_SIZE 2
 #define TRA_SIZE 6
 #define KS_SIZE  8
 

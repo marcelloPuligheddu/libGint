@@ -8,6 +8,9 @@
 using std::cout;
 using std::endl;
 
+// Transforms the NCELLS*NOPS*N1*N2*NGAUSS4 AC into the contracted NCELLS*NOP*N1*N2*NNL4 AC0
+// The results are saved into ABCD, since they will be the starting points of the HHR
+// Computes the 4 matrix products CC1 @ CC2 @ CC3 @ CC4 @ AC
 
 __global__ void compute_ECO_batched_gpu_low(
       const int Ncells, const int* __restrict__ plan,
@@ -84,21 +87,20 @@ __global__ void compute_ECO_batched_gpu_low(
       constexpr int F1 = 8;
       constexpr int F2 = 8;
       constexpr int BS_p = 8;
-      constexpr int dim = F1*F2; // 64
-      constexpr int BS_l = F1 * TS_l; // 32
-      constexpr int BS_j = F2 * TS_j; // 32
-      constexpr int totResBlkT = BS_l * BS_j; // 32*32 = 1024
-      constexpr int numThrBlkT = totResBlkT / (TS_l*TS_j); // = F1 * F2 = 64 = 1024 / 4 / 4 
-      constexpr int strideK = numThrBlkT / BS_p; // = BS_l * BS_j / TS_l*TS_j / BS_p = dim / BS_p = 64 / 64 = 1
-      constexpr int strideI = numThrBlkT / BS_j; // = BS_l * BS_j / TS_l*TS_j / BS_j = BS_l / TS_l / TS_j = F1 / TS_j = 64 / 32 = 2
+      constexpr int dim = F1*F2;
+      constexpr int BS_l = F1 * TS_l;
+      constexpr int BS_j = F2 * TS_j;
+      constexpr int totResBlkT = BS_l * BS_j;
+      constexpr int numThrBlkT = totResBlkT / (TS_l*TS_j);
+      constexpr int strideK = numThrBlkT / BS_p;
+      constexpr int strideI = numThrBlkT / BS_j;
 
       assert( numThrBlkT == dim );
       assert( numThrBlkT == blockDim.x );
       assert( BS_l * BS_p >= dim );
       assert( BS_p * BS_j >= dim );
       assert( strideK > 0 );
-      assert( strideI > 0 );
-      
+      assert( strideI > 0 );     
 
       __shared__ double sK[BS_l*BS_p];
       __shared__ double sI[BS_p*BS_j];
@@ -140,6 +142,7 @@ __global__ void compute_ECO_batched_gpu_low(
                unsigned int p = iB_p + IB_p*BS_p;
 
                if ( p < n_prm and l < nlabcd ){
+                  // TODO set nl === 4 ( and change K accordingly )
                   unsigned int a = (l / nlbcd ) % nla;
                   unsigned int b = (l / nlcd ) % nlb ;
                   unsigned int c = (l / nld ) % nlc ;
@@ -147,6 +150,8 @@ __global__ void compute_ECO_batched_gpu_low(
                   unsigned int ipzn = PMX[Ov+p];
                   unsigned int ipa,ipb,ipc,ipd;
                   decode4( ipzn, &ipa,&ipb,&ipc,&ipd );
+                  // TODO save K in a -largish- array in global memory at set env time
+                  // instead of recomputing a lot of the same numbers a lot of time
                   double K = sKa[a*npa + ipa] * sKb[b*npb + ipb] * sKc[c*npc + ipc] * sKd[d*npd + ipd];
                   sK[iB_l*BS_p+iB_p ] = K;
 //                  if ( blockIdx.x == 1 ){
@@ -213,6 +218,7 @@ __global__ void compute_ECO_batched_gpu_low(
    }
 }
 
+// Sums the primitive along the N3 cell vector, goes from AC to AC
 __global__ void compute_SFT_batched_gpu_low(
       const int Ncells, const int* __restrict__ plan,
       const unsigned int* const __restrict__ PMX,

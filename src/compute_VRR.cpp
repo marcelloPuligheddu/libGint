@@ -9,7 +9,8 @@ using std::endl;
 
 __constant__ int SA [] = {0,1,4,10,20,35,56, 84,120,165,231};
 
-// lx ly lz (i-(ly+lz)) tabulated
+// TODO move to a separate file
+// lx ly lz (i-(ly+lz)) tabulated up to L=6 which allows a max L of 3
 __constant__ uint8_t xyz_tab [] = {
    0, 0, 0, 0,
 
@@ -104,10 +105,14 @@ __constant__ uint8_t xyz_tab [] = {
 
 };
 
-
-#define VTS 16
+// TODO template, add the template by La and Lc to make fixed
+// size of a VRR team. This many thread will compute the same primitive
+// where a primitive is (zeta,zetb,zetc,zetd,n1,n2,n3)
+#define VTS 8
+// number of VRR teams.
 #define NVT 8
 
+// Simplest VRR, computes psss(m) = PA ssss(m) + WP ssss(m+1)
 __device__ void execute_VRR1_gpu( // int AL, int CL, int m, 
       const int m,
       double* __restrict__ a0c0m0,
@@ -131,6 +136,9 @@ __device__ void execute_VRR1_gpu( // int AL, int CL, int m,
    }
 }
 
+// TODO template AL
+// VRR of the type nsss(m) = PA ksss(m) + WP ksss(m+1) + e ( k1 wsss(m) + k2 wssss(m+1) )
+// where k = n-1, w = n-2
 __device__ void execute_VRR2_gpu(
       const int AL, const int m,
       double* __restrict__ a0c0m0,
@@ -141,7 +149,7 @@ __device__ void execute_VRR2_gpu(
       const double PA[3], const double WP[3], const double inv_2zab, const double min_rho_zab2 ){
  
    int my_vrr_rank = threadIdx.x % VTS ;
-  
+
    const int NcoA   = (AL+1)*(AL+2)/2;
    const int NcoAxx = (AL+0)*(AL-1)/2;
    const int NcoAx  = (AL+1)*(AL+0)/2;
@@ -150,12 +158,11 @@ __device__ void execute_VRR2_gpu(
    const int NcoAm  = (AL+1)*(AL+0)/2;
    const int NcoAw  = (AL-1)*(AL+0)/2;
 
-
    for ( int imm = my_vrr_rank; imm < m*NcoA; imm+=VTS ){
 
       int i  = imm % NcoA ;
       int mm = imm / NcoA ;
-
+      // TODO are they read as a single int32 ?
       uint8_t ex = xyz_tab[(SA[AL]+i)*4+0];
       uint8_t ey = xyz_tab[(SA[AL]+i)*4+1];
       uint8_t ez = xyz_tab[(SA[AL]+i)*4+2];
@@ -344,8 +351,6 @@ __device__ void execute_VRR6_gpu(
    }
 }
 
-
-
 __global__ void compute_VRR_batched_gpu_low(
       const int Ncells, const int* __restrict__ plan,
       const unsigned int* const __restrict__ PMX,
@@ -380,7 +385,7 @@ __global__ void compute_VRR_batched_gpu_low(
 
          while ( not found and i < n_prm ){
             Of = ((Ov+i) * Ng + n3 ) * F_size;
-            // copy Fm[0] ( the ssss(0) integral ) to AC for later screening in ECO
+            // copy Fm[0] ( the ssss(0) integral ) to AC for later screening
             pr_mem = &AC[ ((Ov+i) * Ng + n3) * vrr_blocksize ];
             pr_mem[0] = Fm[Of];
             // Immediate screening
@@ -448,9 +453,9 @@ __global__ void compute_VRR_batched_gpu_low(
                } else if ( t == VRR6 ){ 
                   m4 = &pr_mem[off_m4];
                   execute_VRR6_gpu( la, m, m1, m2, m3, m4, pqz+6, pqz+9, pqz[16] );
-               } else if ( t == SYTM and VTS > CUDA_WARPSIZE ){
+               } //else if ( t == SYTM and VTS > CUDA_WARPSIZE ){
                   __syncthreads();
-               }
+//               }
             } // end of loop over op  
          }
       }

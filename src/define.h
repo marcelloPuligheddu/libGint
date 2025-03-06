@@ -230,8 +230,10 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 #include<stdio.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
-
+ 
+// TODO int cudaDeviceProp::warpSize
 #define CUDA_WARPSIZE 32
+
 #define CUDA_GPU_ERR_CHECK(ans) { gpuAssertCUDA((ans), __FILE__, __LINE__); }
 inline void gpuAssertCUDA( cudaError_t code, const char *file, int line, bool abort=true){
    if (code != cudaSuccess) {

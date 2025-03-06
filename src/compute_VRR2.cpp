@@ -108,7 +108,7 @@ __constant__ uint8_t _idx_r[ 3*SA(MAXL+1) ] = {
 0, 0, 0, 0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14, 14, 15, 16, 17, 18, 19, 20, 20, 21, 22, 23, 24, 25, 26, 27, 27, 28, 29, 30, 31, 32, 33, 34, 35,  // 165*3 = 495
 };
 
-__constant__ uint8_t _e2[ 3*SA(MAXL+1) ] = {
+__constant__ double _e2[ 3*SA(MAXL+1) ] = {
 0, 
 0, 
 0, 
@@ -153,8 +153,12 @@ __device__ void execute_VRR1_gpu( // int AL, int CL, int m,
       int im = 0 ; 
       int idx_000 = i  + 3*mm;
       int idx_m00 = im + 1*mm;
-      int idx_m0p = im + 1*mm + 1;
-      a0c0m0[idx_000] = PA_WP[d] * amc0m0[idx_m00] + PA_WP[d+3] * amc0m0[idx_m0p];
+      int idx_m0p = im + 1*(1+mm);
+      a0c0m0[idx_000] = PA_WP[  d] * amc0m0[idx_m00] + 
+                        PA_WP[d+3] * amc0m0[idx_m0p];
+
+//      printf(" (1) i mm d %d %d %d | PA/QC * M00 %lg %d | WP/WQ * M0P %lg %d | \n", i,mm,d,PA_WP[d],idx_m00, PA_WP[d+3],idx_m0p);
+
    }
 }
 
@@ -166,9 +170,9 @@ __device__ void execute_VRR2_gpu(
       const double PA_WP[3], const double inv_2zab[2] ){
  
    int my_vrr_rank = threadIdx.x % VTS ; 
-   const int NcoA   = (AL+1)*(AL+2)/2;
-   const int NcoAm  = (AL+1)*(AL+0)/2;
-   const int NcoAw  = (AL-1)*(AL+0)/2;
+   const int NcoA   = ((AL+1)*(AL+2))/2;
+   const int NcoAm  = ((AL+0)*(AL+1))/2;
+   const int NcoAw  = ((AL-1)*(AL+0))/2;
 
    for ( int imm = my_vrr_rank; imm < m*NcoA; imm+=VTS ){
 
@@ -179,15 +183,18 @@ __device__ void execute_VRR2_gpu(
       int iw = _idx_w[SA(AL)+i];
       double e2 = _f2[SA(AL)+i];
 
-      int idx_000 = imm ; // i  + NcoA *mm ;
+      int idx_000 = imm ;
       int idx_m00 = im + NcoAm*mm ;
       int idx_w00 = iw + NcoAw*mm ;
-      int idx_m0p = idx_m00 + NLco_dev_but_constexpr(AL-1);
-      int idx_w0p = idx_w00 + NLco_dev_but_constexpr(AL-2);
+      int idx_m0p = idx_m00 + NcoAm;
+      int idx_w0p = idx_w00 + NcoAw;
 
-      a0c0m0[idx_000] = PA_WP[d] * amc0m0[idx_m00] + 
+      a0c0m0[idx_000] = PA_WP[d  ] * amc0m0[idx_m00] + 
                         PA_WP[d+3] * amc0m0[idx_m0p] + 
                         e2*( inv_2zab[0] * awc0m0[idx_w00] + inv_2zab[1] * awc0m0[idx_w0p] );
+
+//      printf(" (2) i m d im iw %d %d %d %d %d | PA/QC * M00 %lg %d | WP/WQ * M0P %lg %d | e2 * z * W00 + e2 * z * W0P %lg %lg %d %lg %d \n", 
+//                 i,mm,d,im,iw,               PA_WP[d],idx_m00, PA_WP[d+3],idx_m0p,         e2,inv_2zab[0],idx_w00,inv_2zab[1],idx_w0p );
    }
 }
 
@@ -215,7 +222,7 @@ __device__ void execute_VRR5_gpu(
 
       double f2, e2;
       int i, k, d, km, kw, im, o;
-      int idx_000, idx_0m0, idx_0w0, idx_mmp;
+      int idx_000, idx_0m0, idx_0w0, idx_mmp, idx_0mp, idx_0wp;
       double i_0m0, i_0mp, i_0w0, i_0wp, i_mmp;
 
       k  = ik % NcoC;
@@ -232,16 +239,21 @@ __device__ void execute_VRR5_gpu(
       for ( int mm = 0; mm < m; mm++ ){
          idx_000 = k +i *NcoC  + NcoA *NcoC *mm;
          idx_0m0 = km+i *NcoCm + NcoA *NcoCm*mm;
+         idx_0mp = km+i *NcoCm + NcoA *NcoCm*(1+mm);
          idx_0w0 = kw+i *NcoCw + NcoA *NcoCw*mm;
-         idx_mmp = km+im*NcoCm + NcoAm*NcoCm*mm;
+         idx_0wp = kw+i *NcoCw + NcoA *NcoCw*(1+mm);
+         idx_mmp = km+im*NcoCm + NcoAm*NcoCm*(mm);
 
          i_0m0 = a0cmm0[ idx_0m0 ];
-         i_0mp = a0cmm0[ idx_0m0 + NcoA *NcoCm ];
+         i_0mp = a0cmm0[ idx_0mp ];
          i_0w0 = a0cwm0[ idx_0w0 ];
-         i_0wp = a0cwm0[ idx_0w0 + NcoA *NcoCw ];
+         i_0wp = a0cwm0[ idx_0wp ];
          i_mmp = amcmmp[ idx_mmp ];
 
          a0c0m0[ idx_000 ] = QC_WQ[d] * i_0m0 + QC_WQ[d+3] * i_0mp + f2*( inv_2zcd[0] * i_0w0 + inv_2zcd[1] * i_0wp ) + e2*inv_2zcd[2]*i_mmp;
+
+//         printf(" (5) %d %d | i k m d km kw f2 o im e2 %d %d %d %d %d %d %lg %d %d %lg \n", AL,CL, i,k,mm,d,km,kw,f2,o,im,e2 );
+ 
       }
    }
 }
@@ -274,28 +286,29 @@ __device__ void execute_VRR6_gpu(
       d = k;
       o  = _idx_off[3*AL+d];
       im = _idx_r[o+i];
-//      e2 = _e2[ 3*SA(AL) + i + k*NcoA ];
       e2 = _e2[o+i];
       km = 0;
-
-
 
       for ( int mm = 0; mm < m; mm++ ){
          idx_000 = k +i *NcoC  + NcoA *NcoC *(  mm);
          idx_0m0 = km+i *NcoCm + NcoA *NcoCm*(  mm);
-         idx_mmp = km+im*NcoCm + NcoAm*NcoCm*(  mm);
          idx_0mp = km+i *NcoCm + NcoA *NcoCm*(1+mm);
+         idx_mmp = km+im*NcoCm + NcoAm*NcoCm*(mm);
 
          i_0m0 = a0cmm0[ idx_0m0 ];
          i_0mp = a0cmm0[ idx_0mp ];
          i_mmp = amcmmp[ idx_mmp ];
 
          a0c0m0[ idx_000 ] = QC_WQ[d] * i_0m0 + QC_WQ[d+3] * i_0mp + e2*inv_2z*i_mmp;
+
+//         printf(" (6) %d %d | i k m d km o im e2 %d %d %d %d %d %d %d %lg \n", AL,CL, i,k,mm,d,km,o,im,e2 );
       }
    }
 }
 
-#define CUDA_WARPSIZE 32
+
+
+
 
 template< int VTS >
 __device__ void ssss(double * ss0 , double para[4*3+5] ){
@@ -2577,7 +2590,7 @@ __device__ void pssf(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 5 ;
-   double*  sp1  = ss0 + 20 ;
+   double*  sp1  = ss0 + 17 ;
    double*  sd1  = ss0 + 23 ;
    double*  pp0  = ss0 + 29 ;
    double*  pd0  = ss0 + 56 ;
@@ -2633,7 +2646,7 @@ __device__ void pspd(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 5 ;
-   double*  sp1  = ss0 + 20 ;
+   double*  sp1  = ss0 + 17 ;
    double*  sd1  = ss0 + 23 ;
    double*  pp0  = ss0 + 29 ;
    double*  pd0  = ss0 + 56 ;
@@ -2657,8 +2670,8 @@ __device__ void pspf(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 6 ;
-   double*  sp1  = ss0 + 24 ;
-   double*  sd1  = ss0 + 36 ;
+   double*  sp1  = ss0 + 21 ;
+   double*  sd1  = ss0 + 30 ;
    double*  pp0  = ss0 + 42 ;
    double*  pd0  = ss0 + 78 ;
    double*  sf1  = ss0 + 132 ;
@@ -2705,7 +2718,7 @@ __device__ void psdp(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 5 ;
-   double*  sp1  = ss0 + 20 ;
+   double*  sp1  = ss0 + 17 ;
    double*  sd1  = ss0 + 23 ;
    double*  pp0  = ss0 + 29 ;
    double*  pd0  = ss0 + 56 ;
@@ -2729,8 +2742,8 @@ __device__ void psdd(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 6 ;
-   double*  sp1  = ss0 + 24 ;
-   double*  sd1  = ss0 + 36 ;
+   double*  sp1  = ss0 + 21 ;
+   double*  sd1  = ss0 + 30 ;
    double*  pp0  = ss0 + 42 ;
    double*  pd0  = ss0 + 78 ;
    double*  sf1  = ss0 + 132 ;
@@ -2758,11 +2771,11 @@ __device__ void psdf(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 7 ;
-   double*  sp1  = ss0 + 28 ;
+   double*  sp1  = ss0 + 25 ;
    double*  pp0  = ss0 + 37 ;
-   double*  sd1  = ss0 + 88 ;
+   double*  sd1  = ss0 + 82 ;
    double*  pd0  = ss0 + 100 ;
-   double*  sf1  = ss0 + 182 ;
+   double*  sf1  = ss0 + 172 ;
    double*  sg1  = ss0 + 192 ;
    double*  pf0  = ss0 + 207 ;
    double*  pg0  = ss0 + 297 ;
@@ -2792,7 +2805,7 @@ __device__ void psfs(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 5 ;
-   double*  sp1  = ss0 + 20 ;
+   double*  sp1  = ss0 + 17 ;
    double*  sd1  = ss0 + 23 ;
    double*  pp0  = ss0 + 29 ;
    double*  pd0  = ss0 + 56 ;
@@ -2816,8 +2829,8 @@ __device__ void psfp(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 6 ;
-   double*  sp1  = ss0 + 24 ;
-   double*  sd1  = ss0 + 36 ;
+   double*  sp1  = ss0 + 21 ;
+   double*  sd1  = ss0 + 30 ;
    double*  pp0  = ss0 + 42 ;
    double*  pd0  = ss0 + 78 ;
    double*  sf1  = ss0 + 132 ;
@@ -2845,11 +2858,11 @@ __device__ void psfd(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 7 ;
-   double*  sp1  = ss0 + 28 ;
+   double*  sp1  = ss0 + 25 ;
    double*  pp0  = ss0 + 37 ;
-   double*  sd1  = ss0 + 88 ;
+   double*  sd1  = ss0 + 82 ;
    double*  pd0  = ss0 + 100 ;
-   double*  sf1  = ss0 + 182 ;
+   double*  sf1  = ss0 + 172 ;
    double*  sg1  = ss0 + 192 ;
    double*  pf0  = ss0 + 207 ;
    double*  pg0  = ss0 + 297 ;
@@ -2879,13 +2892,13 @@ __device__ void psff(double * ss0 , double para[4*3+5] ){
    double   z     = para[16];
    double*  ss1  = ss0 + 1 ;
    double*  ps0  = ss0 + 8 ;
-   double*  sp1  = ss0 + 32 ;
+   double*  sp1  = ss0 + 29 ;
    double*  pp0  = ss0 + 44 ;
-   double*  sd1  = ss0 + 104 ;
-   double*  sf1  = ss0 + 132 ;
+   double*  sd1  = ss0 + 98 ;
+   double*  sf1  = ss0 + 122 ;
    double*  pd0  = ss0 + 152 ;
    double*  pf0  = ss0 + 242 ;
-   double*  sg1  = ss0 + 377 ;
+   double*  sg1  = ss0 + 362 ;
    double*  pg0  = ss0 + 392 ;
    double*  sh1  = ss0 + 527 ;
    double*  ph0  = ss0 + 548 ;
@@ -2983,7 +2996,7 @@ __device__ void ppsf(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp1  = ss0 + 48 ;
+   double*  sp1  = ss0 + 45 ;
    double*  sd1  = ss0 + 51 ;
    double*  pp0  = ss0 + 57 ;
    double*  pp1  = ss0 + 66 ;
@@ -3073,7 +3086,7 @@ __device__ void pppd(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp1  = ss0 + 48 ;
+   double*  sp1  = ss0 + 45 ;
    double*  pp0  = ss0 + 51 ;
    double*  pp1  = ss0 + 60 ;
    double*  sd1  = ss0 + 78 ;
@@ -3112,8 +3125,8 @@ __device__ void pppf(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 7 ;
    double*  ps1  = ss0 + 10 ;
    double*  ds0  = ss0 + 25 ;
-   double*  sp1  = ss0 + 58 ;
-   double*  sd1  = ss0 + 70 ;
+   double*  sp1  = ss0 + 55 ;
+   double*  sd1  = ss0 + 64 ;
    double*  pp0  = ss0 + 76 ;
    double*  pp1  = ss0 + 85 ;
    double*  sf1  = ss0 + 112 ;
@@ -3190,7 +3203,7 @@ __device__ void ppdp(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp1  = ss0 + 48 ;
+   double*  sp1  = ss0 + 45 ;
    double*  pp0  = ss0 + 51 ;
    double*  pp1  = ss0 + 60 ;
    double*  sd1  = ss0 + 78 ;
@@ -3229,8 +3242,8 @@ __device__ void ppdd(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 7 ;
    double*  ps1  = ss0 + 10 ;
    double*  ds0  = ss0 + 25 ;
-   double*  sp1  = ss0 + 58 ;
-   double*  sd1  = ss0 + 70 ;
+   double*  sp1  = ss0 + 55 ;
+   double*  sd1  = ss0 + 64 ;
    double*  pp0  = ss0 + 76 ;
    double*  pp1  = ss0 + 85 ;
    double*  sf1  = ss0 + 112 ;
@@ -3276,14 +3289,14 @@ __device__ void ppdf(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 8 ;
    double*  ps1  = ss0 + 11 ;
    double*  ds0  = ss0 + 29 ;
-   double*  sp1  = ss0 + 68 ;
+   double*  sp1  = ss0 + 65 ;
    double*  pp0  = ss0 + 77 ;
    double*  pp1  = ss0 + 86 ;
-   double*  sd1  = ss0 + 128 ;
+   double*  sd1  = ss0 + 122 ;
    double*  dp0  = ss0 + 140 ;
    double*  pd0  = ss0 + 230 ;
    double*  pd1  = ss0 + 248 ;
-   double*  sf1  = ss0 + 312 ;
+   double*  sf1  = ss0 + 302 ;
    double*  sg1  = ss0 + 322 ;
    double*  dd0  = ss0 + 337 ;
    double*  pf0  = ss0 + 481 ;
@@ -3331,7 +3344,7 @@ __device__ void ppfs(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp1  = ss0 + 48 ;
+   double*  sp1  = ss0 + 45 ;
    double*  pp0  = ss0 + 51 ;
    double*  pp1  = ss0 + 60 ;
    double*  sd1  = ss0 + 78 ;
@@ -3370,8 +3383,8 @@ __device__ void ppfp(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 7 ;
    double*  ps1  = ss0 + 10 ;
    double*  ds0  = ss0 + 25 ;
-   double*  sp1  = ss0 + 58 ;
-   double*  sd1  = ss0 + 70 ;
+   double*  sp1  = ss0 + 55 ;
+   double*  sd1  = ss0 + 64 ;
    double*  pp0  = ss0 + 76 ;
    double*  pp1  = ss0 + 85 ;
    double*  sf1  = ss0 + 112 ;
@@ -3417,14 +3430,14 @@ __device__ void ppfd(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 8 ;
    double*  ps1  = ss0 + 11 ;
    double*  ds0  = ss0 + 29 ;
-   double*  sp1  = ss0 + 68 ;
+   double*  sp1  = ss0 + 65 ;
    double*  pp0  = ss0 + 77 ;
    double*  pp1  = ss0 + 86 ;
-   double*  sd1  = ss0 + 128 ;
+   double*  sd1  = ss0 + 122 ;
    double*  dp0  = ss0 + 140 ;
    double*  pd0  = ss0 + 230 ;
    double*  pd1  = ss0 + 248 ;
-   double*  sf1  = ss0 + 312 ;
+   double*  sf1  = ss0 + 302 ;
    double*  dd0  = ss0 + 322 ;
    double*  pf0  = ss0 + 466 ;
    double*  pf1  = ss0 + 496 ;
@@ -3472,15 +3485,15 @@ __device__ void ppff(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 9 ;
    double*  ps1  = ss0 + 12 ;
    double*  ds0  = ss0 + 33 ;
-   double*  sp1  = ss0 + 78 ;
-   double*  sd1  = ss0 + 96 ;
+   double*  sp1  = ss0 + 75 ;
+   double*  sd1  = ss0 + 90 ;
    double*  pp0  = ss0 + 114 ;
    double*  pp1  = ss0 + 123 ;
-   double*  sf1  = ss0 + 178 ;
+   double*  sf1  = ss0 + 168 ;
    double*  dp0  = ss0 + 198 ;
    double*  pd0  = ss0 + 306 ;
    double*  pd1  = ss0 + 324 ;
-   double*  sg1  = ss0 + 411 ;
+   double*  sg1  = ss0 + 396 ;
    double*  dd0  = ss0 + 426 ;
    double*  pf0  = ss0 + 606 ;
    double*  pf1  = ss0 + 636 ;
@@ -3620,7 +3633,7 @@ __device__ void pdsf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp1  = ss0 + 98 ;
+   double*  sp1  = ss0 + 95 ;
    double*  sd1  = ss0 + 101 ;
    double*  pp0  = ss0 + 107 ;
    double*  pp1  = ss0 + 116 ;
@@ -3741,7 +3754,7 @@ __device__ void pdpd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp1  = ss0 + 98 ;
+   double*  sp1  = ss0 + 95 ;
    double*  sd1  = ss0 + 101 ;
    double*  pp0  = ss0 + 107 ;
    double*  pp1  = ss0 + 116 ;
@@ -3793,10 +3806,10 @@ __device__ void pdpf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 29 ;
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
-   double*  sp1  = ss0 + 118 ;
+   double*  sp1  = ss0 + 115 ;
    double*  pp0  = ss0 + 124 ;
    double*  pp1  = ss0 + 133 ;
-   double*  sd1  = ss0 + 166 ;
+   double*  sd1  = ss0 + 160 ;
    double*  sf1  = ss0 + 172 ;
    double*  dp0  = ss0 + 182 ;
    double*  dp1  = ss0 + 200 ;
@@ -3897,7 +3910,7 @@ __device__ void pddp(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp1  = ss0 + 98 ;
+   double*  sp1  = ss0 + 95 ;
    double*  sd1  = ss0 + 101 ;
    double*  pp0  = ss0 + 107 ;
    double*  pp1  = ss0 + 116 ;
@@ -3949,10 +3962,10 @@ __device__ void pddd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 29 ;
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
-   double*  sp1  = ss0 + 118 ;
+   double*  sp1  = ss0 + 115 ;
    double*  pp0  = ss0 + 124 ;
    double*  pp1  = ss0 + 133 ;
-   double*  sd1  = ss0 + 166 ;
+   double*  sd1  = ss0 + 160 ;
    double*  sf1  = ss0 + 172 ;
    double*  dp0  = ss0 + 182 ;
    double*  dp1  = ss0 + 200 ;
@@ -4012,11 +4025,11 @@ __device__ void pddf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 33 ;
    double*  ds1  = ss0 + 39 ;
    double*  fs0  = ss0 + 75 ;
-   double*  sp1  = ss0 + 138 ;
-   double*  sd1  = ss0 + 153 ;
+   double*  sp1  = ss0 + 135 ;
+   double*  sd1  = ss0 + 147 ;
    double*  pp0  = ss0 + 165 ;
    double*  pp1  = ss0 + 174 ;
-   double*  sf1  = ss0 + 220 ;
+   double*  sf1  = ss0 + 210 ;
    double*  dp0  = ss0 + 230 ;
    double*  dp1  = ss0 + 248 ;
    double*  pd0  = ss0 + 320 ;
@@ -4086,7 +4099,7 @@ __device__ void pdfs(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp1  = ss0 + 98 ;
+   double*  sp1  = ss0 + 95 ;
    double*  sd1  = ss0 + 101 ;
    double*  pp0  = ss0 + 107 ;
    double*  pp1  = ss0 + 116 ;
@@ -4138,10 +4151,10 @@ __device__ void pdfp(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 29 ;
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
-   double*  sp1  = ss0 + 118 ;
+   double*  sp1  = ss0 + 115 ;
    double*  pp0  = ss0 + 124 ;
    double*  pp1  = ss0 + 133 ;
-   double*  sd1  = ss0 + 166 ;
+   double*  sd1  = ss0 + 160 ;
    double*  sf1  = ss0 + 172 ;
    double*  dp0  = ss0 + 182 ;
    double*  dp1  = ss0 + 200 ;
@@ -4201,11 +4214,11 @@ __device__ void pdfd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 33 ;
    double*  ds1  = ss0 + 39 ;
    double*  fs0  = ss0 + 75 ;
-   double*  sp1  = ss0 + 138 ;
+   double*  sp1  = ss0 + 135 ;
    double*  pp0  = ss0 + 147 ;
    double*  pp1  = ss0 + 156 ;
-   double*  sd1  = ss0 + 198 ;
-   double*  sf1  = ss0 + 220 ;
+   double*  sd1  = ss0 + 192 ;
+   double*  sf1  = ss0 + 210 ;
    double*  pd0  = ss0 + 230 ;
    double*  pd1  = ss0 + 248 ;
    double*  dp0  = ss0 + 302 ;
@@ -4275,17 +4288,17 @@ __device__ void pdff(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 37 ;
    double*  ds1  = ss0 + 43 ;
    double*  fs0  = ss0 + 85 ;
-   double*  sp1  = ss0 + 158 ;
-   double*  sd1  = ss0 + 176 ;
+   double*  sp1  = ss0 + 155 ;
+   double*  sd1  = ss0 + 170 ;
    double*  pp0  = ss0 + 194 ;
    double*  pp1  = ss0 + 203 ;
-   double*  sf1  = ss0 + 258 ;
+   double*  sf1  = ss0 + 248 ;
    double*  dp0  = ss0 + 278 ;
    double*  dp1  = ss0 + 296 ;
    double*  pd0  = ss0 + 386 ;
    double*  pd1  = ss0 + 404 ;
    double*  fp0  = ss0 + 476 ;
-   double*  sg1  = ss0 + 671 ;
+   double*  sg1  = ss0 + 656 ;
    double*  dd0  = ss0 + 686 ;
    double*  dd1  = ss0 + 722 ;
    double*  pf0  = ss0 + 866 ;
@@ -4465,7 +4478,7 @@ __device__ void pfsf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp1  = ss0 + 178 ;
+   double*  sp1  = ss0 + 175 ;
    double*  sd1  = ss0 + 181 ;
    double*  pp0  = ss0 + 187 ;
    double*  pp1  = ss0 + 196 ;
@@ -4616,7 +4629,7 @@ __device__ void pfpd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp1  = ss0 + 178 ;
+   double*  sp1  = ss0 + 175 ;
    double*  sd1  = ss0 + 181 ;
    double*  pp0  = ss0 + 187 ;
    double*  pp1  = ss0 + 196 ;
@@ -4681,8 +4694,8 @@ __device__ void pfpf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 75 ;
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
-   double*  sp1  = ss0 + 213 ;
-   double*  sd1  = ss0 + 225 ;
+   double*  sp1  = ss0 + 210 ;
+   double*  sd1  = ss0 + 219 ;
    double*  pp0  = ss0 + 231 ;
    double*  pp1  = ss0 + 240 ;
    double*  sf1  = ss0 + 267 ;
@@ -4811,7 +4824,7 @@ __device__ void pfdp(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp1  = ss0 + 178 ;
+   double*  sp1  = ss0 + 175 ;
    double*  sd1  = ss0 + 181 ;
    double*  pp0  = ss0 + 187 ;
    double*  pp1  = ss0 + 196 ;
@@ -4876,8 +4889,8 @@ __device__ void pfdd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 75 ;
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
-   double*  sp1  = ss0 + 213 ;
-   double*  sd1  = ss0 + 225 ;
+   double*  sp1  = ss0 + 210 ;
+   double*  sd1  = ss0 + 219 ;
    double*  pp0  = ss0 + 231 ;
    double*  pp1  = ss0 + 240 ;
    double*  sf1  = ss0 + 267 ;
@@ -4955,15 +4968,15 @@ __device__ void pfdf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 85 ;
    double*  fs1  = ss0 + 95 ;
    double*  gs0  = ss0 + 155 ;
-   double*  sp1  = ss0 + 248 ;
+   double*  sp1  = ss0 + 245 ;
    double*  pp0  = ss0 + 257 ;
    double*  pp1  = ss0 + 266 ;
-   double*  sd1  = ss0 + 308 ;
+   double*  sd1  = ss0 + 302 ;
    double*  dp0  = ss0 + 320 ;
    double*  dp1  = ss0 + 338 ;
    double*  pd0  = ss0 + 410 ;
    double*  pd1  = ss0 + 428 ;
-   double*  sf1  = ss0 + 492 ;
+   double*  sf1  = ss0 + 482 ;
    double*  pf0  = ss0 + 502 ;
    double*  pf1  = ss0 + 532 ;
    double*  sg1  = ss0 + 592 ;
@@ -5048,7 +5061,7 @@ __device__ void pffs(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp1  = ss0 + 178 ;
+   double*  sp1  = ss0 + 175 ;
    double*  pp0  = ss0 + 181 ;
    double*  pp1  = ss0 + 190 ;
    double*  sd1  = ss0 + 208 ;
@@ -5113,8 +5126,8 @@ __device__ void pffp(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 75 ;
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
-   double*  sp1  = ss0 + 213 ;
-   double*  sd1  = ss0 + 225 ;
+   double*  sp1  = ss0 + 210 ;
+   double*  sd1  = ss0 + 219 ;
    double*  pp0  = ss0 + 231 ;
    double*  pp1  = ss0 + 240 ;
    double*  sf1  = ss0 + 267 ;
@@ -5192,11 +5205,11 @@ __device__ void pffd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 85 ;
    double*  fs1  = ss0 + 95 ;
    double*  gs0  = ss0 + 155 ;
-   double*  sp1  = ss0 + 248 ;
-   double*  sd1  = ss0 + 263 ;
+   double*  sp1  = ss0 + 245 ;
+   double*  sd1  = ss0 + 257 ;
    double*  pp0  = ss0 + 275 ;
    double*  pp1  = ss0 + 284 ;
-   double*  sf1  = ss0 + 330 ;
+   double*  sf1  = ss0 + 320 ;
    double*  dp0  = ss0 + 340 ;
    double*  dp1  = ss0 + 358 ;
    double*  pd0  = ss0 + 430 ;
@@ -5285,16 +5298,16 @@ __device__ void pfff(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 95 ;
    double*  fs1  = ss0 + 105 ;
    double*  gs0  = ss0 + 175 ;
-   double*  sp1  = ss0 + 283 ;
-   double*  sd1  = ss0 + 301 ;
+   double*  sp1  = ss0 + 280 ;
+   double*  sd1  = ss0 + 295 ;
    double*  pp0  = ss0 + 319 ;
    double*  pp1  = ss0 + 328 ;
    double*  dp0  = ss0 + 373 ;
    double*  dp1  = ss0 + 391 ;
    double*  pd0  = ss0 + 481 ;
    double*  pd1  = ss0 + 499 ;
-   double*  sf1  = ss0 + 581 ;
-   double*  sg1  = ss0 + 616 ;
+   double*  sf1  = ss0 + 571 ;
+   double*  sg1  = ss0 + 601 ;
    double*  pf0  = ss0 + 631 ;
    double*  pf1  = ss0 + 661 ;
    double*  fp0  = ss0 + 751 ;
@@ -5440,8 +5453,8 @@ __device__ void dssf(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp2  = ss0 + 51 ;
-   double*  pp1  = ss0 + 57 ;
+   double*  sp2  = ss0 + 45 ;
+   double*  pp1  = ss0 + 48 ;
    double*  dp0  = ss0 + 66 ;
    double*  pd1  = ss0 + 120 ;
    double*  dd0  = ss0 + 138 ;
@@ -5514,8 +5527,8 @@ __device__ void dspd(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp2  = ss0 + 51 ;
-   double*  pp1  = ss0 + 57 ;
+   double*  sp2  = ss0 + 45 ;
+   double*  pp1  = ss0 + 48 ;
    double*  pd1  = ss0 + 66 ;
    double*  dp0  = ss0 + 84 ;
    double*  dd0  = ss0 + 138 ;
@@ -5548,9 +5561,9 @@ __device__ void dspf(double * ss0 , double para[4*3+5] ){
    double*  ps1  = ss0 + 10 ;
    double*  ds0  = ss0 + 25 ;
    double*  sp2  = ss0 + 55 ;
-   double*  sd2  = ss0 + 73 ;
-   double*  pp1  = ss0 + 76 ;
-   double*  pd1  = ss0 + 112 ;
+   double*  sd2  = ss0 + 61 ;
+   double*  pp1  = ss0 + 67 ;
+   double*  pd1  = ss0 + 94 ;
    double*  dp0  = ss0 + 130 ;
    double*  pf1  = ss0 + 202 ;
    double*  dd0  = ss0 + 232 ;
@@ -5611,8 +5624,8 @@ __device__ void dsdp(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp2  = ss0 + 51 ;
-   double*  pp1  = ss0 + 57 ;
+   double*  sp2  = ss0 + 45 ;
+   double*  pp1  = ss0 + 48 ;
    double*  pd1  = ss0 + 66 ;
    double*  dp0  = ss0 + 84 ;
    double*  dd0  = ss0 + 138 ;
@@ -5645,9 +5658,9 @@ __device__ void dsdd(double * ss0 , double para[4*3+5] ){
    double*  ps1  = ss0 + 10 ;
    double*  ds0  = ss0 + 25 ;
    double*  sp2  = ss0 + 55 ;
-   double*  sd2  = ss0 + 73 ;
-   double*  pp1  = ss0 + 76 ;
-   double*  pd1  = ss0 + 112 ;
+   double*  sd2  = ss0 + 61 ;
+   double*  pp1  = ss0 + 67 ;
+   double*  pd1  = ss0 + 94 ;
    double*  dp0  = ss0 + 130 ;
    double*  pf1  = ss0 + 202 ;
    double*  dd0  = ss0 + 232 ;
@@ -5684,13 +5697,13 @@ __device__ void dsdf(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 8 ;
    double*  ps1  = ss0 + 11 ;
    double*  ds0  = ss0 + 29 ;
-   double*  sp2  = ss0 + 71 ;
+   double*  sp2  = ss0 + 65 ;
    double*  sd2  = ss0 + 74 ;
-   double*  pp1  = ss0 + 95 ;
-   double*  sf2  = ss0 + 142 ;
-   double*  pd1  = ss0 + 150 ;
+   double*  pp1  = ss0 + 86 ;
+   double*  sf2  = ss0 + 122 ;
+   double*  pd1  = ss0 + 132 ;
    double*  dp0  = ss0 + 186 ;
-   double*  pf1  = ss0 + 306 ;
+   double*  pf1  = ss0 + 276 ;
    double*  dd0  = ss0 + 336 ;
    double*  pg1  = ss0 + 480 ;
    double*  df0  = ss0 + 525 ;
@@ -5731,8 +5744,8 @@ __device__ void dsfs(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 6 ;
    double*  ps1  = ss0 + 9 ;
    double*  ds0  = ss0 + 21 ;
-   double*  sp2  = ss0 + 51 ;
-   double*  pp1  = ss0 + 57 ;
+   double*  sp2  = ss0 + 45 ;
+   double*  pp1  = ss0 + 48 ;
    double*  pd1  = ss0 + 66 ;
    double*  dp0  = ss0 + 84 ;
    double*  dd0  = ss0 + 138 ;
@@ -5765,9 +5778,9 @@ __device__ void dsfp(double * ss0 , double para[4*3+5] ){
    double*  ps1  = ss0 + 10 ;
    double*  ds0  = ss0 + 25 ;
    double*  sp2  = ss0 + 55 ;
-   double*  sd2  = ss0 + 73 ;
-   double*  pp1  = ss0 + 76 ;
-   double*  pd1  = ss0 + 112 ;
+   double*  sd2  = ss0 + 61 ;
+   double*  pp1  = ss0 + 67 ;
+   double*  pd1  = ss0 + 94 ;
    double*  dp0  = ss0 + 130 ;
    double*  pf1  = ss0 + 202 ;
    double*  dd0  = ss0 + 232 ;
@@ -5804,13 +5817,13 @@ __device__ void dsfd(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 8 ;
    double*  ps1  = ss0 + 11 ;
    double*  ds0  = ss0 + 29 ;
-   double*  sp2  = ss0 + 71 ;
+   double*  sp2  = ss0 + 65 ;
    double*  sd2  = ss0 + 74 ;
-   double*  pp1  = ss0 + 95 ;
-   double*  sf2  = ss0 + 142 ;
-   double*  pd1  = ss0 + 150 ;
+   double*  pp1  = ss0 + 86 ;
+   double*  sf2  = ss0 + 122 ;
+   double*  pd1  = ss0 + 132 ;
    double*  dp0  = ss0 + 186 ;
-   double*  pf1  = ss0 + 306 ;
+   double*  pf1  = ss0 + 276 ;
    double*  dd0  = ss0 + 336 ;
    double*  pg1  = ss0 + 480 ;
    double*  df0  = ss0 + 525 ;
@@ -5851,16 +5864,16 @@ __device__ void dsff(double * ss0 , double para[4*3+5] ){
    double*  ps0  = ss0 + 9 ;
    double*  ps1  = ss0 + 12 ;
    double*  ds0  = ss0 + 33 ;
-   double*  sp2  = ss0 + 81 ;
-   double*  sd2  = ss0 + 99 ;
-   double*  pp1  = ss0 + 114 ;
+   double*  sp2  = ss0 + 75 ;
+   double*  sd2  = ss0 + 87 ;
+   double*  pp1  = ss0 + 105 ;
    double*  sf2  = ss0 + 150 ;
    double*  dp0  = ss0 + 170 ;
-   double*  pd1  = ss0 + 296 ;
+   double*  pd1  = ss0 + 278 ;
+   double*  sg2  = ss0 + 350 ;
    double*  dd0  = ss0 + 365 ;
-   double*  sg2  = ss0 + 380 ;
-   double*  pf1  = ss0 + 575 ;
-   double*  pg1  = ss0 + 680 ;
+   double*  pf1  = ss0 + 545 ;
+   double*  pg1  = ss0 + 635 ;
    double*  df0  = ss0 + 725 ;
    double*  ph1  = ss0 + 965 ;
    double*  dg0  = ss0 + 1028 ;
@@ -5979,8 +5992,8 @@ __device__ void dpsf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp2  = ss0 + 101 ;
-   double*  pp1  = ss0 + 107 ;
+   double*  sp2  = ss0 + 95 ;
+   double*  pp1  = ss0 + 98 ;
    double*  pd1  = ss0 + 116 ;
    double*  dp0  = ss0 + 134 ;
    double*  dp1  = ss0 + 152 ;
@@ -6083,8 +6096,8 @@ __device__ void dppd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp2  = ss0 + 101 ;
-   double*  pp1  = ss0 + 107 ;
+   double*  sp2  = ss0 + 95 ;
+   double*  pp1  = ss0 + 98 ;
    double*  pd1  = ss0 + 116 ;
    double*  dp0  = ss0 + 134 ;
    double*  dp1  = ss0 + 152 ;
@@ -6130,11 +6143,11 @@ __device__ void dppf(double * ss0 , double para[4*3+5] ){
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
    double*  sp2  = ss0 + 115 ;
-   double*  pp1  = ss0 + 130 ;
+   double*  pp1  = ss0 + 121 ;
+   double*  sd2  = ss0 + 148 ;
    double*  dp0  = ss0 + 154 ;
-   double*  sd2  = ss0 + 160 ;
    double*  dp1  = ss0 + 172 ;
-   double*  pd1  = ss0 + 244 ;
+   double*  pd1  = ss0 + 226 ;
    double*  fp0  = ss0 + 262 ;
    double*  dd0  = ss0 + 382 ;
    double*  dd1  = ss0 + 418 ;
@@ -6220,8 +6233,8 @@ __device__ void dpdp(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp2  = ss0 + 101 ;
-   double*  pp1  = ss0 + 107 ;
+   double*  sp2  = ss0 + 95 ;
+   double*  pp1  = ss0 + 98 ;
    double*  pd1  = ss0 + 116 ;
    double*  dp0  = ss0 + 134 ;
    double*  dp1  = ss0 + 152 ;
@@ -6267,9 +6280,9 @@ __device__ void dpdd(double * ss0 , double para[4*3+5] ){
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
    double*  sp2  = ss0 + 115 ;
-   double*  sd2  = ss0 + 133 ;
-   double*  pp1  = ss0 + 136 ;
-   double*  pd1  = ss0 + 172 ;
+   double*  sd2  = ss0 + 121 ;
+   double*  pp1  = ss0 + 127 ;
+   double*  pd1  = ss0 + 154 ;
    double*  dp0  = ss0 + 190 ;
    double*  dp1  = ss0 + 208 ;
    double*  pf1  = ss0 + 262 ;
@@ -6322,17 +6335,17 @@ __device__ void dpdf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 33 ;
    double*  ds1  = ss0 + 39 ;
    double*  fs0  = ss0 + 75 ;
-   double*  sp2  = ss0 + 141 ;
-   double*  pp1  = ss0 + 153 ;
+   double*  sp2  = ss0 + 135 ;
+   double*  pp1  = ss0 + 144 ;
    double*  sd2  = ss0 + 180 ;
+   double*  sf2  = ss0 + 192 ;
    double*  dp0  = ss0 + 202 ;
-   double*  sf2  = ss0 + 212 ;
    double*  dp1  = ss0 + 220 ;
-   double*  pd1  = ss0 + 310 ;
+   double*  pd1  = ss0 + 292 ;
    double*  fp0  = ss0 + 346 ;
    double*  dd0  = ss0 + 496 ;
    double*  dd1  = ss0 + 532 ;
-   double*  pf1  = ss0 + 670 ;
+   double*  pf1  = ss0 + 640 ;
    double*  pg1  = ss0 + 700 ;
    double*  df0  = ss0 + 745 ;
    double*  df1  = ss0 + 805 ;
@@ -6388,8 +6401,8 @@ __device__ void dpfs(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  sp2  = ss0 + 101 ;
-   double*  pp1  = ss0 + 107 ;
+   double*  sp2  = ss0 + 95 ;
+   double*  pp1  = ss0 + 98 ;
    double*  pd1  = ss0 + 116 ;
    double*  dp0  = ss0 + 134 ;
    double*  dp1  = ss0 + 152 ;
@@ -6435,9 +6448,9 @@ __device__ void dpfp(double * ss0 , double para[4*3+5] ){
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
    double*  sp2  = ss0 + 115 ;
-   double*  sd2  = ss0 + 133 ;
-   double*  pp1  = ss0 + 136 ;
-   double*  pd1  = ss0 + 172 ;
+   double*  sd2  = ss0 + 121 ;
+   double*  pp1  = ss0 + 127 ;
+   double*  pd1  = ss0 + 154 ;
    double*  dp0  = ss0 + 190 ;
    double*  dp1  = ss0 + 208 ;
    double*  pf1  = ss0 + 262 ;
@@ -6490,17 +6503,17 @@ __device__ void dpfd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 33 ;
    double*  ds1  = ss0 + 39 ;
    double*  fs0  = ss0 + 75 ;
-   double*  sp2  = ss0 + 141 ;
-   double*  pp1  = ss0 + 153 ;
+   double*  sp2  = ss0 + 135 ;
+   double*  pp1  = ss0 + 144 ;
    double*  sd2  = ss0 + 180 ;
-   double*  sf2  = ss0 + 212 ;
-   double*  pd1  = ss0 + 220 ;
+   double*  sf2  = ss0 + 192 ;
+   double*  pd1  = ss0 + 202 ;
    double*  dp0  = ss0 + 256 ;
    double*  dp1  = ss0 + 274 ;
    double*  fp0  = ss0 + 346 ;
    double*  dd0  = ss0 + 496 ;
    double*  dd1  = ss0 + 532 ;
-   double*  pf1  = ss0 + 670 ;
+   double*  pf1  = ss0 + 640 ;
    double*  pg1  = ss0 + 700 ;
    double*  df0  = ss0 + 745 ;
    double*  df1  = ss0 + 805 ;
@@ -6556,19 +6569,19 @@ __device__ void dpff(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 37 ;
    double*  ds1  = ss0 + 43 ;
    double*  fs0  = ss0 + 85 ;
-   double*  sp2  = ss0 + 161 ;
-   double*  sd2  = ss0 + 179 ;
-   double*  pp1  = ss0 + 194 ;
+   double*  sp2  = ss0 + 155 ;
+   double*  sd2  = ss0 + 167 ;
+   double*  pp1  = ss0 + 185 ;
    double*  sf2  = ss0 + 230 ;
    double*  dp0  = ss0 + 250 ;
    double*  dp1  = ss0 + 268 ;
-   double*  pd1  = ss0 + 376 ;
+   double*  pd1  = ss0 + 358 ;
    double*  fp0  = ss0 + 430 ;
+   double*  sg2  = ss0 + 610 ;
    double*  dd0  = ss0 + 625 ;
-   double*  sg2  = ss0 + 640 ;
    double*  dd1  = ss0 + 661 ;
-   double*  pf1  = ss0 + 835 ;
-   double*  pg1  = ss0 + 940 ;
+   double*  pf1  = ss0 + 805 ;
+   double*  pg1  = ss0 + 895 ;
    double*  fd0  = ss0 + 985 ;
    double*  df0  = ss0 + 1285 ;
    double*  df1  = ss0 + 1345 ;
@@ -6727,8 +6740,8 @@ __device__ void ddsf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp2  = ss0 + 181 ;
-   double*  pp1  = ss0 + 187 ;
+   double*  sp2  = ss0 + 175 ;
+   double*  pp1  = ss0 + 178 ;
    double*  dp0  = ss0 + 196 ;
    double*  dp1  = ss0 + 214 ;
    double*  pd1  = ss0 + 250 ;
@@ -6862,8 +6875,8 @@ __device__ void ddpd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp2  = ss0 + 181 ;
-   double*  pp1  = ss0 + 187 ;
+   double*  sp2  = ss0 + 175 ;
+   double*  pp1  = ss0 + 178 ;
    double*  pd1  = ss0 + 196 ;
    double*  dp0  = ss0 + 214 ;
    double*  dp1  = ss0 + 232 ;
@@ -6922,11 +6935,11 @@ __device__ void ddpf(double * ss0 , double para[4*3+5] ){
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
    double*  sp2  = ss0 + 210 ;
-   double*  sd2  = ss0 + 228 ;
-   double*  pp1  = ss0 + 231 ;
+   double*  sd2  = ss0 + 216 ;
+   double*  pp1  = ss0 + 222 ;
    double*  dp0  = ss0 + 249 ;
    double*  dp1  = ss0 + 267 ;
-   double*  pd1  = ss0 + 339 ;
+   double*  pd1  = ss0 + 321 ;
    double*  pf1  = ss0 + 357 ;
    double*  fp0  = ss0 + 387 ;
    double*  fp1  = ss0 + 417 ;
@@ -7038,8 +7051,8 @@ __device__ void dddp(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp2  = ss0 + 181 ;
-   double*  pp1  = ss0 + 187 ;
+   double*  sp2  = ss0 + 175 ;
+   double*  pp1  = ss0 + 178 ;
    double*  pd1  = ss0 + 196 ;
    double*  dp0  = ss0 + 214 ;
    double*  dp1  = ss0 + 232 ;
@@ -7098,9 +7111,9 @@ __device__ void dddd(double * ss0 , double para[4*3+5] ){
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
    double*  sp2  = ss0 + 210 ;
-   double*  sd2  = ss0 + 228 ;
-   double*  pp1  = ss0 + 231 ;
-   double*  pd1  = ss0 + 267 ;
+   double*  sd2  = ss0 + 216 ;
+   double*  pp1  = ss0 + 222 ;
+   double*  pd1  = ss0 + 249 ;
    double*  dp0  = ss0 + 285 ;
    double*  dp1  = ss0 + 303 ;
    double*  pf1  = ss0 + 357 ;
@@ -7169,18 +7182,18 @@ __device__ void dddf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 85 ;
    double*  fs1  = ss0 + 95 ;
    double*  gs0  = ss0 + 155 ;
-   double*  sp2  = ss0 + 251 ;
+   double*  sp2  = ss0 + 245 ;
    double*  sd2  = ss0 + 254 ;
-   double*  pp1  = ss0 + 275 ;
+   double*  pp1  = ss0 + 266 ;
+   double*  sf2  = ss0 + 302 ;
    double*  dp0  = ss0 + 312 ;
-   double*  sf2  = ss0 + 322 ;
    double*  dp1  = ss0 + 330 ;
-   double*  pd1  = ss0 + 420 ;
+   double*  pd1  = ss0 + 402 ;
    double*  fp0  = ss0 + 456 ;
    double*  fp1  = ss0 + 486 ;
    double*  dd0  = ss0 + 606 ;
    double*  dd1  = ss0 + 642 ;
-   double*  pf1  = ss0 + 780 ;
+   double*  pf1  = ss0 + 750 ;
    double*  pg1  = ss0 + 810 ;
    double*  fd0  = ss0 + 855 ;
    double*  fd1  = ss0 + 915 ;
@@ -7254,8 +7267,8 @@ __device__ void ddfs(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  sp2  = ss0 + 181 ;
-   double*  pp1  = ss0 + 187 ;
+   double*  sp2  = ss0 + 175 ;
+   double*  pp1  = ss0 + 178 ;
    double*  pd1  = ss0 + 196 ;
    double*  dp0  = ss0 + 214 ;
    double*  dp1  = ss0 + 232 ;
@@ -7314,11 +7327,11 @@ __device__ void ddfp(double * ss0 , double para[4*3+5] ){
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
    double*  sp2  = ss0 + 210 ;
-   double*  sd2  = ss0 + 228 ;
-   double*  pp1  = ss0 + 231 ;
+   double*  sd2  = ss0 + 216 ;
+   double*  pp1  = ss0 + 222 ;
    double*  dp0  = ss0 + 249 ;
    double*  dp1  = ss0 + 267 ;
-   double*  pd1  = ss0 + 339 ;
+   double*  pd1  = ss0 + 321 ;
    double*  pf1  = ss0 + 357 ;
    double*  fp0  = ss0 + 387 ;
    double*  fp1  = ss0 + 417 ;
@@ -7385,18 +7398,18 @@ __device__ void ddfd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 85 ;
    double*  fs1  = ss0 + 95 ;
    double*  gs0  = ss0 + 155 ;
-   double*  sp2  = ss0 + 251 ;
+   double*  sp2  = ss0 + 245 ;
    double*  sd2  = ss0 + 254 ;
-   double*  pp1  = ss0 + 275 ;
+   double*  pp1  = ss0 + 266 ;
+   double*  sf2  = ss0 + 302 ;
    double*  dp0  = ss0 + 312 ;
-   double*  sf2  = ss0 + 322 ;
    double*  dp1  = ss0 + 330 ;
-   double*  pd1  = ss0 + 420 ;
+   double*  pd1  = ss0 + 402 ;
    double*  fp0  = ss0 + 456 ;
    double*  fp1  = ss0 + 486 ;
    double*  dd0  = ss0 + 606 ;
    double*  dd1  = ss0 + 642 ;
-   double*  pf1  = ss0 + 780 ;
+   double*  pf1  = ss0 + 750 ;
    double*  pg1  = ss0 + 810 ;
    double*  fd0  = ss0 + 855 ;
    double*  fd1  = ss0 + 915 ;
@@ -7470,15 +7483,15 @@ __device__ void ddff(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 95 ;
    double*  fs1  = ss0 + 105 ;
    double*  gs0  = ss0 + 175 ;
-   double*  sp2  = ss0 + 286 ;
-   double*  sd2  = ss0 + 304 ;
-   double*  pp1  = ss0 + 319 ;
+   double*  sp2  = ss0 + 280 ;
+   double*  sd2  = ss0 + 292 ;
+   double*  pp1  = ss0 + 310 ;
    double*  dp0  = ss0 + 355 ;
    double*  dp1  = ss0 + 373 ;
    double*  sf2  = ss0 + 463 ;
-   double*  pd1  = ss0 + 501 ;
-   double*  sg2  = ss0 + 585 ;
-   double*  pf1  = ss0 + 600 ;
+   double*  pd1  = ss0 + 483 ;
+   double*  sg2  = ss0 + 555 ;
+   double*  pf1  = ss0 + 570 ;
    double*  fp0  = ss0 + 660 ;
    double*  fp1  = ss0 + 690 ;
    double*  dd0  = ss0 + 840 ;
@@ -7487,7 +7500,7 @@ __device__ void ddff(double * ss0 , double para[4*3+5] ){
    double*  df1  = ss0 + 1080 ;
    double*  fd0  = ss0 + 1260 ;
    double*  fd1  = ss0 + 1320 ;
-   double*  pg1  = ss0 + 1605 ;
+   double*  pg1  = ss0 + 1560 ;
    double*  gp0  = ss0 + 1650 ;
    double*  dg0  = ss0 + 1920 ;
    double*  dg1  = ss0 + 2010 ;
@@ -7683,8 +7696,8 @@ __device__ void dfsf(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  sp2  = ss0 + 300 ;
-   double*  pp1  = ss0 + 306 ;
+   double*  sp2  = ss0 + 294 ;
+   double*  pp1  = ss0 + 297 ;
    double*  pd1  = ss0 + 315 ;
    double*  dp0  = ss0 + 333 ;
    double*  dp1  = ss0 + 351 ;
@@ -7848,8 +7861,8 @@ __device__ void dfpd(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  sp2  = ss0 + 300 ;
-   double*  pp1  = ss0 + 306 ;
+   double*  sp2  = ss0 + 294 ;
+   double*  pp1  = ss0 + 297 ;
    double*  pd1  = ss0 + 315 ;
    double*  dp0  = ss0 + 333 ;
    double*  dp1  = ss0 + 351 ;
@@ -7921,9 +7934,9 @@ __device__ void dfpf(double * ss0 , double para[4*3+5] ){
    double*  gs1  = ss0 + 170 ;
    double*  hs0  = ss0 + 245 ;
    double*  sp2  = ss0 + 350 ;
-   double*  sd2  = ss0 + 368 ;
-   double*  pp1  = ss0 + 371 ;
-   double*  pd1  = ss0 + 407 ;
+   double*  sd2  = ss0 + 356 ;
+   double*  pp1  = ss0 + 362 ;
+   double*  pd1  = ss0 + 389 ;
    double*  dp0  = ss0 + 425 ;
    double*  dp1  = ss0 + 443 ;
    double*  pf1  = ss0 + 497 ;
@@ -8063,8 +8076,8 @@ __device__ void dfdp(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  sp2  = ss0 + 300 ;
-   double*  pp1  = ss0 + 306 ;
+   double*  sp2  = ss0 + 294 ;
+   double*  pp1  = ss0 + 297 ;
    double*  dp0  = ss0 + 315 ;
    double*  dp1  = ss0 + 333 ;
    double*  pd1  = ss0 + 369 ;
@@ -8136,9 +8149,9 @@ __device__ void dfdd(double * ss0 , double para[4*3+5] ){
    double*  gs1  = ss0 + 170 ;
    double*  hs0  = ss0 + 245 ;
    double*  sp2  = ss0 + 350 ;
-   double*  sd2  = ss0 + 368 ;
-   double*  pp1  = ss0 + 371 ;
-   double*  pd1  = ss0 + 407 ;
+   double*  sd2  = ss0 + 356 ;
+   double*  pp1  = ss0 + 362 ;
+   double*  pd1  = ss0 + 389 ;
    double*  dp0  = ss0 + 425 ;
    double*  dp1  = ss0 + 443 ;
    double*  pf1  = ss0 + 497 ;
@@ -8223,14 +8236,14 @@ __device__ void dfdf(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 175 ;
    double*  gs1  = ss0 + 190 ;
    double*  hs0  = ss0 + 280 ;
-   double*  sp2  = ss0 + 412 ;
-   double*  pp1  = ss0 + 424 ;
+   double*  sp2  = ss0 + 406 ;
+   double*  pp1  = ss0 + 415 ;
    double*  sd2  = ss0 + 451 ;
-   double*  sf2  = ss0 + 483 ;
-   double*  pd1  = ss0 + 491 ;
+   double*  sf2  = ss0 + 463 ;
+   double*  pd1  = ss0 + 473 ;
    double*  dp0  = ss0 + 527 ;
    double*  dp1  = ss0 + 545 ;
-   double*  pf1  = ss0 + 647 ;
+   double*  pf1  = ss0 + 617 ;
    double*  fp0  = ss0 + 677 ;
    double*  fp1  = ss0 + 707 ;
    double*  dd0  = ss0 + 827 ;
@@ -8327,8 +8340,8 @@ __device__ void dffs(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  sp2  = ss0 + 300 ;
-   double*  pp1  = ss0 + 306 ;
+   double*  sp2  = ss0 + 294 ;
+   double*  pp1  = ss0 + 297 ;
    double*  dp0  = ss0 + 315 ;
    double*  dp1  = ss0 + 333 ;
    double*  pd1  = ss0 + 369 ;
@@ -8400,11 +8413,11 @@ __device__ void dffp(double * ss0 , double para[4*3+5] ){
    double*  gs1  = ss0 + 170 ;
    double*  hs0  = ss0 + 245 ;
    double*  sp2  = ss0 + 350 ;
-   double*  sd2  = ss0 + 368 ;
-   double*  pp1  = ss0 + 371 ;
+   double*  sd2  = ss0 + 356 ;
+   double*  pp1  = ss0 + 362 ;
    double*  dp0  = ss0 + 389 ;
    double*  dp1  = ss0 + 407 ;
-   double*  pd1  = ss0 + 479 ;
+   double*  pd1  = ss0 + 461 ;
    double*  pf1  = ss0 + 497 ;
    double*  dd0  = ss0 + 527 ;
    double*  dd1  = ss0 + 563 ;
@@ -8487,14 +8500,14 @@ __device__ void dffd(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 175 ;
    double*  gs1  = ss0 + 190 ;
    double*  hs0  = ss0 + 280 ;
-   double*  sp2  = ss0 + 412 ;
-   double*  pp1  = ss0 + 424 ;
+   double*  sp2  = ss0 + 406 ;
+   double*  pp1  = ss0 + 415 ;
    double*  sd2  = ss0 + 451 ;
+   double*  sf2  = ss0 + 463 ;
    double*  dp0  = ss0 + 473 ;
-   double*  sf2  = ss0 + 483 ;
    double*  dp1  = ss0 + 491 ;
-   double*  pd1  = ss0 + 581 ;
-   double*  pf1  = ss0 + 647 ;
+   double*  pd1  = ss0 + 563 ;
+   double*  pf1  = ss0 + 617 ;
    double*  fp0  = ss0 + 677 ;
    double*  fp1  = ss0 + 707 ;
    double*  dd0  = ss0 + 827 ;
@@ -8591,20 +8604,20 @@ __device__ void dfff(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 195 ;
    double*  gs1  = ss0 + 210 ;
    double*  hs0  = ss0 + 315 ;
-   double*  sp2  = ss0 + 468 ;
-   double*  sd2  = ss0 + 486 ;
-   double*  pp1  = ss0 + 501 ;
+   double*  sp2  = ss0 + 462 ;
+   double*  sd2  = ss0 + 474 ;
+   double*  pp1  = ss0 + 492 ;
    double*  sf2  = ss0 + 537 ;
-   double*  pd1  = ss0 + 575 ;
+   double*  pd1  = ss0 + 557 ;
    double*  dp0  = ss0 + 629 ;
    double*  dp1  = ss0 + 647 ;
-   double*  sg2  = ss0 + 767 ;
-   double*  pf1  = ss0 + 782 ;
+   double*  sg2  = ss0 + 737 ;
+   double*  pf1  = ss0 + 752 ;
    double*  dd0  = ss0 + 842 ;
    double*  dd1  = ss0 + 878 ;
    double*  fp0  = ss0 + 1022 ;
    double*  fp1  = ss0 + 1052 ;
-   double*  pg1  = ss0 + 1247 ;
+   double*  pg1  = ss0 + 1202 ;
    double*  df0  = ss0 + 1292 ;
    double*  df1  = ss0 + 1352 ;
    double*  gp0  = ss0 + 1532 ;
@@ -8768,8 +8781,8 @@ __device__ void fssf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  pp2  = ss0 + 113 ;
-   double*  dp1  = ss0 + 122 ;
+   double*  pp2  = ss0 + 95 ;
+   double*  dp1  = ss0 + 104 ;
    double*  dd1  = ss0 + 140 ;
    double*  fp0  = ss0 + 176 ;
    double*  fd0  = ss0 + 266 ;
@@ -8852,8 +8865,8 @@ __device__ void fspd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  pp2  = ss0 + 113 ;
-   double*  dp1  = ss0 + 122 ;
+   double*  pp2  = ss0 + 95 ;
+   double*  dp1  = ss0 + 104 ;
    double*  fp0  = ss0 + 140 ;
    double*  dd1  = ss0 + 230 ;
    double*  fd0  = ss0 + 266 ;
@@ -8889,11 +8902,11 @@ __device__ void fspf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 29 ;
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
+   double*  sp3  = ss0 + 115 ;
    double*  pp2  = ss0 + 118 ;
-   double*  sp3  = ss0 + 124 ;
    double*  pd2  = ss0 + 136 ;
-   double*  dp1  = ss0 + 172 ;
-   double*  dd1  = ss0 + 244 ;
+   double*  dp1  = ss0 + 154 ;
+   double*  dd1  = ss0 + 208 ;
    double*  fp0  = ss0 + 280 ;
    double*  df1  = ss0 + 400 ;
    double*  fd0  = ss0 + 460 ;
@@ -8963,8 +8976,8 @@ __device__ void fsdp(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  pp2  = ss0 + 113 ;
-   double*  dp1  = ss0 + 122 ;
+   double*  pp2  = ss0 + 95 ;
+   double*  dp1  = ss0 + 104 ;
    double*  fp0  = ss0 + 140 ;
    double*  dd1  = ss0 + 230 ;
    double*  fd0  = ss0 + 266 ;
@@ -9000,11 +9013,11 @@ __device__ void fsdd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 29 ;
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
+   double*  sp3  = ss0 + 115 ;
    double*  pp2  = ss0 + 118 ;
-   double*  sp3  = ss0 + 124 ;
    double*  pd2  = ss0 + 136 ;
-   double*  dp1  = ss0 + 172 ;
-   double*  dd1  = ss0 + 244 ;
+   double*  dp1  = ss0 + 154 ;
+   double*  dd1  = ss0 + 208 ;
    double*  fp0  = ss0 + 280 ;
    double*  df1  = ss0 + 400 ;
    double*  fd0  = ss0 + 460 ;
@@ -9047,15 +9060,15 @@ __device__ void fsdf(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 33 ;
    double*  ds1  = ss0 + 39 ;
    double*  fs0  = ss0 + 75 ;
-   double*  sp3  = ss0 + 144 ;
-   double*  pp2  = ss0 + 159 ;
-   double*  sd3  = ss0 + 186 ;
-   double*  dp1  = ss0 + 192 ;
+   double*  sp3  = ss0 + 135 ;
+   double*  pp2  = ss0 + 141 ;
+   double*  sd3  = ss0 + 168 ;
+   double*  dp1  = ss0 + 174 ;
    double*  pd2  = ss0 + 246 ;
    double*  fp0  = ss0 + 282 ;
-   double*  dd1  = ss0 + 468 ;
-   double*  pf2  = ss0 + 600 ;
-   double*  df1  = ss0 + 630 ;
+   double*  dd1  = ss0 + 432 ;
+   double*  pf2  = ss0 + 540 ;
+   double*  df1  = ss0 + 570 ;
    double*  fd0  = ss0 + 690 ;
    double*  dg1  = ss0 + 930 ;
    double*  ff0  = ss0 + 1020 ;
@@ -9103,8 +9116,8 @@ __device__ void fsfs(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 25 ;
    double*  ds1  = ss0 + 31 ;
    double*  fs0  = ss0 + 55 ;
-   double*  pp2  = ss0 + 113 ;
-   double*  dp1  = ss0 + 122 ;
+   double*  pp2  = ss0 + 95 ;
+   double*  dp1  = ss0 + 104 ;
    double*  fp0  = ss0 + 140 ;
    double*  dd1  = ss0 + 230 ;
    double*  fd0  = ss0 + 266 ;
@@ -9140,11 +9153,11 @@ __device__ void fsfp(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 29 ;
    double*  ds1  = ss0 + 35 ;
    double*  fs0  = ss0 + 65 ;
+   double*  sp3  = ss0 + 115 ;
    double*  pp2  = ss0 + 118 ;
-   double*  sp3  = ss0 + 124 ;
    double*  pd2  = ss0 + 136 ;
-   double*  dp1  = ss0 + 172 ;
-   double*  dd1  = ss0 + 244 ;
+   double*  dp1  = ss0 + 154 ;
+   double*  dd1  = ss0 + 208 ;
    double*  fp0  = ss0 + 280 ;
    double*  df1  = ss0 + 400 ;
    double*  fd0  = ss0 + 460 ;
@@ -9187,16 +9200,16 @@ __device__ void fsfd(double * ss0 , double para[4*3+5] ){
    double*  ds0  = ss0 + 33 ;
    double*  ds1  = ss0 + 39 ;
    double*  fs0  = ss0 + 75 ;
-   double*  sp3  = ss0 + 144 ;
-   double*  sd3  = ss0 + 159 ;
-   double*  pp2  = ss0 + 165 ;
+   double*  sp3  = ss0 + 135 ;
+   double*  sd3  = ss0 + 141 ;
+   double*  pp2  = ss0 + 147 ;
    double*  pd2  = ss0 + 174 ;
-   double*  dp1  = ss0 + 228 ;
-   double*  pf2  = ss0 + 342 ;
-   double*  dd1  = ss0 + 348 ;
+   double*  dp1  = ss0 + 210 ;
+   double*  pf2  = ss0 + 282 ;
+   double*  dd1  = ss0 + 312 ;
    double*  fp0  = ss0 + 420 ;
    double*  fd0  = ss0 + 570 ;
-   double*  df1  = ss0 + 870 ;
+   double*  df1  = ss0 + 810 ;
    double*  ff0  = ss0 + 930 ;
    double*  dg1  = ss0 + 1230 ;
    double*  fg0  = ss0 + 1320 ;
@@ -9244,18 +9257,18 @@ __device__ void fsff(double * ss0 , double para[4*3+5] ){
    double*  ds1  = ss0 + 43 ;
    double*  fs0  = ss0 + 85 ;
    double*  sp3  = ss0 + 155 ;
-   double*  sd3  = ss0 + 182 ;
-   double*  pp2  = ss0 + 194 ;
-   double*  dp1  = ss0 + 240 ;
-   double*  sf3  = ss0 + 242 ;
-   double*  pd2  = ss0 + 348 ;
+   double*  sd3  = ss0 + 164 ;
+   double*  pp2  = ss0 + 176 ;
+   double*  sf3  = ss0 + 212 ;
+   double*  dp1  = ss0 + 222 ;
+   double*  pd2  = ss0 + 312 ;
    double*  fp0  = ss0 + 366 ;
-   double*  dd1  = ss0 + 582 ;
+   double*  dd1  = ss0 + 546 ;
    double*  pf2  = ss0 + 690 ;
+   double*  pg2  = ss0 + 750 ;
    double*  fd0  = ss0 + 795 ;
-   double*  pg2  = ss0 + 840 ;
-   double*  df1  = ss0 + 1155 ;
-   double*  dg1  = ss0 + 1365 ;
+   double*  df1  = ss0 + 1095 ;
+   double*  dg1  = ss0 + 1275 ;
    double*  ff0  = ss0 + 1455 ;
    double*  dh1  = ss0 + 1855 ;
    double*  fg0  = ss0 + 1981 ;
@@ -9391,8 +9404,8 @@ __device__ void fpsf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  pp2  = ss0 + 193 ;
-   double*  dp1  = ss0 + 202 ;
+   double*  pp2  = ss0 + 175 ;
+   double*  dp1  = ss0 + 184 ;
    double*  dd1  = ss0 + 220 ;
    double*  fp0  = ss0 + 256 ;
    double*  fp1  = ss0 + 286 ;
@@ -9505,8 +9518,8 @@ __device__ void fppd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  pp2  = ss0 + 193 ;
-   double*  dp1  = ss0 + 202 ;
+   double*  pp2  = ss0 + 175 ;
+   double*  dp1  = ss0 + 184 ;
    double*  dd1  = ss0 + 220 ;
    double*  fp0  = ss0 + 256 ;
    double*  fp1  = ss0 + 286 ;
@@ -9555,13 +9568,13 @@ __device__ void fppf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 75 ;
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
+   double*  sp3  = ss0 + 210 ;
    double*  pp2  = ss0 + 213 ;
-   double*  sp3  = ss0 + 219 ;
-   double*  dp1  = ss0 + 249 ;
+   double*  dp1  = ss0 + 231 ;
+   double*  pd2  = ss0 + 285 ;
    double*  fp0  = ss0 + 303 ;
-   double*  pd2  = ss0 + 321 ;
    double*  fp1  = ss0 + 333 ;
-   double*  dd1  = ss0 + 459 ;
+   double*  dd1  = ss0 + 423 ;
    double*  df1  = ss0 + 495 ;
    double*  gp0  = ss0 + 555 ;
    double*  fd0  = ss0 + 735 ;
@@ -9656,8 +9669,8 @@ __device__ void fpdp(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  pp2  = ss0 + 193 ;
-   double*  dp1  = ss0 + 202 ;
+   double*  pp2  = ss0 + 175 ;
+   double*  dp1  = ss0 + 184 ;
    double*  dd1  = ss0 + 220 ;
    double*  fp0  = ss0 + 256 ;
    double*  fp1  = ss0 + 286 ;
@@ -9706,13 +9719,13 @@ __device__ void fpdd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 75 ;
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
+   double*  sp3  = ss0 + 210 ;
    double*  pp2  = ss0 + 213 ;
-   double*  sp3  = ss0 + 219 ;
    double*  pd2  = ss0 + 231 ;
-   double*  dp1  = ss0 + 267 ;
+   double*  dp1  = ss0 + 249 ;
    double*  fp0  = ss0 + 303 ;
    double*  fp1  = ss0 + 333 ;
-   double*  dd1  = ss0 + 459 ;
+   double*  dd1  = ss0 + 423 ;
    double*  gp0  = ss0 + 495 ;
    double*  fd0  = ss0 + 675 ;
    double*  fd1  = ss0 + 735 ;
@@ -9769,18 +9782,18 @@ __device__ void fpdf(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 85 ;
    double*  fs1  = ss0 + 95 ;
    double*  gs0  = ss0 + 155 ;
-   double*  sp3  = ss0 + 254 ;
-   double*  sd3  = ss0 + 269 ;
-   double*  pp2  = ss0 + 275 ;
-   double*  dp1  = ss0 + 302 ;
+   double*  sp3  = ss0 + 245 ;
+   double*  sd3  = ss0 + 251 ;
+   double*  pp2  = ss0 + 257 ;
+   double*  dp1  = ss0 + 284 ;
    double*  pd2  = ss0 + 356 ;
    double*  fp0  = ss0 + 392 ;
    double*  fp1  = ss0 + 422 ;
-   double*  dd1  = ss0 + 578 ;
+   double*  dd1  = ss0 + 542 ;
+   double*  pf2  = ss0 + 650 ;
    double*  fd0  = ss0 + 680 ;
-   double*  pf2  = ss0 + 710 ;
    double*  fd1  = ss0 + 740 ;
-   double*  df1  = ss0 + 980 ;
+   double*  df1  = ss0 + 920 ;
    double*  gp0  = ss0 + 1040 ;
    double*  dg1  = ss0 + 1265 ;
    double*  ff0  = ss0 + 1355 ;
@@ -9844,8 +9857,8 @@ __device__ void fpfs(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 65 ;
    double*  fs1  = ss0 + 75 ;
    double*  gs0  = ss0 + 115 ;
-   double*  pp2  = ss0 + 193 ;
-   double*  dp1  = ss0 + 202 ;
+   double*  pp2  = ss0 + 175 ;
+   double*  dp1  = ss0 + 184 ;
    double*  dd1  = ss0 + 220 ;
    double*  fp0  = ss0 + 256 ;
    double*  fp1  = ss0 + 286 ;
@@ -9894,11 +9907,11 @@ __device__ void fpfp(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 75 ;
    double*  fs1  = ss0 + 85 ;
    double*  gs0  = ss0 + 135 ;
+   double*  sp3  = ss0 + 210 ;
    double*  pp2  = ss0 + 213 ;
-   double*  sp3  = ss0 + 219 ;
    double*  pd2  = ss0 + 231 ;
-   double*  dp1  = ss0 + 267 ;
-   double*  dd1  = ss0 + 339 ;
+   double*  dp1  = ss0 + 249 ;
+   double*  dd1  = ss0 + 303 ;
    double*  fp0  = ss0 + 375 ;
    double*  fp1  = ss0 + 405 ;
    double*  df1  = ss0 + 495 ;
@@ -9957,18 +9970,18 @@ __device__ void fpfd(double * ss0 , double para[4*3+5] ){
    double*  fs0  = ss0 + 85 ;
    double*  fs1  = ss0 + 95 ;
    double*  gs0  = ss0 + 155 ;
-   double*  sp3  = ss0 + 254 ;
-   double*  sd3  = ss0 + 269 ;
-   double*  pp2  = ss0 + 275 ;
-   double*  dp1  = ss0 + 302 ;
+   double*  sp3  = ss0 + 245 ;
+   double*  sd3  = ss0 + 251 ;
+   double*  pp2  = ss0 + 257 ;
+   double*  dp1  = ss0 + 284 ;
    double*  pd2  = ss0 + 356 ;
-   double*  dd1  = ss0 + 428 ;
+   double*  dd1  = ss0 + 392 ;
    double*  pf2  = ss0 + 500 ;
    double*  fp0  = ss0 + 530 ;
    double*  fp1  = ss0 + 560 ;
    double*  fd0  = ss0 + 680 ;
    double*  fd1  = ss0 + 740 ;
-   double*  df1  = ss0 + 980 ;
+   double*  df1  = ss0 + 920 ;
    double*  gp0  = ss0 + 1040 ;
    double*  dg1  = ss0 + 1265 ;
    double*  ff0  = ss0 + 1355 ;
@@ -10033,21 +10046,21 @@ __device__ void fpff(double * ss0 , double para[4*3+5] ){
    double*  fs1  = ss0 + 105 ;
    double*  gs0  = ss0 + 175 ;
    double*  sp3  = ss0 + 280 ;
-   double*  pp2  = ss0 + 307 ;
-   double*  sd3  = ss0 + 343 ;
-   double*  sf3  = ss0 + 367 ;
-   double*  pd2  = ss0 + 383 ;
-   double*  dp1  = ss0 + 419 ;
+   double*  pp2  = ss0 + 289 ;
+   double*  sd3  = ss0 + 325 ;
+   double*  sf3  = ss0 + 337 ;
+   double*  pd2  = ss0 + 347 ;
+   double*  dp1  = ss0 + 401 ;
    double*  fp0  = ss0 + 491 ;
    double*  fp1  = ss0 + 521 ;
    double*  pf2  = ss0 + 671 ;
-   double*  dd1  = ss0 + 767 ;
+   double*  dd1  = ss0 + 731 ;
    double*  gp0  = ss0 + 875 ;
+   double*  pg2  = ss0 + 1145 ;
    double*  fd0  = ss0 + 1190 ;
-   double*  pg2  = ss0 + 1235 ;
    double*  fd1  = ss0 + 1250 ;
-   double*  df1  = ss0 + 1550 ;
-   double*  dg1  = ss0 + 1760 ;
+   double*  df1  = ss0 + 1490 ;
+   double*  dg1  = ss0 + 1670 ;
    double*  gd0  = ss0 + 1850 ;
    double*  ff0  = ss0 + 2300 ;
    double*  ff1  = ss0 + 2400 ;
@@ -10223,8 +10236,8 @@ __device__ void fdsf(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  pp2  = ss0 + 312 ;
-   double*  dp1  = ss0 + 321 ;
+   double*  pp2  = ss0 + 294 ;
+   double*  dp1  = ss0 + 303 ;
    double*  fp0  = ss0 + 339 ;
    double*  fp1  = ss0 + 369 ;
    double*  dd1  = ss0 + 429 ;
@@ -10368,8 +10381,8 @@ __device__ void fdpd(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  pp2  = ss0 + 312 ;
-   double*  dp1  = ss0 + 321 ;
+   double*  pp2  = ss0 + 294 ;
+   double*  dp1  = ss0 + 303 ;
    double*  fp0  = ss0 + 339 ;
    double*  fp1  = ss0 + 369 ;
    double*  dd1  = ss0 + 429 ;
@@ -10431,13 +10444,13 @@ __device__ void fdpf(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 155 ;
    double*  gs1  = ss0 + 170 ;
    double*  hs0  = ss0 + 245 ;
+   double*  sp3  = ss0 + 350 ;
    double*  pp2  = ss0 + 353 ;
-   double*  sp3  = ss0 + 359 ;
    double*  pd2  = ss0 + 371 ;
-   double*  dp1  = ss0 + 407 ;
+   double*  dp1  = ss0 + 389 ;
    double*  fp0  = ss0 + 443 ;
    double*  fp1  = ss0 + 473 ;
-   double*  dd1  = ss0 + 599 ;
+   double*  dd1  = ss0 + 563 ;
    double*  df1  = ss0 + 635 ;
    double*  gp0  = ss0 + 695 ;
    double*  gp1  = ss0 + 740 ;
@@ -10558,8 +10571,8 @@ __device__ void fddp(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  pp2  = ss0 + 312 ;
-   double*  dp1  = ss0 + 321 ;
+   double*  pp2  = ss0 + 294 ;
+   double*  dp1  = ss0 + 303 ;
    double*  dd1  = ss0 + 339 ;
    double*  fp0  = ss0 + 375 ;
    double*  fp1  = ss0 + 405 ;
@@ -10621,11 +10634,11 @@ __device__ void fddd(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 155 ;
    double*  gs1  = ss0 + 170 ;
    double*  hs0  = ss0 + 245 ;
+   double*  sp3  = ss0 + 350 ;
    double*  pp2  = ss0 + 353 ;
-   double*  sp3  = ss0 + 359 ;
    double*  pd2  = ss0 + 371 ;
-   double*  dp1  = ss0 + 407 ;
-   double*  dd1  = ss0 + 479 ;
+   double*  dp1  = ss0 + 389 ;
+   double*  dd1  = ss0 + 443 ;
    double*  fp0  = ss0 + 515 ;
    double*  fp1  = ss0 + 545 ;
    double*  df1  = ss0 + 635 ;
@@ -10700,20 +10713,20 @@ __device__ void fddf(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 175 ;
    double*  gs1  = ss0 + 190 ;
    double*  hs0  = ss0 + 280 ;
-   double*  sp3  = ss0 + 415 ;
-   double*  sd3  = ss0 + 430 ;
-   double*  pp2  = ss0 + 436 ;
+   double*  sp3  = ss0 + 406 ;
+   double*  sd3  = ss0 + 412 ;
+   double*  pp2  = ss0 + 418 ;
    double*  pd2  = ss0 + 445 ;
-   double*  dp1  = ss0 + 499 ;
+   double*  dp1  = ss0 + 481 ;
    double*  pf2  = ss0 + 553 ;
    double*  fp0  = ss0 + 583 ;
    double*  fp1  = ss0 + 613 ;
-   double*  dd1  = ss0 + 769 ;
+   double*  dd1  = ss0 + 733 ;
    double*  gp0  = ss0 + 841 ;
    double*  gp1  = ss0 + 886 ;
    double*  fd0  = ss0 + 1066 ;
    double*  fd1  = ss0 + 1126 ;
-   double*  df1  = ss0 + 1366 ;
+   double*  df1  = ss0 + 1306 ;
    double*  dg1  = ss0 + 1426 ;
    double*  hp0  = ss0 + 1516 ;
    double*  gd0  = ss0 + 1831 ;
@@ -10794,8 +10807,8 @@ __device__ void fdfs(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 135 ;
    double*  gs1  = ss0 + 150 ;
    double*  hs0  = ss0 + 210 ;
-   double*  pp2  = ss0 + 312 ;
-   double*  dp1  = ss0 + 321 ;
+   double*  pp2  = ss0 + 294 ;
+   double*  dp1  = ss0 + 303 ;
    double*  dd1  = ss0 + 339 ;
    double*  fp0  = ss0 + 375 ;
    double*  fp1  = ss0 + 405 ;
@@ -10857,11 +10870,11 @@ __device__ void fdfp(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 155 ;
    double*  gs1  = ss0 + 170 ;
    double*  hs0  = ss0 + 245 ;
+   double*  sp3  = ss0 + 350 ;
    double*  pp2  = ss0 + 353 ;
-   double*  sp3  = ss0 + 359 ;
    double*  pd2  = ss0 + 371 ;
-   double*  dp1  = ss0 + 407 ;
-   double*  dd1  = ss0 + 479 ;
+   double*  dp1  = ss0 + 389 ;
+   double*  dd1  = ss0 + 443 ;
    double*  fp0  = ss0 + 515 ;
    double*  fp1  = ss0 + 545 ;
    double*  df1  = ss0 + 635 ;
@@ -10936,20 +10949,20 @@ __device__ void fdfd(double * ss0 , double para[4*3+5] ){
    double*  gs0  = ss0 + 175 ;
    double*  gs1  = ss0 + 190 ;
    double*  hs0  = ss0 + 280 ;
-   double*  sp3  = ss0 + 415 ;
-   double*  sd3  = ss0 + 430 ;
-   double*  pp2  = ss0 + 436 ;
-   double*  dp1  = ss0 + 463 ;
+   double*  sp3  = ss0 + 406 ;
+   double*  sd3  = ss0 + 412 ;
+   double*  pp2  = ss0 + 418 ;
+   double*  dp1  = ss0 + 445 ;
    double*  pd2  = ss0 + 517 ;
    double*  pf2  = ss0 + 553 ;
    double*  fp0  = ss0 + 583 ;
    double*  fp1  = ss0 + 613 ;
-   double*  dd1  = ss0 + 769 ;
+   double*  dd1  = ss0 + 733 ;
    double*  gp0  = ss0 + 841 ;
    double*  gp1  = ss0 + 886 ;
    double*  fd0  = ss0 + 1066 ;
    double*  fd1  = ss0 + 1126 ;
-   double*  df1  = ss0 + 1366 ;
+   double*  df1  = ss0 + 1306 ;
    double*  dg1  = ss0 + 1426 ;
    double*  hp0  = ss0 + 1516 ;
    double*  gd0  = ss0 + 1831 ;
@@ -11031,22 +11044,22 @@ __device__ void fdff(double * ss0 , double para[4*3+5] ){
    double*  gs1  = ss0 + 210 ;
    double*  hs0  = ss0 + 315 ;
    double*  sp3  = ss0 + 462 ;
-   double*  sd3  = ss0 + 489 ;
-   double*  pp2  = ss0 + 501 ;
-   double*  sf3  = ss0 + 549 ;
-   double*  pd2  = ss0 + 565 ;
-   double*  dp1  = ss0 + 601 ;
+   double*  sd3  = ss0 + 471 ;
+   double*  pp2  = ss0 + 483 ;
+   double*  sf3  = ss0 + 519 ;
+   double*  pd2  = ss0 + 529 ;
+   double*  dp1  = ss0 + 583 ;
    double*  pf2  = ss0 + 673 ;
-   double*  dd1  = ss0 + 769 ;
+   double*  dd1  = ss0 + 733 ;
    double*  fp0  = ss0 + 877 ;
    double*  fp1  = ss0 + 907 ;
-   double*  pg2  = ss0 + 1147 ;
-   double*  df1  = ss0 + 1162 ;
+   double*  pg2  = ss0 + 1057 ;
+   double*  df1  = ss0 + 1102 ;
    double*  gp0  = ss0 + 1282 ;
    double*  gp1  = ss0 + 1327 ;
    double*  fd0  = ss0 + 1552 ;
    double*  fd1  = ss0 + 1612 ;
-   double*  dg1  = ss0 + 1942 ;
+   double*  dg1  = ss0 + 1852 ;
    double*  ff0  = ss0 + 2032 ;
    double*  ff1  = ss0 + 2132 ;
    double*  gd0  = ss0 + 2432 ;
@@ -11263,8 +11276,8 @@ __device__ void ffsf(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 245 ;
    double*  hs1  = ss0 + 266 ;
    double*  is0  = ss0 + 350 ;
-   double*  pp2  = ss0 + 480 ;
-   double*  dp1  = ss0 + 489 ;
+   double*  pp2  = ss0 + 462 ;
+   double*  dp1  = ss0 + 471 ;
    double*  dd1  = ss0 + 507 ;
    double*  fp0  = ss0 + 543 ;
    double*  fp1  = ss0 + 573 ;
@@ -11438,8 +11451,8 @@ __device__ void ffpd(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 245 ;
    double*  hs1  = ss0 + 266 ;
    double*  is0  = ss0 + 350 ;
-   double*  pp2  = ss0 + 480 ;
-   double*  dp1  = ss0 + 489 ;
+   double*  pp2  = ss0 + 462 ;
+   double*  dp1  = ss0 + 471 ;
    double*  dd1  = ss0 + 507 ;
    double*  fp0  = ss0 + 543 ;
    double*  fp1  = ss0 + 573 ;
@@ -11514,11 +11527,11 @@ __device__ void ffpf(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 280 ;
    double*  hs1  = ss0 + 301 ;
    double*  is0  = ss0 + 406 ;
+   double*  sp3  = ss0 + 546 ;
    double*  pp2  = ss0 + 549 ;
-   double*  sp3  = ss0 + 555 ;
    double*  pd2  = ss0 + 567 ;
-   double*  dp1  = ss0 + 603 ;
-   double*  dd1  = ss0 + 675 ;
+   double*  dp1  = ss0 + 585 ;
+   double*  dd1  = ss0 + 639 ;
    double*  fp0  = ss0 + 711 ;
    double*  fp1  = ss0 + 741 ;
    double*  df1  = ss0 + 831 ;
@@ -11667,8 +11680,8 @@ __device__ void ffdp(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 245 ;
    double*  hs1  = ss0 + 266 ;
    double*  is0  = ss0 + 350 ;
-   double*  pp2  = ss0 + 480 ;
-   double*  dp1  = ss0 + 489 ;
+   double*  pp2  = ss0 + 462 ;
+   double*  dp1  = ss0 + 471 ;
    double*  dd1  = ss0 + 507 ;
    double*  fp0  = ss0 + 543 ;
    double*  fp1  = ss0 + 573 ;
@@ -11743,11 +11756,11 @@ __device__ void ffdd(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 280 ;
    double*  hs1  = ss0 + 301 ;
    double*  is0  = ss0 + 406 ;
+   double*  sp3  = ss0 + 546 ;
    double*  pp2  = ss0 + 549 ;
-   double*  sp3  = ss0 + 555 ;
    double*  pd2  = ss0 + 567 ;
-   double*  dp1  = ss0 + 603 ;
-   double*  dd1  = ss0 + 675 ;
+   double*  dp1  = ss0 + 585 ;
+   double*  dd1  = ss0 + 639 ;
    double*  fp0  = ss0 + 711 ;
    double*  fp1  = ss0 + 741 ;
    double*  df1  = ss0 + 831 ;
@@ -11838,16 +11851,16 @@ __device__ void ffdf(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 315 ;
    double*  hs1  = ss0 + 336 ;
    double*  is0  = ss0 + 462 ;
-   double*  sp3  = ss0 + 639 ;
-   double*  sd3  = ss0 + 654 ;
-   double*  pp2  = ss0 + 660 ;
+   double*  sp3  = ss0 + 630 ;
+   double*  sd3  = ss0 + 636 ;
+   double*  pp2  = ss0 + 642 ;
    double*  pd2  = ss0 + 669 ;
-   double*  dp1  = ss0 + 723 ;
-   double*  pf2  = ss0 + 837 ;
-   double*  dd1  = ss0 + 843 ;
+   double*  dp1  = ss0 + 705 ;
+   double*  pf2  = ss0 + 777 ;
+   double*  dd1  = ss0 + 807 ;
    double*  fp0  = ss0 + 915 ;
    double*  fp1  = ss0 + 945 ;
-   double*  df1  = ss0 + 1125 ;
+   double*  df1  = ss0 + 1065 ;
    double*  gp0  = ss0 + 1185 ;
    double*  gp1  = ss0 + 1230 ;
    double*  fd0  = ss0 + 1410 ;
@@ -11951,8 +11964,8 @@ __device__ void fffs(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 245 ;
    double*  hs1  = ss0 + 266 ;
    double*  is0  = ss0 + 350 ;
-   double*  pp2  = ss0 + 480 ;
-   double*  dp1  = ss0 + 489 ;
+   double*  pp2  = ss0 + 462 ;
+   double*  dp1  = ss0 + 471 ;
    double*  dd1  = ss0 + 507 ;
    double*  fp0  = ss0 + 543 ;
    double*  fp1  = ss0 + 573 ;
@@ -12027,13 +12040,13 @@ __device__ void fffp(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 280 ;
    double*  hs1  = ss0 + 301 ;
    double*  is0  = ss0 + 406 ;
+   double*  sp3  = ss0 + 546 ;
    double*  pp2  = ss0 + 549 ;
-   double*  sp3  = ss0 + 555 ;
    double*  pd2  = ss0 + 567 ;
-   double*  dp1  = ss0 + 603 ;
+   double*  dp1  = ss0 + 585 ;
    double*  fp0  = ss0 + 639 ;
    double*  fp1  = ss0 + 669 ;
-   double*  dd1  = ss0 + 795 ;
+   double*  dd1  = ss0 + 759 ;
    double*  df1  = ss0 + 831 ;
    double*  gp0  = ss0 + 891 ;
    double*  gp1  = ss0 + 936 ;
@@ -12122,16 +12135,16 @@ __device__ void fffd(double * ss0 , double para[4*3+5] ){
    double*  hs0  = ss0 + 315 ;
    double*  hs1  = ss0 + 336 ;
    double*  is0  = ss0 + 462 ;
-   double*  sp3  = ss0 + 639 ;
-   double*  sd3  = ss0 + 654 ;
-   double*  pp2  = ss0 + 660 ;
+   double*  sp3  = ss0 + 630 ;
+   double*  sd3  = ss0 + 636 ;
+   double*  pp2  = ss0 + 642 ;
    double*  pd2  = ss0 + 669 ;
-   double*  dp1  = ss0 + 723 ;
-   double*  pf2  = ss0 + 837 ;
-   double*  dd1  = ss0 + 843 ;
+   double*  dp1  = ss0 + 705 ;
+   double*  pf2  = ss0 + 777 ;
+   double*  dd1  = ss0 + 807 ;
    double*  fp0  = ss0 + 915 ;
    double*  fp1  = ss0 + 945 ;
-   double*  df1  = ss0 + 1125 ;
+   double*  df1  = ss0 + 1065 ;
    double*  gp0  = ss0 + 1185 ;
    double*  gp1  = ss0 + 1230 ;
    double*  fd0  = ss0 + 1410 ;
@@ -12236,22 +12249,22 @@ __device__ void ffff(double * ss0 , double para[4*3+5] ){
    double*  hs1  = ss0 + 371 ;
    double*  is0  = ss0 + 518 ;
    double*  sp3  = ss0 + 714 ;
-   double*  sd3  = ss0 + 741 ;
-   double*  pp2  = ss0 + 753 ;
-   double*  sf3  = ss0 + 801 ;
-   double*  pd2  = ss0 + 817 ;
-   double*  dp1  = ss0 + 853 ;
+   double*  sd3  = ss0 + 723 ;
+   double*  pp2  = ss0 + 735 ;
+   double*  sf3  = ss0 + 771 ;
+   double*  pd2  = ss0 + 781 ;
+   double*  dp1  = ss0 + 835 ;
    double*  pf2  = ss0 + 925 ;
-   double*  dd1  = ss0 + 1021 ;
+   double*  dd1  = ss0 + 985 ;
    double*  fp0  = ss0 + 1129 ;
    double*  fp1  = ss0 + 1159 ;
-   double*  pg2  = ss0 + 1399 ;
-   double*  df1  = ss0 + 1414 ;
+   double*  pg2  = ss0 + 1309 ;
+   double*  df1  = ss0 + 1354 ;
    double*  fd0  = ss0 + 1534 ;
    double*  fd1  = ss0 + 1594 ;
    double*  gp0  = ss0 + 1834 ;
    double*  gp1  = ss0 + 1879 ;
-   double*  dg1  = ss0 + 2194 ;
+   double*  dg1  = ss0 + 2104 ;
    double*  ff0  = ss0 + 2284 ;
    double*  ff1  = ss0 + 2384 ;
    double*  hp0  = ss0 + 2684 ;
@@ -12349,9 +12362,57 @@ __device__ void ffff(double * ss0 , double para[4*3+5] ){
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #include <vector>
 
 #define VTS 8
+#define NVT 8
+
+
 __device__ void (*(vrr_kernels[4*4*4*4]))(double *, double*) = { 
 ssss<VTS>,sssp<VTS>,sssd<VTS>,sssf<VTS>,ssps<VTS>,sspp<VTS>,sspd<VTS>,sspf<VTS>,ssds<VTS>,ssdp<VTS>,ssdd<VTS>,ssdf<VTS>,ssfs<VTS>,ssfp<VTS>,ssfd<VTS>,ssff<VTS>,
 spss<VTS>,spsp<VTS>,spsd<VTS>,spsf<VTS>,spps<VTS>,sppp<VTS>,sppd<VTS>,sppf<VTS>,spds<VTS>,spdp<VTS>,spdd<VTS>,spdf<VTS>,spfs<VTS>,spfp<VTS>,spfd<VTS>,spff<VTS>,
@@ -12386,9 +12447,6 @@ __global__ void compute_VRR_v2_batched_gpu_low(
    int F_size = Fsize(L);
 
    auto vrr_kernel = vrr_kernels[vrr_kernel_index];
-
-
-   constexpr int NVT =  8;
 
    int my_vrr_rank = threadIdx.x % VTS ;
    int my_vrr_team = threadIdx.x / VTS ;
@@ -12428,12 +12486,13 @@ __global__ void compute_VRR_v2_batched_gpu_low(
    
             // Copy PA WP QC WQ z1-5 to shared memory for each team
             for( int ii = my_vrr_rank; ii < 17 ; ii += VTS ){ PQZ[my_vrr_team*17+ii] = Fm[Of+L+1+ii]; }
+            pqz = &PQZ[my_vrr_team*17];
          }
 
          __syncthreads();
 
          if ( found and i < n_prm ){
-            pqz = &PQZ[my_vrr_team*17];
+
             vrr_kernel( pr_mem, pqz );
          }
 //         __syncthreads();

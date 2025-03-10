@@ -264,7 +264,7 @@ __device__ bool t_c_g0_n_v3(
    __shared__ double s_dot_jt[NFT*s_ld]; // TODO reuse s_tmp (?)
    __shared__ double dot[NFT*SFT]; // TODO not shared (?)
 
-   unsigned int tid = threadIdx.x;
+//   unsigned int tid = threadIdx.x;
 
    T1[0] = 1.0;
    T2[0] = 1.0;

@@ -25,6 +25,9 @@ SOFTWARE.
 
 
 #include <vector>
+#include <set>
+#include <map>
+#include <tuple>
 #include <iostream>
 #include <cassert>
 #include <unordered_set>
@@ -48,6 +51,7 @@ struct LibGint_shared {
    cudaStream_t * cuda_stream;
 };
 
+typedef std::tuple<unsigned int, unsigned int, unsigned int, unsigned int> four_uint_tuple;
 
 
 class libGint {
@@ -108,7 +112,15 @@ class libGint {
    size_t max_idx_mem_needed = 0;
    int ftable_ld;
 
+   bool all_idx_Kabcd_ready = false;
+   std::set< unsigned int > unique_K_set;
+   std::vector< unsigned int > unique_K_list;
+   std::vector< unsigned int > l_from_K_list;
+   std::vector< unsigned int > p_from_K_list;
 
+
+   std::map< four_uint_tuple, unsigned int > all_idx_Kabcd;
+ 
    int nspin = 0 ;
    double * K_a; // not owned 
    double * P_a; // not owned  

@@ -141,8 +141,20 @@ void libGint::set_Atom_L( int i, int l_, int nl_, double* K_ ){
    if ( i >= (int) all_idx_K.size() ){ all_idx_K.resize( i+1 ); }
    all_l[i].push_back(l_);
    all_nl[i].push_back(nl_);
-   all_idx_K[i].push_back( ua.add( K_, np[i]*nl_ ) );
+   unsigned int idx_K = ua.add( K_, np[i]*nl_);
+//   cout << " Idx K of " << i << " " << l_ << " " << nl_ << " " << K_ << " is " << idx_K << endl; cout.flush();
+
+   if ( unique_K_set.count(idx_K) == 0 ){
+//      cout << " Adding " << idx_K << " " << nl_ << "." << np[i] << " as # " << unique_K_list.size() << endl;
+      unique_K_list.push_back( idx_K );
+      l_from_K_list.push_back( nl_);
+      p_from_K_list.push_back( np[i] );
+      unique_K_set.insert( idx_K );
+   }
+   
+   all_idx_K[i].push_back( idx_K );
    data_size = ua.internal_buffer.size()*sizeof(double);
+   
 }
 
 // Add the index of the gaussian exponenets, encoded into a single uint
@@ -192,6 +204,10 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
 
                const unsigned int encoded_nlabcd = encode_shell(nla,nlb,nlc,nld,n1,n2);
                const unsigned int encoded_npabcd = encode4(np[i],np[j],np[k],np[l]);
+
+               unsigned int idx_Kabcd = all_idx_Kabcd[ four_uint_tuple(idx_Ka, idx_Kb, idx_Kc, idx_Kd) ];
+//               cout << " K " << i << " " << j << " " << k << " " << l << " [" << idx_Kabcd << "] = " << ua.internal_buffer[idx_Kabcd] << endl;
+
 //               TODO FUTURE add ij and kl detailed screening coeff
 //               const unsigned int bra_Radii_ptr  = MAX_N_PRM * MAX_N_PRM * ( kind_set[i] * number_of_sets + kind_set[j] );
 //               const unsigned int ket_Radii_ptr  = MAX_N_PRM * MAX_N_PRM * ( kind_set[k] * number_of_sets + kind_set[l] );
@@ -211,7 +227,7 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                // later they will be copied to the gpu memory
                const unsigned int tmp[FVH_SIZE] = {
                   Ov, Og, Oq, n_prm, idx_R[i], idx_R[j], idx_R[k], idx_R[l],
-                  idx_Z[i], idx_Z[j], idx_Z[k], idx_Z[l], idx_Ka, idx_Kb, idx_Kc, idx_Kd,
+                  idx_Z[i], idx_Z[j], idx_Z[k], idx_Z[l], idx_Kabcd, 0, 0, 0,
                   encoded_nlabcd, encoded_npabcd };
 
                this_set_L.insert(L);
@@ -497,6 +513,61 @@ void libGint::allocate_on_GPU(){
    int nelem = (itabmax - itabmin + 1 ) * (n+1); // === 121*(n+1) == 121*ftable_ld === 121*28 === 3388
    double* ftable = create_md_ftable( nmax, tmin, tmax, tdelta, &ftable_ld);
 
+   cout << " Starting at " << ua.internal_buffer.size() << endl;
+   if ( not all_idx_Kabcd_ready ) {
+      for ( unsigned int ia = 0; ia < unique_K_list.size(); ia++ ){
+      unsigned int iKa = unique_K_list[ia];
+      unsigned int nla = l_from_K_list[ia];
+      unsigned int npa = p_from_K_list[ia];
+      for ( unsigned int ib = 0; ib < unique_K_list.size(); ib++ ){
+      unsigned int iKb = unique_K_list[ib];
+      unsigned int nlb = l_from_K_list[ib];
+      unsigned int npb = p_from_K_list[ib];
+      for ( unsigned int ic = 0; ic < unique_K_list.size(); ic++ ){
+      unsigned int iKc = unique_K_list[ic];
+      unsigned int nlc = l_from_K_list[ic];
+      unsigned int npc = p_from_K_list[ic];
+      for ( unsigned int id = 0; id < unique_K_list.size(); id++ ){
+      unsigned int iKd = unique_K_list[id];
+      unsigned int nld = l_from_K_list[id];
+      unsigned int npd = p_from_K_list[id];
+
+         double * Ka = &ua.internal_buffer[iKa];
+         double * Kb = &ua.internal_buffer[iKb];
+         double * Kc = &ua.internal_buffer[iKc];
+         double * Kd = &ua.internal_buffer[iKd];
+
+         int nl = nla*nlb*nlc*nld;
+         int np = npa*npb*npc*npd;
+         std::vector<double> tmp_K( nl * np );
+
+         int ilabcd = 0;
+         for ( unsigned int ila=0; ila < nla; ila++ ){
+         for ( unsigned int ilb=0; ilb < nlb; ilb++ ){
+         for ( unsigned int ilc=0; ilc < nlc; ilc++ ){
+         for ( unsigned int ild=0; ild < nld; ild++ ){
+            int ipabcd = 0;
+            for ( unsigned int ipa=0; ipa < npa ; ipa++){
+            for ( unsigned int ipb=0; ipb < npb ; ipb++){
+            for ( unsigned int ipc=0; ipc < npc ; ipc++){
+            for ( unsigned int ipd=0; ipd < npd ; ipd++){
+               tmp_K[ ilabcd * np + ipabcd ]  = Ka[ ila * npa + ipa ];
+               tmp_K[ ilabcd * np + ipabcd ] *= Kb[ ilb * npb + ipb ];
+               tmp_K[ ilabcd * np + ipabcd ] *= Kc[ ilc * npc + ipc ];
+               tmp_K[ ilabcd * np + ipabcd ] *= Kd[ ild * npd + ipd ];
+//               cout << " Precomputing K " << ila<<ilb<<ilc<<ild<<"."<<ipa<<ipb<<ipc<<ipd<< " " << tmp_K[ ilabcd * np + ipabcd ] << endl;
+               ipabcd++;
+            }}}}
+            ilabcd++;
+         }}}}
+      unsigned int iKabcd = ua.add( tmp_K.data(), nl*np );
+      cout << " Saving precomputed K " << nl << "." << np << " from " << iKa << " " << iKb << " " << iKc << " " << iKd << " @ " << iKabcd << endl;
+      all_idx_Kabcd[ four_uint_tuple(iKa, iKb, iKc, iKd) ] = iKabcd;
+      }}}}
+      all_idx_Kabcd_ready = true;
+   }
+   cout << " Ending at " << ua.internal_buffer.size() << endl;
+
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&data_dev, sizeof(double)*(ua.internal_buffer.size()) ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&dat_mem_dev, max_dat_mem_per_thread ));
    CUDA_GPU_ERR_CHECK( cudaMalloc( (void**)&idx_mem_dev , max_idx_mem_per_thread ));
@@ -726,7 +797,7 @@ void libGint::dispatch( bool dispatch_all ){
 
       // Early exit moments with a small number of integrals
       // No worry, they are guaranteed to be computed before get_K returns
-      bool is_too_small = false; // ABCD_size[L] < MIN_INT_BATCH_SIZE;
+      bool is_too_small = ABCD_size[L] < MIN_INT_BATCH_SIZE;
       if ( can_be_skipped and is_too_small ) { continue; }
       if ( SPHER_size[L] == 0 ){ continue; }
 
@@ -905,8 +976,6 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
-
-
          int vrr_index = 64*la+16*lb+4*lc+ld;
          compute_VRR_v2_batched_gpu_low<<<Ncells*max_ncells,64,0,cuda_stream>>>(
            Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
@@ -939,14 +1008,12 @@ void libGint::dispatch( bool dispatch_all ){
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
- 
 
       compute_ECO_batched_gpu_low<<<Ncells*Nop,64,0,cuda_stream>>>(
          Ncells, plan_dev, PMX_dev, FVH_dev, nullptr, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
-
 
 //      std::vector<double> AC_on_cpu(AC_size[L]);
 //      CUDA_GPU_ERR_CHECK( cudaMemcpy( AC_on_cpu.data(),  AC_dev, sizeof(double)*(AC_size[L]), cudaMemcpyDeviceToHost) );

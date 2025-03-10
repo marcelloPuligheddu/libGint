@@ -28,7 +28,7 @@ __global__ void compute_ECO_batched_gpu_low(
 
       // thr 1 load / compute block wide constants that will then be bcast to all thrs.
       __shared__ unsigned int ibk, op,Ov,Og,n_prm,nlabcd,npabcd;
-      __shared__ unsigned int idx_Ka,idx_Kb,idx_Kc,idx_Kd;
+      __shared__ unsigned int idx_Kabcd;
       __shared__ unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
       __shared__ int nlcd,nlbcd,t,la,lc,off_m1,off_m2,NcoA,NcoC,NcoAC;
 
@@ -40,10 +40,10 @@ __global__ void compute_ECO_batched_gpu_low(
          n_prm  = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPRM];
          nlabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NLABCD];
          npabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPABCD];
-         idx_Ka = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KA];
-         idx_Kb = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KB];
-         idx_Kc = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KC];
-         idx_Kd = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KD];
+         idx_Kabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KA];
+//         idx_Kb = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KB];
+//         idx_Kc = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KC];
+//         idx_Kd = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KD];
          decode_shell( nlabcd, &nla,&nlb,&nlc,&nld, &npa,&npb);
          decode4( npabcd, &npa,&npb,&npc,&npd );
          nlcd = nlc*nld;
@@ -62,25 +62,15 @@ __global__ void compute_ECO_batched_gpu_low(
 
       if ( t != CP2S){ continue; }
 
-      const double * const Ka = &data[idx_Ka];
-      const double * const Kb = &data[idx_Kb];
-      const double * const Kc = &data[idx_Kc];
-      const double * const Kd = &data[idx_Kd];
-
       double * out = &ABCD[ Og*hrr_blocksize + off_m2];
       const double * const inp = &AC[Ov*Ng*vrr_blocksize + off_m1];
+      const double * const Kabcd = &data[idx_Kabcd];
 
-      __shared__ double sKa[MAX_N_L * MAX_N_PRM];
-      __shared__ double sKb[MAX_N_L * MAX_N_PRM];
-      __shared__ double sKc[MAX_N_L * MAX_N_PRM];
-      __shared__ double sKd[MAX_N_L * MAX_N_PRM];
-
-      for( unsigned int idx=threadIdx.x; idx < nla * npa ; idx += blockDim.x ){ sKa[idx] = Ka[idx]; }
-      for( unsigned int idx=threadIdx.x; idx < nlb * npb ; idx += blockDim.x ){ sKb[idx] = Kb[idx]; }
-      for( unsigned int idx=threadIdx.x; idx < nlc * npc ; idx += blockDim.x ){ sKc[idx] = Kc[idx]; }
-      for( unsigned int idx=threadIdx.x; idx < nld * npd ; idx += blockDim.x ){ sKd[idx] = Kd[idx]; }
-
-      __syncthreads();
+//      for( unsigned int idx=threadIdx.x; idx < nla * npa ; idx += blockDim.x ){ sKa[idx] = Ka[idx]; }
+//      for( unsigned int idx=threadIdx.x; idx < nlb * npb ; idx += blockDim.x ){ sKb[idx] = Kb[idx]; }
+//      for( unsigned int idx=threadIdx.x; idx < nlc * npc ; idx += blockDim.x ){ sKc[idx] = Kc[idx]; }
+//      for( unsigned int idx=threadIdx.x; idx < nld * npd ; idx += blockDim.x ){ sKd[idx] = Kd[idx]; }
+//      __syncthreads();
 
       constexpr int TS_l = 2;
       constexpr int TS_j = 2;
@@ -142,17 +132,13 @@ __global__ void compute_ECO_batched_gpu_low(
                unsigned int p = iB_p + IB_p*BS_p;
 
                if ( p < n_prm and l < nlabcd ){
-                  // TODO set nl === 4 ( and change K accordingly )
-                  unsigned int a = (l / nlbcd ) % nla;
-                  unsigned int b = (l / nlcd ) % nlb ;
-                  unsigned int c = (l / nld ) % nlc ;
-                  unsigned int d =  l            % nld ;
                   unsigned int ipzn = PMX[Ov+p];
                   unsigned int ipa,ipb,ipc,ipd;
                   decode4( ipzn, &ipa,&ipb,&ipc,&ipd );
-                  // TODO save K in a -largish- array in global memory at set env time
-                  // instead of recomputing a lot of the same numbers a lot of time
-                  double K = sKa[a*npa + ipa] * sKb[b*npb + ipb] * sKc[c*npc + ipc] * sKd[d*npd + ipd];
+                  unsigned int orig_p = ipa*npb*npc*npd + ipb*npc*npd + ipc*npd + ipd;
+//                  double K = sKa[a*npa + ipa] * sKb[b*npb + ipb] * sKc[c*npc + ipc] * sKd[d*npd + ipd];
+                  double K = Kabcd[l*npa*npb*npc*npd + orig_p];
+//                  printf("K: %lg | %d | %d %d %d \n", K , idx_Kabcd,  l, p, orig_p );
                   sK[iB_l*BS_p+iB_p ] = K;
 //                  if ( blockIdx.x == 1 ){
 //                     printf("K [%d(%d %d %d %d ) %d(%d %d %d %d )] : %lf : %lf %lf %lf %lf \n", l, a,b,c,d, p,ipa,ipb,ipc,ipd, K, sKa[a*npa + ipa], sKb[b*npb + ipb], sKc[c*npc + ipc], sKd[d*npd + ipd] ); 

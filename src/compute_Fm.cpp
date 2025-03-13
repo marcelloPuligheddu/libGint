@@ -31,7 +31,7 @@ __global__ void prepare_Fm_batched_gpu_low_private(
    for( int p = threadIdx.x + blockIdx.x*blockDim.x ; p < NFm ; p += blockDim.x*gridDim.x ){
 
    unsigned int i    =  OF[p];
-   unsigned int ipzn = PMX[p];
+   unsigned int ipzn = PMX[p*PMX_SIZE+PMX_OFFSET_IPZN];
    uint8_t ipabcd[4];
 
    decode4( ipzn, ipabcd );
@@ -44,10 +44,10 @@ __global__ void prepare_Fm_batched_gpu_low_private(
    unsigned int idx_zb = FVH[i*FVH_SIZE+FVH_OFFSET_IDX_ZB] + ipabcd[1];
    unsigned int idx_zc = FVH[i*FVH_SIZE+FVH_OFFSET_IDX_ZC] + ipabcd[2];
    unsigned int idx_zd = FVH[i*FVH_SIZE+FVH_OFFSET_IDX_ZD] + ipabcd[3];
-   unsigned int encoded_nlabcd_12 = FVH[i*FVH_SIZE+FVH_OFFSET_NLABCD];
+   unsigned int encoded_elabcd_12 = FVH[i*FVH_SIZE+FVH_OFFSET_ELABCD];
 
    uint8_t n12[2];
-   decode_shell( encoded_nlabcd_12, ipabcd, n12);
+   decode_shell( encoded_elabcd_12, ipabcd, n12);
    uint8_t n1 = n12[0];
    uint8_t n2 = n12[1];
 

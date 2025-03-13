@@ -185,7 +185,7 @@ class libGint {
    std::vector<unsigned int> this_set_OF[NL4];
    std::vector<unsigned int> this_set_PMX[NL4];
    std::vector<unsigned int> this_set_KS[NL4];
-
+   std::vector<unsigned int> new_prm_tmp_list;
    std::vector<unsigned int> prm_tmp_list;
    UniqueArray ua;
 

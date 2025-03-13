@@ -26,58 +26,38 @@ __global__ void compute_ECO_batched_gpu_low(
 
    for( int block=blockIdx.x; block < Ncells*Nop ; block += gridDim.x ){
 
-      // thr 1 load / compute block wide constants that will then be bcast to all thrs.
-      __shared__ unsigned int ibk, op,Ov,Og,n_prm,nlabcd,npabcd;
-      __shared__ unsigned int idx_Kabcd;
-      __shared__ unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
-      __shared__ int nlcd,nlbcd,t,la,lc,off_m1,off_m2,NcoA,NcoC,NcoAC;
+      unsigned int ibk, op,Ov,Og,n_prm,nlabcd,npabcd,idx_K;
+      int t,la,lc,off_m1,off_m2, NcoA,NcoC,NcoAC;
 
-      if ( threadIdx.x == 0 ){
-         ibk = block / (Nop); 
-         op     =  block % Nop + numV ;
-         Ov     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OV];
-         Og     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OG];
-         n_prm  = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPRM];
-         nlabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NLABCD];
-         npabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPABCD];
-         idx_Kabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KA];
-//         idx_Kb = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KB];
-//         idx_Kc = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KC];
-//         idx_Kd = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_KD];
-         decode_shell( nlabcd, &nla,&nlb,&nlc,&nld, &npa,&npb);
-         decode4( npabcd, &npa,&npb,&npc,&npd );
-         nlcd = nlc*nld;
-         nlbcd = nlb*nlcd;
-         nlabcd = nla*nlbcd;
-         t  = plan[ op*OP_SIZE + T__OFFSET ];
-         la = plan[ op*OP_SIZE + LA_OFFSET ];
-         lc = plan[ op*OP_SIZE + LC_OFFSET ];
-         off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
-         off_m2 = plan[ op*OP_SIZE + M2_OFFSET ];
-         NcoA = NLco_dev(la);
-         NcoC = NLco_dev(lc);
-         NcoAC = NcoA*NcoC;
-      }
-      __syncthreads();
+      ibk    = block / (Nop); 
+      op     = block % (Nop) + numV ;
+      Ov     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OV];
+      Og     = FVH[ibk*FVH_SIZE+FVH_OFFSET_OG];
+      n_prm  = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPRM];
+      nlabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NLABCD];
+      npabcd = FVH[ibk*FVH_SIZE+FVH_OFFSET_NPABCD];
+      idx_K  = FVH[ibk*FVH_SIZE+FVH_OFFSET_IDX_K];
+      t  = plan[ op*OP_SIZE + T__OFFSET ];
+      la = plan[ op*OP_SIZE + LA_OFFSET ];
+      lc = plan[ op*OP_SIZE + LC_OFFSET ];
+      off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
+      off_m2 = plan[ op*OP_SIZE + M2_OFFSET ];
+      NcoA = NLco_dev(la);
+      NcoC = NLco_dev(lc);
+      NcoAC = NcoA*NcoC;
 
-      if ( t != CP2S){ continue; }
+      if ( t != CP2S ){ continue; }
 
       double * out = &ABCD[ Og*hrr_blocksize + off_m2];
       const double * const inp = &AC[Ov*Ng*vrr_blocksize + off_m1];
-      const double * const Kabcd = &data[idx_Kabcd];
+      const double * const Kabcd = &data[idx_K];
 
-//      for( unsigned int idx=threadIdx.x; idx < nla * npa ; idx += blockDim.x ){ sKa[idx] = Ka[idx]; }
-//      for( unsigned int idx=threadIdx.x; idx < nlb * npb ; idx += blockDim.x ){ sKb[idx] = Kb[idx]; }
-//      for( unsigned int idx=threadIdx.x; idx < nlc * npc ; idx += blockDim.x ){ sKc[idx] = Kc[idx]; }
-//      for( unsigned int idx=threadIdx.x; idx < nld * npd ; idx += blockDim.x ){ sKd[idx] = Kd[idx]; }
-//      __syncthreads();
-
-      constexpr int TS_l = 2;
-      constexpr int TS_j = 2;
+      constexpr int TS_l = 1;
+      constexpr int TS_j = 1;
       constexpr int F1 = 8;
-      constexpr int F2 = 8;
-      constexpr int BS_p = 8;
-      constexpr int dim = F1*F2;
+      constexpr int F2 = 16;
+      constexpr int BS_p = 16;
+//      constexpr int dim = F1*F2;
       constexpr int BS_l = F1 * TS_l;
       constexpr int BS_j = F2 * TS_j;
       constexpr int totResBlkT = BS_l * BS_j;
@@ -85,15 +65,11 @@ __global__ void compute_ECO_batched_gpu_low(
       constexpr int strideK = numThrBlkT / BS_p;
       constexpr int strideI = numThrBlkT / BS_j;
 
-      assert( numThrBlkT == dim );
-      assert( numThrBlkT == blockDim.x );
-      assert( BS_l * BS_p >= dim );
-      assert( BS_p * BS_j >= dim );
-      assert( strideK > 0 );
-      assert( strideI > 0 );     
-
       __shared__ double sK[BS_l*BS_p];
       __shared__ double sI[BS_p*BS_j];
+
+
+
 
       const int tRow = threadIdx.x / ( BS_j/TS_j ); // thr / F2
       const int tCol = threadIdx.x % ( BS_j/TS_j );
@@ -106,66 +82,43 @@ __global__ void compute_ECO_batched_gpu_low(
       double regJ[TS_j];
       double tRes[TS_l*TS_j];
 
-//      if ( blockIdx.x == 1 and threadIdx.x == 0 ){ printf("Computing %d(%d %d %d %d ) %d = %d %d(%d %d %d %d ) @ %d %d at l %d %d \n", 
-//            nlabcd,nla,nlb,nlc,nld, NcoAC, nlabcd, n_prm,npa,npb,npc,npd, n_prm, NcoAC, la, lc ); }
+      unsigned int iB_p = iCoK;
+      unsigned int og_p = 0;
 
-//      if ( blockIdx.x == 1 and threadIdx.x == 0 ){
-//         for( unsigned int idx=0; idx < nla * npa ; idx ++ ){ printf( " Ka %d  = %lg \n", idx, sKa[idx]); }
-//         for( unsigned int idx=0; idx < nlb * npb ; idx ++ ){ printf( " Kb %d  = %lg \n", idx, sKb[idx]); }
-//         for( unsigned int idx=0; idx < nlc * npc ; idx ++ ){ printf( " Kc %d  = %lg \n", idx, sKc[idx]); }
-//         for( unsigned int idx=0; idx < nld * npd ; idx ++ ){ printf( " Kd %d  = %lg \n", idx, sKd[idx]); }
-//      }
-
-
-//      printf("Computing %d %d = %d %d @ %d %d at l %d %d \n", nlabcd, NcoAC, nlabcd, n_prm, n_prm, NcoAC, la, lc );
+//      if ( threadIdx.x == 0 and blockIdx.x % 100 == 0 ){ printf("ECO < %d %d %d > \n", nlabcd, n_prm, NcoAC ); }
 
       // Loop over nlabcd, then over primitives then over cartesian components
-      for( unsigned int IB_l = 0 ; IB_l  < (nlabcd+BS_l-1) / BS_l ; IB_l ++ ){
-         for( unsigned int IB_p = 0 ; IB_p  < (n_prm+BS_p-1) / BS_p ; IB_p ++ ){
-
+      for( unsigned int IB_l = 0 ; IB_l  < (nlabcd+BS_l-1) ; IB_l += BS_l ){
+         for( unsigned int IB_p = 0 ; IB_p  < (n_prm+BS_p-1) ; IB_p += BS_p ){
+            unsigned int p = iB_p + IB_p;
+            if ( p < n_prm ){ og_p = PMX[(Ov+p)*PMX_SIZE+PMX_OFFSET_OGP ]; } 
             // collaborate to compute and load a BS_l * BS_p block of K in shared memory
             for ( int offK = 0 ; offK < BS_l; offK+=strideK ){
-
                unsigned int iB_l = iRoK + offK;
-               unsigned int iB_p = iCoK;
-               unsigned int l = iB_l + IB_l*BS_l;
-               unsigned int p = iB_p + IB_p*BS_p;
-
+               unsigned int l = iB_l + IB_l;
                if ( p < n_prm and l < nlabcd ){
-                  unsigned int ipzn = PMX[Ov+p];
-                  unsigned int ipa,ipb,ipc,ipd;
-                  decode4( ipzn, &ipa,&ipb,&ipc,&ipd );
-                  unsigned int orig_p = ipa*npb*npc*npd + ipb*npc*npd + ipc*npd + ipd;
-//                  double K = sKa[a*npa + ipa] * sKb[b*npb + ipb] * sKc[c*npc + ipc] * sKd[d*npd + ipd];
-                  double K = Kabcd[l*npa*npb*npc*npd + orig_p];
-//                  printf("K: %lg | %d | %d %d %d \n", K , idx_Kabcd,  l, p, orig_p );
-                  sK[iB_l*BS_p+iB_p ] = K;
-//                  if ( blockIdx.x == 1 ){
-//                     printf("K [%d(%d %d %d %d ) %d(%d %d %d %d )] : %lf : %lf %lf %lf %lf \n", l, a,b,c,d, p,ipa,ipb,ipc,ipd, K, sKa[a*npa + ipa], sKb[b*npb + ipb], sKc[c*npc + ipc], sKd[d*npd + ipd] ); 
-//                  }
+                  sK[iB_l*BS_p+iB_p ] = Kabcd[l*npabcd + og_p];
                } else {sK[iB_l*BS_p+iB_p] = 0.0;}
             }
 
-            __syncthreads(); // __sync after writing sI, will mean sync after sK
+            __syncthreads(); // __sync after writing sK
 
             // Uses this sK to run through the full [BS_l,ALL_J] input vector
-            for ( unsigned int IB_j = 0 ; IB_j  < (NcoAC+BS_j-1) / BS_j ; IB_j ++ ){
+            for ( unsigned int IB_j = 0 ; IB_j  < (NcoAC+BS_j-1) ; IB_j += BS_j ){
 
                // Loads a BS_p * BS_j block of the input matrix
                for ( int offI = 0 ; offI < BS_p; offI+=strideI ){
                   unsigned int iB_p = iRoI + offI;
                   unsigned int iB_j = iCoI;
-                  unsigned int p = iB_p + IB_p*BS_p;
-                  unsigned int j = iB_j + IB_j*BS_j;
+                  unsigned int p = iB_p + IB_p;
+                  unsigned int j = iB_j + IB_j;
                   
                   if ( p < n_prm and j < NcoAC ){
-//                     if ( blockIdx.x == 1 and threadIdx.x == 0 ){ printf("Loading %lg %d %d \n", inp[p*Ng*vrr_blocksize+j], p, j);}
                      sI[iB_p*BS_j+iB_j] = inp[p*Ng*vrr_blocksize+j];
                   } else { sI[iB_p*BS_j+iB_j] = 0.0; }
-
                }
 
-               __syncthreads(); // __sync after writing sI, will mean sync after sK
+               __syncthreads(); // __sync after writing sI
 
                // Zeroes the register local results.
                for( int iT_lj = 0 ; iT_lj < TS_l*TS_j; iT_lj ++ ){ tRes[iT_lj] = 0.0; }
@@ -177,20 +130,18 @@ __global__ void compute_ECO_batched_gpu_low(
 
                   for ( unsigned int res_l = 0 ; res_l < TS_l ; res_l++ ){
                      for ( unsigned int res_j = 0 ; res_j < TS_j ; res_j++ ){
-//                        if ( blockIdx.x == 1 and threadIdx.x == 0 ){ printf("Adding %lg %lg to %lg \n", regL[res_l], regJ[res_j], tRes[res_l*TS_j+res_j] );}
                         tRes[res_l*TS_j+res_j] += regL[res_l] * regJ[res_j];
                      }
                   }
                }
-               __syncthreads(); // __sync after writing sI, will mean sync after sK
 
                // Writes the results to output. Each thread is writing to a different location
                // No block can write to the same braket (for better or worse)
                // So no atomic is necessary
                for ( unsigned int res_l = 0 ; res_l < TS_l ; res_l++ ){
                   for ( unsigned int res_j = 0 ; res_j < TS_j ; res_j++ ){
-                     unsigned int l = tRow * TS_l + res_l + IB_l * BS_l;
-                     unsigned int j = tCol * TS_j + res_j + IB_j * BS_j;
+                     unsigned int l = tRow * TS_l + res_l + IB_l;
+                     unsigned int j = tCol * TS_j + res_j + IB_j;
                      if ( l < nlabcd and j < NcoAC ){
                         out[l*hrr_blocksize+j] += tRes[res_l*TS_j+res_j];
                      }
@@ -198,7 +149,7 @@ __global__ void compute_ECO_batched_gpu_low(
                }
                __syncthreads(); // __sync after using sI
             }
-            __syncthreads();
+            __syncthreads(); // sync after using sK
          }
       } // end of strange gemm
    }
@@ -258,130 +209,6 @@ __global__ void compute_SFT_batched_gpu_low(
             double s = 0.0;
             for( int n3 = 1 ; n3 < Ng; n3++ ){ s += pr[ VBS*n3 + j ]; }
             pr[j] += s;
-         }
-      }
-   }
-}
-
-__global__ void compute_ECO_batched_gpu_low_old(
-      const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ PMX,
-      const unsigned int* const __restrict__ FVH,
-      const double* const __restrict__ Fm, // unused
-      const double* const __restrict__ data,
-      double* const __restrict__ AC,
-      double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng ){
-
-//   // TODO to constant array
-//   unsigned int L1 = L / 2;
-//   unsigned int L2 = (L+1) / 2;
-//   unsigned int max_NcoAC = (L1+1)*(L1+2)*(L2+1)*(L2+2) / 4;
-
-   unsigned int Nop = numVC - numV + 1;
-   
-   // arguable
-   const int best_eco_team_size = (L+1) * (L+2) ; // max_NcoAC ;
-   int eco_team_size = blockDim.x;
-   while ( eco_team_size > best_eco_team_size ){ eco_team_size /= 2; }
-
-   int num_eco_teams = blockDim.x / eco_team_size;
-   int my_eco_team = threadIdx.x / eco_team_size;
-   int my_eco_rank = threadIdx.x % eco_team_size;
-
-
-   for( int block=blockIdx.x; block < Ncells*Nop ; block += gridDim.x ){
-
-      unsigned int p      =  block / (Nop); 
-      int n3              =  0; // (block / Nop ) % Ng;
-      int op              =  block % Nop + numV ;
-
-      unsigned int Ov     = FVH[p*FVH_SIZE+FVH_OFFSET_OV];
-      unsigned int Og     = FVH[p*FVH_SIZE+FVH_OFFSET_OG];
-      unsigned int n_prm  = FVH[p*FVH_SIZE+FVH_OFFSET_NPRM];
-      unsigned int nlabcd = FVH[p*FVH_SIZE+FVH_OFFSET_NLABCD];
-      unsigned int npabcd = FVH[p*FVH_SIZE+FVH_OFFSET_NPABCD];
-      unsigned int idx_Ka = FVH[p*FVH_SIZE+FVH_OFFSET_IDX_KA];
-      unsigned int idx_Kb = FVH[p*FVH_SIZE+FVH_OFFSET_IDX_KB];
-      unsigned int idx_Kc = FVH[p*FVH_SIZE+FVH_OFFSET_IDX_KC];
-      unsigned int idx_Kd = FVH[p*FVH_SIZE+FVH_OFFSET_IDX_KD];
-
-      const double* Ka = &data[idx_Ka];
-      const double* Kb = &data[idx_Kb];
-      const double* Kc = &data[idx_Kc];
-      const double* Kd = &data[idx_Kd];
-
-      unsigned int nla,nlb,nlc,nld,npa,npb,npc,npd;
-      decode_shell( nlabcd, &nla,&nlb,&nlc,&nld, &npa,&npb);
-      decode4( npabcd, &npa,&npb,&npc,&npd );
-      const unsigned int nl___d = nld;
-      const unsigned int nl__cd = nlc*nl___d;
-      const unsigned int nl_bcd = nlb*nl__cd;
-      nlabcd = nla*nl_bcd;
-
-      double* sh_mem = &ABCD[ Og * hrr_blocksize ];
-
-      // Find the contraction we are doing
-      const int t  = plan[ op*OP_SIZE + T__OFFSET ];
-      if ( t != CP2S){ continue; }
-      const int la = plan[ op*OP_SIZE + LA_OFFSET ];
-      const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
-      const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
-      const int off_m2 = plan[ op*OP_SIZE + M2_OFFSET ];
-
-      const int NcoA = NLco_dev(la);
-      const int NcoC = NLco_dev(lc);
-      const int NcoAC = NcoA*NcoC;
-
-      double* m2 = &sh_mem[off_m2];
-
-      __shared__ double sKa[MAX_N_L * MAX_N_PRM];
-      __shared__ double sKb[MAX_N_L * MAX_N_PRM];
-      __shared__ double sKc[MAX_N_L * MAX_N_PRM];
-      __shared__ double sKd[MAX_N_L * MAX_N_PRM];
-
-      for( unsigned int idx=threadIdx.x; idx < nla * npa ; idx += blockDim.x ){ sKa[idx] = Ka[idx]; }
-      for( unsigned int idx=threadIdx.x; idx < nlb * npb ; idx += blockDim.x ){ sKb[idx] = Kb[idx]; }
-      for( unsigned int idx=threadIdx.x; idx < nlc * npc ; idx += blockDim.x ){ sKc[idx] = Kc[idx]; }
-      for( unsigned int idx=threadIdx.x; idx < nld * npd ; idx += blockDim.x ){ sKd[idx] = Kd[idx]; }
-
-      __syncthreads();
-
-      for ( unsigned idx_prm = my_eco_team; idx_prm < n_prm ;  idx_prm += num_eco_teams ){
-
-         bool found = false;
-         double * pr_mem = nullptr;
-         while ( not found and idx_prm < n_prm ){
-            // Find the AC value we need to contract
-            pr_mem = &AC[ ((Ov+idx_prm) * Ng + n3) * vrr_blocksize ];
-            if (pr_mem[0] > 1.e-30 ){ found = true ; }
-            else { idx_prm += num_eco_teams ; }
-         }
-         if ( not found or idx_prm >= n_prm ){ break; }
-
-         double* m1 = &pr_mem[off_m1];
-         unsigned int ipzn = PMX[Ov+idx_prm];
-         unsigned int ipa,ipb,ipc,ipd;
-         decode4( ipzn, &ipa,&ipb,&ipc,&ipd );
-
-         // Loop over (a|c) integrals to contract, linear contractions, and components of these integrals
-         unsigned int n_nl_AC = nlabcd * NcoAC;
-         for ( unsigned int i = my_eco_rank; i < n_nl_AC ; i+= eco_team_size ){
-
-            unsigned int ilabcd    = i / NcoAC;
-            unsigned int j         = i % NcoAC;
-           
-            unsigned int a = (ilabcd / nl_bcd ) % nla;
-            unsigned int b = (ilabcd / nl__cd ) % nlb ;
-            unsigned int c = (ilabcd / nl___d ) % nlc ;
-            unsigned int d =  ilabcd            % nld ;
-
-            double K = sKa[ a*npa + ipa ] * sKb[ b*npb + ipb ] * sKc[ c*npc + ipc ] * sKd[ d*npd + ipd ];
-
-            // must be atomic if different warps/blocks share the ABCD [i + j] array
-            // printf("CP2S %d %d adding %lg %lg @ %p : %lg \n", blockIdx.x, threadIdx.x, K , m1[j], &m2[ilabcd*hrr_blocksize+j], m2[ilabcd*hrr_blocksize+j] );
-            atomicAdd( &m2[ ilabcd*hrr_blocksize + j ] , K * m1[j]);
-//            m2[ ilabcd*hrr_blocksize + j ] += K * m1[j];
          }
       }
    }

@@ -33,7 +33,7 @@ SOFTWARE.
 // \"integrals between spherical harmonic basis functions\"
 // \"after contraction and after sum over lattice vectors\"
 // will be deferred for calculations at a later time
-#define MIN_INT_BATCH_SIZE 100
+#define MIN_INT_BATCH_SIZE 10*1024*1024
 
 // How much of the available memory is used for
 // integrals and intermediate representations
@@ -133,14 +133,13 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 
 //#define PRM_TMP_SIZE 1 
 #define FVH_SIZE 18
-//#define PMI_SIZE 2
-//#define SPH_SIZE 2
+#define PMX_SIZE 2
 #define TRA_SIZE 6
 #define KS_SIZE  8
 
 //#define PRM_TMP_OFFSET_IPZN 0
-//#define PMI_OFFSET_OF     0
-//#define PMI_OFFSET_IPZN   1
+#define PMX_OFFSET_IPZN   0
+#define PMX_OFFSET_OGP    1
 
 #define FVH_OFFSET_OV      0
 #define FVH_OFFSET_OG      1
@@ -154,10 +153,10 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 #define FVH_OFFSET_IDX_ZB  9
 #define FVH_OFFSET_IDX_ZC  10
 #define FVH_OFFSET_IDX_ZD  11
-#define FVH_OFFSET_IDX_KA  12
+#define FVH_OFFSET_IDX_K   12
 #define FVH_OFFSET_IDX_KB  13
-#define FVH_OFFSET_IDX_KC  14
-#define FVH_OFFSET_IDX_KD  15
+#define FVH_OFFSET_ELABCD  14
+#define FVH_OFFSET_EPABCD  15
 #define FVH_OFFSET_NLABCD  16
 #define FVH_OFFSET_NPABCD  17
 

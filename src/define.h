@@ -33,7 +33,7 @@ SOFTWARE.
 // \"integrals between spherical harmonic basis functions\"
 // \"after contraction and after sum over lattice vectors\"
 // will be deferred for calculations at a later time
-#define MIN_INT_BATCH_SIZE 10*1024*1024
+#define MIN_INT_BATCH_SIZE 1024*1024*1024
 
 // How much of the available memory is used for
 // integrals and intermediate representations

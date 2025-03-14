@@ -8,6 +8,67 @@
 using std::cout;
 using std::endl;
 
+
+// Sums the primitive along the N3 cell vector, goes from AC to AC
+__global__ void compute_SFT_batched_gpu_low(
+      const int Ncells, const int* __restrict__ plan,
+      const unsigned int* const __restrict__ PMX,
+      const unsigned int* const __restrict__ FVH,
+      const double* const __restrict__ Fm, // unused
+      const double* const __restrict__ data,
+      double* const __restrict__ AC,
+      double* const __restrict__ ABCD, // unused
+      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng ){
+
+   unsigned int Nop = numVC - numV + 1;
+
+
+   for( int block=blockIdx.x; block < Ncells*Nop ; block += gridDim.x ){
+
+      unsigned int p      =  block / (Nop);
+      int op              =  block % Nop + numV ;
+
+      unsigned int Ov     = FVH[p*FVH_SIZE+FVH_OFFSET_OV];
+      unsigned int n_prm  = FVH[p*FVH_SIZE+FVH_OFFSET_NPRM];
+      // Find the contraction we are doing
+      const int t  = plan[ op*OP_SIZE + T__OFFSET ];
+      if ( t != CP2S){ continue; }
+      const int la = plan[ op*OP_SIZE + LA_OFFSET ];
+      const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
+      const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
+      const int NcoA = NLco_dev(la);
+      const int NcoC = NLco_dev(lc);
+      const int NcoAC = NcoA*NcoC;
+      const int VBS = vrr_blocksize;
+
+      // arguable
+      constexpr int ETS = 16;
+      constexpr int NET =  8;
+//      const int best_eco_team_size = NcoAC ;
+//      int eco_team_size = blockDim.x;
+//      while ( eco_team_size > best_eco_team_size ){ eco_team_size /= 2; }
+
+//      int num_eco_teams = blockDim.x / eco_team_size;
+      int my_eco_team = threadIdx.x / ETS;
+      int my_eco_rank = threadIdx.x % ETS;
+
+      double * const pr_0 = &AC[ Ov*Ng*VBS + off_m1];
+      const int pr_ld_i = Ng*VBS;
+      // PR[i,0,j] = sum( PR[i,n,j] )
+      // pr_ld_i = Ng*VBS
+      // pr_ld_n = VBS
+      for ( int idx_prm = my_eco_team ; idx_prm < n_prm ; idx_prm += NET ){
+         double * pr = pr_0 + pr_ld_i*idx_prm;
+         for( int j = my_eco_rank; j < NcoAC; j+= ETS ){
+            double s = 0.0;
+            for( int n3 = 1 ; n3 < Ng; n3++ ){ s += pr[ VBS*n3 + j ]; }
+            pr[j] += s;
+         }
+      }
+   }
+}
+
+
 // Transforms the NCELLS*NOPS*N1*N2*NGAUSS4 AC into the contracted NCELLS*NOP*N1*N2*NNL4 AC0
 // The results are saved into ABCD, since they will be the starting points of the HHR
 // Computes the 4 matrix products CC1 @ CC2 @ CC3 @ CC4 @ AC
@@ -67,9 +128,6 @@ __global__ void compute_ECO_batched_gpu_low(
 
       __shared__ double sK[BS_l*BS_p];
       __shared__ double sI[BS_p*BS_j];
-
-
-
 
       const int tRow = threadIdx.x / ( BS_j/TS_j ); // thr / F2
       const int tCol = threadIdx.x % ( BS_j/TS_j );
@@ -152,65 +210,6 @@ __global__ void compute_ECO_batched_gpu_low(
             __syncthreads(); // sync after using sK
          }
       } // end of strange gemm
-   }
-}
-
-// Sums the primitive along the N3 cell vector, goes from AC to AC
-__global__ void compute_SFT_batched_gpu_low(
-      const int Ncells, const int* __restrict__ plan,
-      const unsigned int* const __restrict__ PMX,
-      const unsigned int* const __restrict__ FVH,
-      const double* const __restrict__ Fm, // unused
-      const double* const __restrict__ data,
-      double* const __restrict__ AC,
-      double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng ){
-
-   unsigned int Nop = numVC - numV + 1;
-
-
-   for( int block=blockIdx.x; block < Ncells*Nop ; block += gridDim.x ){
-
-      unsigned int p      =  block / (Nop);
-      int op              =  block % Nop + numV ;
-
-      unsigned int Ov     = FVH[p*FVH_SIZE+FVH_OFFSET_OV];
-      unsigned int n_prm  = FVH[p*FVH_SIZE+FVH_OFFSET_NPRM];
-      // Find the contraction we are doing
-      const int t  = plan[ op*OP_SIZE + T__OFFSET ];
-      if ( t != CP2S){ continue; }
-      const int la = plan[ op*OP_SIZE + LA_OFFSET ];
-      const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
-      const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
-      const int NcoA = NLco_dev(la);
-      const int NcoC = NLco_dev(lc);
-      const int NcoAC = NcoA*NcoC;
-      const int VBS = vrr_blocksize;
-
-      // arguable
-      constexpr int ETS = 16;
-      constexpr int NET =  8;
-//      const int best_eco_team_size = NcoAC ;
-//      int eco_team_size = blockDim.x;
-//      while ( eco_team_size > best_eco_team_size ){ eco_team_size /= 2; }
-
-//      int num_eco_teams = blockDim.x / eco_team_size;
-      int my_eco_team = threadIdx.x / ETS;
-      int my_eco_rank = threadIdx.x % ETS;
-
-      double * const pr_0 = &AC[ Ov*Ng*VBS + off_m1];
-      const int pr_ld_i = Ng*VBS;
-      // PR[i,0,j] = sum( PR[i,n,j] )
-      // pr_ld_i = Ng*VBS
-      // pr_ld_n = VBS
-      for ( int idx_prm = my_eco_team ; idx_prm < n_prm ; idx_prm += NET ){
-         double * pr = pr_0 + pr_ld_i*idx_prm;
-         for( int j = my_eco_rank; j < NcoAC; j+= ETS ){
-            double s = 0.0;
-            for( int n3 = 1 ; n3 < Ng; n3++ ){ s += pr[ VBS*n3 + j ]; }
-            pr[j] += s;
-         }
-      }
    }
 }
 

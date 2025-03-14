@@ -229,6 +229,8 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                const unsigned int npabcd = np[i]*np[j]*np[k]*np[l];
 
                unsigned int idx_Kabcd = all_idx_Kabcd[ four_uint_tuple(idx_Ka, idx_Kb, idx_Kc, idx_Kd) ];
+//               unsigned int idx_Kr = offset_K[L];
+               unsigned int idx_Kr = 0;
 //               cout << " K " << i << " " << j << " " << k << " " << l << " [" << idx_Kabcd << "] = " << ua.internal_buffer[idx_Kabcd] << endl;
 
 //               TODO FUTURE add ij and kl detailed screening coeff
@@ -250,7 +252,7 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                // later they will be copied to the gpu memory
                const unsigned int tmp[FVH_SIZE] = {
                   Ov, Og, Oq, n_prm, idx_R[i], idx_R[j], idx_R[k], idx_R[l],
-                  idx_Z[i], idx_Z[j], idx_Z[k], idx_Z[l], idx_Kabcd, 0,
+                  idx_Z[i], idx_Z[j], idx_Z[k], idx_Z[l], idx_Kabcd, idx_Kr,
                   elabcd, epabcd, nlabcd, npabcd };
 
                this_set_L.insert(L);
@@ -261,11 +263,13 @@ void libGint::add_shell ( int i, int j, int k, int l, int n1, int n2 ){
                this_set_Fm_size[L] += (F_size * n_prm * max_ncells)*sizeof(double);
                this_set_AC_size[L] += all_vrr_blocksize[L] * n_prm * max_ncells * sizeof(double);
                this_set_ABCD_size[L] += all_hrr_blocksize[L] * nlabcd * sizeof(double);
+//               this_set_KRL_size[L] += n_prm * nlabcd * sizeof(double) ;
 
                this_set_idx_mem_needed[L] += (n_prm + n_prm*PMX_SIZE + FVH_SIZE) * sizeof(unsigned int);
                this_set_offset_G[L] += nlabcd;
                this_set_offset_V[L] += n_prm;
                this_set_offset_F[L] ++ ;
+//               this_set_offset_K[L] += nlabcd*n_prm ;
                encoded_moments.insert(L);
    }}}}
 
@@ -280,6 +284,7 @@ void libGint::add_qrt( int la, int lb, int lc, int ld, int nla, int nlb, int nlc
    unsigned int L = encodeL(la,lb,lc,ld);
    this_set_ABCD0_size[L] = this_set_ABCD0_size[L] + compute_Nc(la,lb,lc,ld) * nlabcd * sizeof(double) ;
    this_set_SPHER_size[L] = this_set_SPHER_size[L] + compute_Ns(la,lb,lc,ld) * nlabcd * sizeof(double) ;
+
 //   this_set_dat_mem_needed[L] += compute_Nc(la,lb,lc,ld) * nlabcd * sizeof(double);
 //   this_set_dat_mem_needed[L] += compute_Ns(la,lb,lc,ld) * nlabcd * sizeof(double);
    this_set_offset_Q[L] += nlabcd ;
@@ -876,12 +881,12 @@ void libGint::dispatch( bool dispatch_all ){
 //#pragma omp critical
 //      {
 //      size_t tot_mem_L = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L];
-//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
-//      cout << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << max_ncells << " Ng " ;
-//      cout << Fm_size[L]/1024 << " " << AC_size[L]/1024 << " " << ABCD_size[L]/1024 << " " << ABCD0_size[L]/1024 << " " << SPHER_size[L]/1024 << " | ";
-//      cout << dispatch_all << " " << must_be_computed << " " << is_too_small << " | ";
-//      cout << dat_mem_needed_L/1024/1024 << " MB | " ;
-//      cout << endl;
+      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
+      cout << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << max_ncells << " Ng " ;
+      cout << Fm_size[L]/1024 << " " << AC_size[L]/1024 << " " << ABCD_size[L]/1024 << " " << ABCD0_size[L]/1024 << " " << SPHER_size[L]/1024 << " | ";
+      cout << dispatch_all << " " << must_be_computed << " " << is_too_small << " | ";
+      cout << dat_mem_needed_L_1/1024/1024 << " MB | " << dat_mem_needed_L_2/1024/1024 << " MB | ";
+      cout << endl;
 //      }
 
 //      PUSH_RANGE(Lname.c_str(),3);
@@ -978,7 +983,6 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
-
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      std::vector<double> FM_on_cpu(Fm_size[L]);
@@ -1006,10 +1010,10 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
-         int vrr_index = 64*la+16*lb+4*lc+ld;
-         compute_VRR_v2_batched_gpu_low<<<Ncells*max_ncells,64,0,cuda_stream>>>(
-           Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
-           AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
+      int vrr_index = 64*la+16*lb+4*lc+ld;
+      compute_VRR_v2_batched_gpu_low<<<Ncells*max_ncells,64,0,cuda_stream>>>(
+        Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
+        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
 
 //         compute_VRR_batched_gpu_low<<<Ncells*max_ncells,64,0,cuda_stream>>>(
 //            Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev, data_dev,
@@ -1024,10 +1028,7 @@ void libGint::dispatch( bool dispatch_all ){
 //      cout << " AC " << la << " " << lb << " " << lc << " " << ld << " " << AC_size[L] << endl;
 //      for( unsigned int ifm=0; ifm < AC_size[L]; ifm++ ){
 //         cout << ifm << " " << std::setprecision(16) << AC0_on_cpu[ifm] << endl;
-//      } cout << endl;
-
-
-    
+//      } cout << endl;    
 
       CUDA_GPU_ERR_CHECK( cudaMemsetAsync( ABCD_dev, 0, ABCD_size[L] , cuda_stream ) );
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );

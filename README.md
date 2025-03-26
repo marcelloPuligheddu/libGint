@@ -49,4 +49,6 @@ Max number of linear combinations for each angular moment per set: 4
 
 Max number of primitives gaussian per set: 16 
 
+The XF potential type must be truncated
+
 

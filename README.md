@@ -9,11 +9,11 @@ The development version of the cp2k wrapper is at https://github.com/marcelloPul
 
 It includes changes to the cp2k make system to automatically download and install libGint
 
-Compared to a regular XF calcalation, the changes needed in the input are :
-
+Compared to a regular XF calculation, the changes needed in the input file are :
+```
 &FORCE_EVAL  &DFT    &XC      &HF        HFX_LIBRARY libGint
-
 &FORCE_EVAL  &DFT    &XC      &HF        &MEMORY          MAX_MEMORY X
+```
 
 Where X is the maximum amount (in MB) of device memory each MPI rank is able to use during the exchange calculation.
 

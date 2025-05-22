@@ -228,8 +228,8 @@ class libGint {
    size_t idx_mem_needed[NL4] = {0};
    size_t dat_mem_needed[NL4] = {0};
 
-   double cell_h[9] = {0};
-   double cell_inv_h[9] = {0};
+   double cell_h[18] = {0};
+//   double cell_inv_h[9] = {0};
    std::vector<double> neighs;
 
    std::unordered_set<unsigned int> encoded_moments ;

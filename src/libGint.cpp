@@ -768,7 +768,6 @@ void libGint::reset_indices(unsigned int L){
    offset_G[L] = 0;
    offset_Q[L] = 0;
 
-
    Fm_size[L] = 0;
    AC_size[L] = 0;
    ABCD_size[L] = 0;
@@ -809,6 +808,13 @@ void libGint::dispatch( bool dispatch_all ){
    // 1) Get the plan
    // 2) Copy the input vectors to device memory
    // 3) Run
+
+   // There is a (small) chance we get to this point before the previous dispatch on the same stream
+   // has finished. To avoid problems, we wait
+   CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
+
+   // Flag to sync before we overwrite the RAM side idx
+   bool first_loop_this_dispatch = true;
 
 //   PUSH_RANGE("dispatch all L",3);
    for ( unsigned int L : encoded_moments ){
@@ -883,8 +889,12 @@ void libGint::dispatch( bool dispatch_all ){
 //      size_t tot_mem_L = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L];
       cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
       cout << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << max_ncells << " Ng " ;
-      cout << Fm_size[L]/1024 << " " << AC_size[L]/1024 << " " << ABCD_size[L]/1024 << " " << ABCD0_size[L]/1024 << " " << SPHER_size[L]/1024 << " | ";
-      cout << dispatch_all << " " << must_be_computed << " " << is_too_small << " | ";
+      cout <<    Fm_size[L]/1024/1024 << " " ;
+      cout <<    AC_size[L]/1024/1024 << " " ;
+      cout <<  ABCD_size[L]/1024/1024 << " ";
+      cout << ABCD0_size[L]/1024/1024 << " ";
+      cout << SPHER_size[L]/1024/1024 << " | ";
+      cout << dispatch_all << " " << must_be_computed << " " << is_too_small << " " << first_loop_this_dispatch << " | ";
       cout << dat_mem_needed_L_1/1024/1024 << " MB | " << dat_mem_needed_L_2/1024/1024 << " MB | ";
       cout << endl;
 //      }
@@ -895,7 +905,15 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 
-
+      // it is (very) possible that we reach this point before the previous loop completed, so we sync
+      // before overwriting index arrays on device
+      // TODO ? not necessary ?
+      if ( not first_loop_this_dispatch ){
+         cout << " SYNCING " << endl;
+         CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
+      } else {
+         first_loop_this_dispatch = false;
+      }
 
       // Stage the idx array for async copy on device
       memcpy(  OF_stg,  OF[L].data(), sizeof(unsigned int)*( OF[L].size()) );
@@ -904,10 +922,6 @@ void libGint::dispatch( bool dispatch_all ){
       memcpy(  KS_stg,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()) );
       memcpy(plan_stg,  plan->data(), sizeof(int)*( plan->size()) );
 
-      // it is (very) possible that we reach this point before the previous loop completed, so we sync
-      // before overwriting index arrays on device
-      // TODO ? not necessary ?
-      CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
       CUDA_GPU_ERR_CHECK( cudaMemcpyAsync( 
          idx_mem_dev, idx_mem_stg, sizeof(unsigned int)*idx_mem_needed_L, cudaMemcpyHostToDevice, cuda_stream));
 //      CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
@@ -1011,9 +1025,14 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
       int vrr_index = 64*la+16*lb+4*lc+ld;
-      compute_VRR_v2_batched_gpu_low<<<Ncells*max_ncells,64,0,cuda_stream>>>(
+//      compute_VRR_v2_batched_gpu_low<<<Ncells*max_ncells,64,0,cuda_stream>>>(
+//        Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
+//        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
+
+      compute_VRR_v3(
         Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
-        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
+        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, numV, numVC, max_ncells, cuda_stream ); 
+
 
 //         compute_VRR_batched_gpu_low<<<Ncells*max_ncells,64,0,cuda_stream>>>(
 //            Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev, data_dev,
@@ -1024,7 +1043,7 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 
 //      std::vector<double> AC0_on_cpu(AC_size[L]);
-//      CUDA_GPU_ERR_CHECK( cudaMemcpy( AC0_on_cpu.data(),  AC_dev, sizeof(double)*(AC_size[L]), cudaMemcpyDeviceToHost) );
+//      CUDA_GPU_ERR_CHECK( cudaMemcpy( AC0_on_cpu.data(),  AC_dev, AC_size[L], cudaMemcpyDeviceToHost) );
 //      cout << " AC " << la << " " << lb << " " << lc << " " << ld << " " << AC_size[L] << endl;
 //      for( unsigned int ifm=0; ifm < AC_size[L]; ifm++ ){
 //         cout << ifm << " " << std::setprecision(16) << AC0_on_cpu[ifm] << endl;
@@ -1140,7 +1159,7 @@ void libGint::dispatch( bool dispatch_all ){
 
 //      cout << endl;
 
-      CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
+//      CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
 //      CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 
@@ -1170,7 +1189,7 @@ void libGint::dispatch( bool dispatch_all ){
 //   for ( int ipf=0; ipf < FP_size; ipf++ ){ cout <<  ipf << " " << F_a_from_gpu[ipf] << endl ; } cout << endl;
 
    // Wait for all kernels to finish before returning control to caller
-   CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
+//   CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
 //   CUDA_GPU_ERR_CHECK( cudaDeviceSynchronize() );
 //   CUDA_GPU_ERR_CHECK( cudaPeekAtLastError() );
 

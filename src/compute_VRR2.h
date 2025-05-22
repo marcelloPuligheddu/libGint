@@ -35,4 +35,15 @@ __global__ void compute_VRR_v2_batched_gpu_low(
       double* const __restrict__ ABCD,
       int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng );
 
+void compute_VRR_v3(
+      const int Ncells, const int vrr_index,
+      const unsigned int* const __restrict__ PMX,
+      const unsigned int* const __restrict__ FVH,
+      const double* const __restrict__ Fm,
+      const double* const __restrict__ data,
+      double* const __restrict__ AC,
+      double* const __restrict__ ABCD,
+      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng, cudaStream_t cuda_stream );
+
+
 #endif // COMPUTE_VRR_H_COMPILE_GUARD

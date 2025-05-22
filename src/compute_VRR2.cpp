@@ -7,6 +7,13 @@
 using std::cout;
 using std::endl;
 
+#define FM_N_VEC 4
+#define FM_N_SCA 5
+__device__ __host__ constexpr int Fsize_but_constexpr( int L ){ return L + 1 + FM_N_VEC * 3 + FM_N_SCA; }
+#undef FM_N_VEC
+#undef FM_N_SCA
+
+
 
 __host__ __device__ constexpr int SA ( int L ) {
    int tmp[] = {0,1,4,10,20,35,56, 84,120, 165};
@@ -12409,28 +12416,398 @@ __device__ void ffff(double * ss0 , double para[4*3+5] ){
 
 #include <vector>
 
-#define VTS 8
-#define NVT 8
+template < int VTS >
+__device__ constexpr auto get_vrr_kernel(int Lindex ){
+   void (*(vrr_kernels[4*4*4*4]))(double *, double*) = { 
+      ssss<VTS>,sssp<VTS>,sssd<VTS>,sssf<VTS>,ssps<VTS>,sspp<VTS>,sspd<VTS>,sspf<VTS>,ssds<VTS>,ssdp<VTS>,ssdd<VTS>,ssdf<VTS>,ssfs<VTS>,ssfp<VTS>,ssfd<VTS>,ssff<VTS>,
+      spss<VTS>,spsp<VTS>,spsd<VTS>,spsf<VTS>,spps<VTS>,sppp<VTS>,sppd<VTS>,sppf<VTS>,spds<VTS>,spdp<VTS>,spdd<VTS>,spdf<VTS>,spfs<VTS>,spfp<VTS>,spfd<VTS>,spff<VTS>,
+      sdss<VTS>,sdsp<VTS>,sdsd<VTS>,sdsf<VTS>,sdps<VTS>,sdpp<VTS>,sdpd<VTS>,sdpf<VTS>,sdds<VTS>,sddp<VTS>,sddd<VTS>,sddf<VTS>,sdfs<VTS>,sdfp<VTS>,sdfd<VTS>,sdff<VTS>,
+      sfss<VTS>,sfsp<VTS>,sfsd<VTS>,sfsf<VTS>,sfps<VTS>,sfpp<VTS>,sfpd<VTS>,sfpf<VTS>,sfds<VTS>,sfdp<VTS>,sfdd<VTS>,sfdf<VTS>,sffs<VTS>,sffp<VTS>,sffd<VTS>,sfff<VTS>,
+      psss<VTS>,pssp<VTS>,pssd<VTS>,pssf<VTS>,psps<VTS>,pspp<VTS>,pspd<VTS>,pspf<VTS>,psds<VTS>,psdp<VTS>,psdd<VTS>,psdf<VTS>,psfs<VTS>,psfp<VTS>,psfd<VTS>,psff<VTS>,
+      ppss<VTS>,ppsp<VTS>,ppsd<VTS>,ppsf<VTS>,ppps<VTS>,pppp<VTS>,pppd<VTS>,pppf<VTS>,ppds<VTS>,ppdp<VTS>,ppdd<VTS>,ppdf<VTS>,ppfs<VTS>,ppfp<VTS>,ppfd<VTS>,ppff<VTS>,
+      pdss<VTS>,pdsp<VTS>,pdsd<VTS>,pdsf<VTS>,pdps<VTS>,pdpp<VTS>,pdpd<VTS>,pdpf<VTS>,pdds<VTS>,pddp<VTS>,pddd<VTS>,pddf<VTS>,pdfs<VTS>,pdfp<VTS>,pdfd<VTS>,pdff<VTS>,
+      pfss<VTS>,pfsp<VTS>,pfsd<VTS>,pfsf<VTS>,pfps<VTS>,pfpp<VTS>,pfpd<VTS>,pfpf<VTS>,pfds<VTS>,pfdp<VTS>,pfdd<VTS>,pfdf<VTS>,pffs<VTS>,pffp<VTS>,pffd<VTS>,pfff<VTS>,
+      dsss<VTS>,dssp<VTS>,dssd<VTS>,dssf<VTS>,dsps<VTS>,dspp<VTS>,dspd<VTS>,dspf<VTS>,dsds<VTS>,dsdp<VTS>,dsdd<VTS>,dsdf<VTS>,dsfs<VTS>,dsfp<VTS>,dsfd<VTS>,dsff<VTS>,
+      dpss<VTS>,dpsp<VTS>,dpsd<VTS>,dpsf<VTS>,dpps<VTS>,dppp<VTS>,dppd<VTS>,dppf<VTS>,dpds<VTS>,dpdp<VTS>,dpdd<VTS>,dpdf<VTS>,dpfs<VTS>,dpfp<VTS>,dpfd<VTS>,dpff<VTS>,
+      ddss<VTS>,ddsp<VTS>,ddsd<VTS>,ddsf<VTS>,ddps<VTS>,ddpp<VTS>,ddpd<VTS>,ddpf<VTS>,ddds<VTS>,dddp<VTS>,dddd<VTS>,dddf<VTS>,ddfs<VTS>,ddfp<VTS>,ddfd<VTS>,ddff<VTS>,
+      dfss<VTS>,dfsp<VTS>,dfsd<VTS>,dfsf<VTS>,dfps<VTS>,dfpp<VTS>,dfpd<VTS>,dfpf<VTS>,dfds<VTS>,dfdp<VTS>,dfdd<VTS>,dfdf<VTS>,dffs<VTS>,dffp<VTS>,dffd<VTS>,dfff<VTS>,
+      fsss<VTS>,fssp<VTS>,fssd<VTS>,fssf<VTS>,fsps<VTS>,fspp<VTS>,fspd<VTS>,fspf<VTS>,fsds<VTS>,fsdp<VTS>,fsdd<VTS>,fsdf<VTS>,fsfs<VTS>,fsfp<VTS>,fsfd<VTS>,fsff<VTS>,
+      fpss<VTS>,fpsp<VTS>,fpsd<VTS>,fpsf<VTS>,fpps<VTS>,fppp<VTS>,fppd<VTS>,fppf<VTS>,fpds<VTS>,fpdp<VTS>,fpdd<VTS>,fpdf<VTS>,fpfs<VTS>,fpfp<VTS>,fpfd<VTS>,fpff<VTS>,
+      fdss<VTS>,fdsp<VTS>,fdsd<VTS>,fdsf<VTS>,fdps<VTS>,fdpp<VTS>,fdpd<VTS>,fdpf<VTS>,fdds<VTS>,fddp<VTS>,fddd<VTS>,fddf<VTS>,fdfs<VTS>,fdfp<VTS>,fdfd<VTS>,fdff<VTS>,
+      ffss<VTS>,ffsp<VTS>,ffsd<VTS>,ffsf<VTS>,ffps<VTS>,ffpp<VTS>,ffpd<VTS>,ffpf<VTS>,ffds<VTS>,ffdp<VTS>,ffdd<VTS>,ffdf<VTS>,fffs<VTS>,fffp<VTS>,fffd<VTS>,ffff<VTS>,
+   };
+   return vrr_kernels[Lindex];
+}
+
+// protoype of a v3 with templated global call
+
+template< int NVT, int VTS, int la, int lb, int lc, int ld >
+__global__ void compute_VRR_v3_batched_gpu_low(
+      const int Ncells, 
+      const unsigned int* const __restrict__ PMX,
+      const unsigned int* const __restrict__ FVH,
+      const double* const __restrict__ Fm,
+      const double* const __restrict__ data,
+      double* const __restrict__ AC,
+      double* const __restrict__ ABCD,
+      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng ){
+
+   constexpr int L = la+lb+lc+ld;
+   constexpr int Li = 64*la+16*lb+4*lc+ld;
+   constexpr int F_size = Fsize_but_constexpr(L);
+                         
+   constexpr auto vrr_kernel = get_vrr_kernel<VTS>(Li);
+
+   int my_vrr_rank = threadIdx.x % VTS ;
+   int my_vrr_team = threadIdx.x / VTS ;
+
+   for( int block=blockIdx.x; block < Ncells*Ng ; block += gridDim.x ){
+
+      int p = block / Ng; 
+      int n3 = block % Ng;
+
+      unsigned int Ov     = FVH[p*FVH_SIZE+FVH_OFFSET_OV];
+      unsigned int n_prm  = FVH[p*FVH_SIZE+FVH_OFFSET_NPRM];
+
+      for ( unsigned i = my_vrr_team; i < n_prm ;  i += NVT ){
+
+//         // Screening on the (ab.n1|cd.n2@n3) fondamental integrals
+         bool found = false;
+         unsigned int Of = 0;
+
+         double * pr_mem, * pqz;
+         __shared__ double PQZ[ NVT * 17 ];
+
+         while ( not found and i < n_prm ){
+            Of = ((Ov+i) * Ng + n3 ) * F_size;
+            // copy Fm[0] ( the ssss(0) integral ) to AC for later screening in ECO
+            pr_mem = &AC[ ((Ov+i) * Ng + n3) * vrr_blocksize ];
+            pr_mem[0] = Fm[Of];
+            // Immediate screening
+            if (Fm[Of] > -1+1.e-30 ){ found = true ; }
+            else { i += NVT; }
+         }
+
+         if ( found and i < n_prm ){ 
+
+            // Copy the sss(m) integrals
+            pr_mem = &AC[ ((Ov+i) * Ng + n3) * vrr_blocksize ];
+            for( int il=0; il < L+1; il++ ){ pr_mem[il] = Fm[Of+il]; }
+   
+            // Copy PA WP QC WQ z1-5 to shared memory for each team
+            for( int ii = my_vrr_rank; ii < 17 ; ii += VTS ){ PQZ[my_vrr_team*17+ii] = Fm[Of+L+1+ii]; }
+            pqz = &PQZ[my_vrr_team*17];
+         }
+
+         __syncthreads();
 
 
-__device__ void (*(vrr_kernels[4*4*4*4]))(double *, double*) = { 
-ssss<VTS>,sssp<VTS>,sssd<VTS>,sssf<VTS>,ssps<VTS>,sspp<VTS>,sspd<VTS>,sspf<VTS>,ssds<VTS>,ssdp<VTS>,ssdd<VTS>,ssdf<VTS>,ssfs<VTS>,ssfp<VTS>,ssfd<VTS>,ssff<VTS>,
-spss<VTS>,spsp<VTS>,spsd<VTS>,spsf<VTS>,spps<VTS>,sppp<VTS>,sppd<VTS>,sppf<VTS>,spds<VTS>,spdp<VTS>,spdd<VTS>,spdf<VTS>,spfs<VTS>,spfp<VTS>,spfd<VTS>,spff<VTS>,
-sdss<VTS>,sdsp<VTS>,sdsd<VTS>,sdsf<VTS>,sdps<VTS>,sdpp<VTS>,sdpd<VTS>,sdpf<VTS>,sdds<VTS>,sddp<VTS>,sddd<VTS>,sddf<VTS>,sdfs<VTS>,sdfp<VTS>,sdfd<VTS>,sdff<VTS>,
-sfss<VTS>,sfsp<VTS>,sfsd<VTS>,sfsf<VTS>,sfps<VTS>,sfpp<VTS>,sfpd<VTS>,sfpf<VTS>,sfds<VTS>,sfdp<VTS>,sfdd<VTS>,sfdf<VTS>,sffs<VTS>,sffp<VTS>,sffd<VTS>,sfff<VTS>,
-psss<VTS>,pssp<VTS>,pssd<VTS>,pssf<VTS>,psps<VTS>,pspp<VTS>,pspd<VTS>,pspf<VTS>,psds<VTS>,psdp<VTS>,psdd<VTS>,psdf<VTS>,psfs<VTS>,psfp<VTS>,psfd<VTS>,psff<VTS>,
-ppss<VTS>,ppsp<VTS>,ppsd<VTS>,ppsf<VTS>,ppps<VTS>,pppp<VTS>,pppd<VTS>,pppf<VTS>,ppds<VTS>,ppdp<VTS>,ppdd<VTS>,ppdf<VTS>,ppfs<VTS>,ppfp<VTS>,ppfd<VTS>,ppff<VTS>,
-pdss<VTS>,pdsp<VTS>,pdsd<VTS>,pdsf<VTS>,pdps<VTS>,pdpp<VTS>,pdpd<VTS>,pdpf<VTS>,pdds<VTS>,pddp<VTS>,pddd<VTS>,pddf<VTS>,pdfs<VTS>,pdfp<VTS>,pdfd<VTS>,pdff<VTS>,
-pfss<VTS>,pfsp<VTS>,pfsd<VTS>,pfsf<VTS>,pfps<VTS>,pfpp<VTS>,pfpd<VTS>,pfpf<VTS>,pfds<VTS>,pfdp<VTS>,pfdd<VTS>,pfdf<VTS>,pffs<VTS>,pffp<VTS>,pffd<VTS>,pfff<VTS>,
-dsss<VTS>,dssp<VTS>,dssd<VTS>,dssf<VTS>,dsps<VTS>,dspp<VTS>,dspd<VTS>,dspf<VTS>,dsds<VTS>,dsdp<VTS>,dsdd<VTS>,dsdf<VTS>,dsfs<VTS>,dsfp<VTS>,dsfd<VTS>,dsff<VTS>,
-dpss<VTS>,dpsp<VTS>,dpsd<VTS>,dpsf<VTS>,dpps<VTS>,dppp<VTS>,dppd<VTS>,dppf<VTS>,dpds<VTS>,dpdp<VTS>,dpdd<VTS>,dpdf<VTS>,dpfs<VTS>,dpfp<VTS>,dpfd<VTS>,dpff<VTS>,
-ddss<VTS>,ddsp<VTS>,ddsd<VTS>,ddsf<VTS>,ddps<VTS>,ddpp<VTS>,ddpd<VTS>,ddpf<VTS>,ddds<VTS>,dddp<VTS>,dddd<VTS>,dddf<VTS>,ddfs<VTS>,ddfp<VTS>,ddfd<VTS>,ddff<VTS>,
-dfss<VTS>,dfsp<VTS>,dfsd<VTS>,dfsf<VTS>,dfps<VTS>,dfpp<VTS>,dfpd<VTS>,dfpf<VTS>,dfds<VTS>,dfdp<VTS>,dfdd<VTS>,dfdf<VTS>,dffs<VTS>,dffp<VTS>,dffd<VTS>,dfff<VTS>,
-fsss<VTS>,fssp<VTS>,fssd<VTS>,fssf<VTS>,fsps<VTS>,fspp<VTS>,fspd<VTS>,fspf<VTS>,fsds<VTS>,fsdp<VTS>,fsdd<VTS>,fsdf<VTS>,fsfs<VTS>,fsfp<VTS>,fsfd<VTS>,fsff<VTS>,
-fpss<VTS>,fpsp<VTS>,fpsd<VTS>,fpsf<VTS>,fpps<VTS>,fppp<VTS>,fppd<VTS>,fppf<VTS>,fpds<VTS>,fpdp<VTS>,fpdd<VTS>,fpdf<VTS>,fpfs<VTS>,fpfp<VTS>,fpfd<VTS>,fpff<VTS>,
-fdss<VTS>,fdsp<VTS>,fdsd<VTS>,fdsf<VTS>,fdps<VTS>,fdpp<VTS>,fdpd<VTS>,fdpf<VTS>,fdds<VTS>,fddp<VTS>,fddd<VTS>,fddf<VTS>,fdfs<VTS>,fdfp<VTS>,fdfd<VTS>,fdff<VTS>,
-ffss<VTS>,ffsp<VTS>,ffsd<VTS>,ffsf<VTS>,ffps<VTS>,ffpp<VTS>,ffpd<VTS>,ffpf<VTS>,ffds<VTS>,ffdp<VTS>,ffdd<VTS>,ffdf<VTS>,fffs<VTS>,fffp<VTS>,fffd<VTS>,ffff<VTS>,
-};
+         if ( found and i < n_prm ){ 
+//            if ( my_vrr_rank == 0 ){ 
+//               printf(" Tx %d Bx %d | Computing p %d %p \n", threadIdx.x, blockIdx.x, i, pr_mem );
+//            }
+
+
+            vrr_kernel( pr_mem, pqz );
+         }
+      }
+   }   
+}
+
+
+
+
+
+
+
+// defines a new type called vrr_global_t
+// this type is actually a (global) function, that takes that list 
+// as arguments and returns void
+typedef void (*(vrr_global_t))( const int , 
+      const unsigned int* const __restrict__ ,
+      const unsigned int* const __restrict__ ,
+      const double* const __restrict__ ,
+      const double* const __restrict__ ,
+      double* const __restrict__ ,
+      double* const __restrict__ ,
+      int , int , int , int , const int  ) ;
+
+vrr_global_t get_vrr( int vrr_index ){
+   vrr_global_t vrr[4*4*4*4] = {
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 0 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 1 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 2 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 0 , 3 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 0 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 1 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 2 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 1 , 3 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 0 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 1 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 2 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 2 , 3 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 0 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 1 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 2 , 3 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 0 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 0 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 0 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 0 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 1 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 1 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 1 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 1 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 2 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 2 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 2 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 2 , 3 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 3 , 0 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 3 , 1 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 3 , 2 >,
+compute_VRR_v3_batched_gpu_low<4,16, 3 , 3 , 3 , 3 >
+      };
+   return vrr[vrr_index];
+}
+
+void compute_VRR_v3(
+      const int Ncells, 
+      const int vrr_index,
+      const unsigned int* const __restrict__ PMX,
+      const unsigned int* const __restrict__ FVH,
+      const double* const __restrict__ Fm,
+      const double* const __restrict__ data,
+      double* const __restrict__ AC,
+      double* const __restrict__ ABCD,
+      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng, cudaStream_t cuda_stream ){
+   get_vrr( vrr_index )<<<Ncells*Ng, 64, 0, cuda_stream >>>( Ncells, PMX,FVH,Fm,data,AC,ABCD,vrr_blocksize,hrr_blocksize,numV,numVC,Ng );
+}
+
+
 
 
 
@@ -12446,7 +12823,10 @@ __global__ void compute_VRR_v2_batched_gpu_low(
    
    int F_size = Fsize(L);
 
-   auto vrr_kernel = vrr_kernels[vrr_kernel_index];
+   constexpr int VTS = 16;
+   constexpr int NVT =  4;
+
+   auto vrr_kernel = get_vrr_kernel<VTS>(vrr_kernel_index);
 
    int my_vrr_rank = threadIdx.x % VTS ;
    int my_vrr_team = threadIdx.x / VTS ;
@@ -12474,7 +12854,7 @@ __global__ void compute_VRR_v2_batched_gpu_low(
             pr_mem = &AC[ ((Ov+i) * Ng + n3) * vrr_blocksize ];
             pr_mem[0] = Fm[Of];
             // Immediate screening
-            if (Fm[Of] > 1.e-12 ){ found = true ; }
+            if (Fm[Of] > 1.e-24 ){ found = true ; }
             else { i += NVT; }
          }
 

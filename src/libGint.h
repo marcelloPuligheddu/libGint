@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 
@@ -47,8 +48,8 @@ SOFTWARE.
 using std::max;
 
 struct LibGint_shared {
-   cublasHandle_t * cublas_handle;
-   cudaStream_t * cuda_stream;
+   hipblasHandle_t * cublas_handle;
+   hipStream_t * hip_stream;
 };
 
 typedef std::tuple<unsigned int, unsigned int, unsigned int, unsigned int> four_uint_tuple;
@@ -100,8 +101,8 @@ class libGint {
    std::vector<std::vector<int> > all_nl;
    std::vector<std::vector< unsigned int>> all_idx_K;
    std::vector<unsigned int> kind_of;
-   cublasHandle_t cublas_handle;
-   cudaStream_t cuda_stream;
+   hipblasHandle_t cublas_handle;
+   hipStream_t hip_stream;
 
    int max_n_prm = 0;
    double hf_fac; // K += fac * I @@ P

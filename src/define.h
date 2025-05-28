@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 
@@ -227,60 +228,66 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 
 
 #include<stdio.h>
-#include <cuda.h>
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
  
-// TODO int cudaDeviceProp::warpSize
+// TODO int hipDeviceProp_t::warpSize
 #define CUDA_WARPSIZE 32
 
 #define CUDA_GPU_ERR_CHECK(ans) { gpuAssertCUDA((ans), __FILE__, __LINE__); }
-inline void gpuAssertCUDA( cudaError_t code, const char *file, int line, bool abort=true){
-   if (code != cudaSuccess) {
-      fprintf(stderr,"CUDA error: %s %s %d\n", cudaGetErrorString(code), file, line);
+inline void gpuAssertCUDA( hipError_t code, const char *file, int line, bool abort=true){
+   if (code != hipSuccess) {
+      fprintf(stderr,"CUDA error: %s %s %d\n", hipGetErrorString(code), file, line);
       if (abort) exit(code);
    }
 }
 
-#include "cublas_v2.h"
+#include "hipblas.h"
 #define CUBLAS_GPU_ERR_CHECK(ans) { gpuAssertCublas((ans), __FILE__, __LINE__); }
-static const char* my_cublasGetStatusString(cublasStatus_t error){
+static const char* my_cublasGetStatusString(hipblasStatus_t error){
     switch (error) {
-        case CUBLAS_STATUS_SUCCESS:
-            return "CUBLAS_STATUS_SUCCESS";
+        case HIPBLAS_STATUS_SUCCESS:
+            return "HIPBLAS_STATUS_SUCCESS";
 
-        case CUBLAS_STATUS_NOT_INITIALIZED:
-            return "CUBLAS_STATUS_NOT_INITIALIZED";
+        case HIPBLAS_STATUS_NOT_INITIALIZED:
+            return "HIPBLAS_STATUS_NOT_INITIALIZED";
 
-        case CUBLAS_STATUS_ALLOC_FAILED:
-            return "CUBLAS_STATUS_ALLOC_FAILED";
+        case HIPBLAS_STATUS_ALLOC_FAILED:
+            return "HIPBLAS_STATUS_ALLOC_FAILED";
 
-        case CUBLAS_STATUS_INVALID_VALUE:
-            return "CUBLAS_STATUS_INVALID_VALUE";
+        case HIPBLAS_STATUS_INVALID_VALUE:
+            return "HIPBLAS_STATUS_INVALID_VALUE";
 
-        case CUBLAS_STATUS_ARCH_MISMATCH:
-            return "CUBLAS_STATUS_ARCH_MISMATCH";
+        case HIPBLAS_STATUS_ARCH_MISMATCH:
+            return "HIPBLAS_STATUS_ARCH_MISMATCH";
 
-        case CUBLAS_STATUS_MAPPING_ERROR:
-            return "CUBLAS_STATUS_MAPPING_ERROR";
+        case HIPBLAS_STATUS_MAPPING_ERROR:
+            return "HIPBLAS_STATUS_MAPPING_ERROR";
 
-        case CUBLAS_STATUS_EXECUTION_FAILED:
-            return "CUBLAS_STATUS_EXECUTION_FAILED";
+        case HIPBLAS_STATUS_EXECUTION_FAILED:
+            return "HIPBLAS_STATUS_EXECUTION_FAILED";
 
-        case CUBLAS_STATUS_INTERNAL_ERROR:
-            return "CUBLAS_STATUS_INTERNAL_ERROR";
+        case HIPBLAS_STATUS_INTERNAL_ERROR:
+            return "HIPBLAS_STATUS_INTERNAL_ERROR";
 
-        case CUBLAS_STATUS_NOT_SUPPORTED:
-            return "CUBLAS_STATUS_NOT_SUPPORTED";
+        case HIPBLAS_STATUS_NOT_SUPPORTED:
+            return "HIPBLAS_STATUS_NOT_SUPPORTED";
 
-        case CUBLAS_STATUS_LICENSE_ERROR:
-            return "CUBLAS_STATUS_LICENSE_ERROR";
+        case HIPBLAS_STATUS_UNKNOWN:
+            return "HIPBLAS_STATUS_UNKNOWN";
+
+        case HIPBLAS_STATUS_HANDLE_IS_NULLPTR:
+            return "HIPBLAS_STATUS_HANDLE_IS_NULLPTR";
+
+        case HIPBLAS_STATUS_INVALID_ENUM:
+            return "HIPBLAS_STATUS_INVALID_ENUM";
     }
 
     return "<unknown>";
 }
 
-inline void gpuAssertCublas( cublasStatus_t code, const char *file, int line, bool abort=true){
-   if( code != CUBLAS_STATUS_SUCCESS) {
+inline void gpuAssertCublas( hipblasStatus_t code, const char *file, int line, bool abort=true){
+   if( code != HIPBLAS_STATUS_SUCCESS) {
       fprintf(stderr,"CUBLAS error: %s %s %d\n", my_cublasGetStatusString(code), file, line);
       if (abort) exit(code);
    }

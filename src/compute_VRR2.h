@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 
@@ -43,7 +44,7 @@ void compute_VRR_v3(
       const double* const __restrict__ data,
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng, cudaStream_t cuda_stream );
+      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng, hipStream_t hip_stream );
 
 
 #endif // COMPUTE_VRR_H_COMPILE_GUARD

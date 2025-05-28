@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include <iostream>
 #include "compute_VRR.h"
 #include "util.h"

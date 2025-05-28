@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include <cmath>
 #include <omp.h>
 #include <vector>
@@ -6,8 +7,8 @@
 #include "fgamma.h"
 #include "t_c_g0_n.h"
 #include "compute_Fm.h"
-#include <cuda.h>
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime.h>
 #include <iostream>
 
 #define SQRT2 1.4142135623730950488016887242096980785696718753

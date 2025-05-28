@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -180,7 +181,7 @@ __device__ __host__ bool t_c_g0_n_v2(
 }
 
 
-
+/*
 __device__ bool t_c_g0_n_v3(
       double* res, double R, double T, int Nder, const double* C0, int ld_C0,
       int N1, int N2,
@@ -341,6 +342,6 @@ __device__ bool t_c_g0_n_v3(
    }
    return false;
 }
-
+*/
 
 

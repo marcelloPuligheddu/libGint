@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include<cstdint>
 #include <iostream>
 #include "compute_VRR.h"
@@ -12803,8 +12804,8 @@ void compute_VRR_v3(
       const double* const __restrict__ data,
       double* const __restrict__ AC,
       double* const __restrict__ ABCD,
-      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng, cudaStream_t cuda_stream ){
-   get_vrr( vrr_index )<<<Ncells*Ng, 64, 0, cuda_stream >>>( Ncells, PMX,FVH,Fm,data,AC,ABCD,vrr_blocksize,hrr_blocksize,numV,numVC,Ng );
+      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng, hipStream_t hip_stream ){
+   get_vrr( vrr_index )<<<Ncells*Ng, 64, 0, hip_stream >>>( Ncells, PMX,FVH,Fm,data,AC,ABCD,vrr_blocksize,hrr_blocksize,numV,numVC,Ng );
 }
 
 

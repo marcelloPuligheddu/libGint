@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include "compute_HRR.h"
 #include "define.h"
 #include "util.h"

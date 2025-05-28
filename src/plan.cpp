@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 

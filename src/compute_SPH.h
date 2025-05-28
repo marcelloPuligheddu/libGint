@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 
@@ -24,31 +25,14 @@ SOFTWARE.
 #define COMPUTE_SPH_H_COMPILE_GUARD
 
 #include <vector>
-#include "cublas_v2.h"
-
-void compute_SPH_batched(
-      const int Nqrtt, const int la, const int lb, const int lc, const int ld,
-      std::vector<double>& ABCD0, std::vector<double>& SPHER, std::vector<double>& tmp_scratch );
-
-void compute_SPH_batched_low(
-      const int Nqrtt, const int la, const int lb, const int lc, const int ld,
-      double* const __restrict__ ABCD0,
-      double* const __restrict__ SPHER,
-      double* const __restrict__ tmp_scratch );
-
-
-__global__ void compute_SPH_batched_gpu_low(
-      const int Nqrtt, const int la, const int lb, const int lc, const int ld,
-      double* const __restrict__ ABCD0,
-      double* const __restrict__ SPHER,
-      double* const __restrict__ tmp_scratch );
+#include "hipblas.h"
 
 void compute_SPH_batched_gpu_alt(
       const int Nqrtt, const int la, const int lb, const int lc, const int ld,
       double* const __restrict__ ABCD0,
       double* const __restrict__ SPHER,
       double* const __restrict__ tmp_scratch, 
-      double* const __restrict__ C2S_dev, cublasHandle_t handle );
+      double* const __restrict__ C2S_dev, hipblasHandle_t handle );
 
 
 

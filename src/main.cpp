@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include <iostream>
 #include "libGint.h"
 #include "util.h"
@@ -35,7 +36,7 @@ char mode;
 int nspin;
 
 int num_gpus;
-cudaGetDeviceCount(&num_gpus);
+hipGetDeviceCount(&num_gpus);
 
 cout << endl << " GPUS " << num_gpus << endl;
 
@@ -184,7 +185,7 @@ Timer timer;
 timer.start();
 
 
-cudaSetDevice( omp_get_thread_num() % num_gpus);
+hipSetDevice( omp_get_thread_num() % num_gpus);
 libGint ais;
 #pragma omp critical
 ais.init();

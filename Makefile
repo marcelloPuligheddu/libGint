@@ -5,9 +5,9 @@ GFORTRAN = gfortran
 
 ARCH_NUM ?= 70
 PREFIX ?= $(shell pwd)
-NVCC_C_OPTS =  -std=c++17 -I'/opt/rocm-6.4.0/include' -I'/opt/rocm-6.4.0/include/hipblas' -fgpu-rdc 
+NVCC_C_OPTS =  -std=c++17 -fPIE -I'/opt/rocm-6.4.0/include' -I'/opt/rocm-6.4.0/include/hipblas' -fgpu-rdc 
 NVCC_D_OPTS =  -lgomp -L'/opt/rocm-6.4.0/lib' -v
-MPICPP_EX_OPTS = -std=c++17 -Wall -fPIC -O3
+MPICPP_EX_OPTS = -std=c++17 -Wall -fPIC -fPIE -O3
 GFORTRAN_OPTS = -O3 -g -fopenmp
 
 LIS = 

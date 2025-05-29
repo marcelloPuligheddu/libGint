@@ -9,7 +9,7 @@ if [ $? -eq 0 ]; then
 	cd ${CP2K_ROOT}
 
 	rm -f exe/local_hip/cp2k.psmp
-	make -j 4 ARCH=local_hip VERSION="psmp"
+	make -j 1 ARCH=local_hip VERSION="psmp"
 	wait
 
 	cd -

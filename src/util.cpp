@@ -1,4 +1,5 @@
 #include "hip/hip_runtime.h"
+#include "hipblas/hipblas.h"
 #include <cassert>
 #include <vector>
 #include "util.h"

@@ -1,4 +1,5 @@
 #include "hip/hip_runtime.h"
+#include "hipblas/hipblas.h"
 #include "compute_KS.h"
 #include "define.h"
 #include "util.h"

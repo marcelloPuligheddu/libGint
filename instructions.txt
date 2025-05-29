@@ -1,3 +1,4 @@
+
 trying to compile libGint with hip inside (hip) cp2k for Mi300a
 
 (0) prepare yourself. The makefile is woefully un ready
@@ -23,9 +24,9 @@ trying to compile libGint with hip inside (hip) cp2k for Mi300a
 
 (3) gfortran src/interface_libgint.F90 -fPIC -fPIE -c -o interface_libgint.o
 
-(4) ar rcsD interface_libgint.a interface_libgint.o 
+(4) ar rcsD interface_libgint.a interface_libgint.o
 
-# Apparently ar merged.a lib1.a lib2.a does not always merge the libraries, so we do it very explicitly by passing a script to ar
+# Apparently '''ar merged.a lib1.a lib2.a''' does not always merge the libraries (?), so we do it very explicitly by passing a script to ar
 (5) create a file called lib_add.mri containing:
 
 create libcp2kGint.a
@@ -38,15 +39,13 @@ end
 
 # We copy the library and mod where cp2k expect to find. Not totally sure about .mod, but this works
 
-(6) cp libcp2kGint.a /tools/toolchain/install/libGint-EXP/lib/libcp2kGint.a
+(6) cp libcp2kGint.a ${CP2K_FOLDER}/tools/toolchain/install/libGint-EXP/lib/libcp2kGint.a
 
-(7) cp libgint.mod /tools/toolchain/install/libGint-EXP/include/libgint.mod 
+(7) cp libgint.mod ${CP2K_FOLDER}/tools/toolchain/install/libGint-EXP/include/libgint.mod
 
+(8) Inside ${CP2K_FOLDER} : $ make -j 4 ARCH=local_hip VERSION=psmp
 
+(9) Don't forget '''export SA_XNACK=1''' before running.
 
-
-
-
-
-
+(10) If there are problems, try also "export AMD_LOG_LEVEL=2"
 

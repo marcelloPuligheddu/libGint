@@ -18,6 +18,8 @@ trying to compile libGint with hip inside (hip) cp2k for Mi300a
 # I don't remember why I made this way ...
 # ALSO it is probably missing either -fopenmp or -lgomp
 # I am too scared to recompile cp2k, it took a long time to get cp2k compile and link
+# The current cp2k.psmp executable segfault when ran with more than one omp thread. This is likely the cause
+# mpi is fine. btw
 
 (3) gfortran src/interface_libgint.F90 -fPIC -fPIE -c -o interface_libgint.o
 

@@ -45,3 +45,7 @@ end
 
 (8) Inside ${CP2K_FOLDER} : $ make -j 4 ARCH=local_hip VERSION=psmp
 
+(9) Don't forget '''export SA_XNACK=1''' before running.
+
+(10) If there are problems, try also "export AMD_LOG_LEVEL=2"
+

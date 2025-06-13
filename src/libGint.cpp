@@ -10,6 +10,7 @@
 #include "UniqueArray.h"
 #include "BW_by_patch.h"
 #include "t_c_g0_n.h"
+#include "prepare_Fm.h"
 #include "compute_Fm.h"
 #include "compute_VRR.h"
 #include "compute_VRR2.h"
@@ -923,7 +924,7 @@ void libGint::dispatch( bool dispatch_all ){
       memcpy( FVH_stg, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()) );
       memcpy(  KS_stg,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()) );
       memcpy(plan_stg,  plan->data(), sizeof(int)*( plan->size()) );
-
+     
       CUDA_GPU_ERR_CHECK( hipMemcpyAsync( 
          idx_mem_dev, idx_mem_stg, sizeof(unsigned int)*idx_mem_needed_L, hipMemcpyHostToDevice, hip_stream));
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
@@ -959,12 +960,9 @@ void libGint::dispatch( bool dispatch_all ){
 //      POP_RANGE; // transfer indeces
 
 //      PUSH_RANGE("compute",5);
-      int prep_Fm_blocksize = 128;
-      int prep_Fm_numblocks = (Nprm+prep_Fm_blocksize-1)/prep_Fm_blocksize;
-
       CUDA_GPU_ERR_CHECK( hipMemsetAsync( Fm_dev, 0, Fm_size[L] , hip_stream ) );
-      prepare_Fm_batched_gpu_low_private<<<prep_Fm_numblocks,prep_Fm_blocksize,0,hip_stream>>>(
-         FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
+
+      prepare_Fm( FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, neighs_dev, max_ncells );
 
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );

@@ -1,5 +1,3 @@
-#include "hip/hip_runtime.h"
-#include "hipblas/hipblas.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 
@@ -66,6 +64,7 @@ SOFTWARE.
 //#define MAX_N_L     10 // Useful for debug, so the encoding is human readable
 
 // Make sure we can fit (cell,prm,prm,prm,prm) into 32 bits
+// TODO uint64 instead of long int
 static_assert( (unsigned long int) MAX_N_CELL * MAX_N_PRM * MAX_N_PRM * MAX_N_PRM * MAX_N_PRM <= 4294967296,
       "Error, MAX_N_PRM or MAX_N_CELL are too large" );
 // Make sure we can fit (cell,cell,nl,nl,nl,nl) into 32 bits
@@ -226,97 +225,94 @@ static_assert( (unsigned long int) MAX_N_CELL * MAX_N_CELL * MAX_N_L * MAX_N_L *
 
 #define CDPA_SIZE 27
 
+#ifdef __LIBGINT_OMP_OFFLOAD
+    #define OFFLOAD_TARGET
+    #define OFFLOAD_CONSTANT
+    #define HOST_TARGET
+#else
+    #include <hip/hip_runtime.h>
+    #include <hip/hip_runtime_api.h>
 
+    #define OFFLOAD_TARGET __device__
+    #define OFFLOAD_CONSTANT __constant__
+    #define HOST_TARGET __host__
 
-#include<stdio.h>
-#include <hip/hip_runtime.h>
-#include <hip/hip_runtime_api.h>
- 
-// TODO int hipDeviceProp_t::warpSize
-#define CUDA_WARPSIZE 32
-
-#define CUDA_GPU_ERR_CHECK(ans) { gpuAssertCUDA((ans), __FILE__, __LINE__); }
-inline void gpuAssertCUDA( hipError_t code, const char *file, int line, bool abort=true){
-   if (code != hipSuccess) {
-      fprintf(stderr,"CUDA error: %s %s %d\n", hipGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
-
-#include "hipblas.h"
-#define CUBLAS_GPU_ERR_CHECK(ans) { gpuAssertCublas((ans), __FILE__, __LINE__); }
-static const char* my_cublasGetStatusString(hipblasStatus_t error){
-    switch (error) {
-        case HIPBLAS_STATUS_SUCCESS:
-            return "HIPBLAS_STATUS_SUCCESS";
-
-        case HIPBLAS_STATUS_NOT_INITIALIZED:
-            return "HIPBLAS_STATUS_NOT_INITIALIZED";
-
-        case HIPBLAS_STATUS_ALLOC_FAILED:
-            return "HIPBLAS_STATUS_ALLOC_FAILED";
-
-        case HIPBLAS_STATUS_INVALID_VALUE:
-            return "HIPBLAS_STATUS_INVALID_VALUE";
-
-        case HIPBLAS_STATUS_ARCH_MISMATCH:
-            return "HIPBLAS_STATUS_ARCH_MISMATCH";
-
-        case HIPBLAS_STATUS_MAPPING_ERROR:
-            return "HIPBLAS_STATUS_MAPPING_ERROR";
-
-        case HIPBLAS_STATUS_EXECUTION_FAILED:
-            return "HIPBLAS_STATUS_EXECUTION_FAILED";
-
-        case HIPBLAS_STATUS_INTERNAL_ERROR:
-            return "HIPBLAS_STATUS_INTERNAL_ERROR";
-
-        case HIPBLAS_STATUS_NOT_SUPPORTED:
-            return "HIPBLAS_STATUS_NOT_SUPPORTED";
-
-        case HIPBLAS_STATUS_UNKNOWN:
-            return "HIPBLAS_STATUS_UNKNOWN";
-
-        case HIPBLAS_STATUS_HANDLE_IS_NULLPTR:
-            return "HIPBLAS_STATUS_HANDLE_IS_NULLPTR";
-
-        case HIPBLAS_STATUS_INVALID_ENUM:
-            return "HIPBLAS_STATUS_INVALID_ENUM";
+    #define CUDA_GPU_ERR_CHECK(ans) { gpuAssertCUDA((ans), __FILE__, __LINE__); }
+    #include <stdio.h>
+    inline void gpuAssertCUDA( hipError_t code, const char *file, int line, bool abort=true){
+        if (code != hipSuccess) {
+        fprintf(stderr,"CUDA error: %s %s %d\n", hipGetErrorString(code), file, line);
+        if (abort) exit(code);
+        }
     }
 
-    return "<unknown>";
-}
+    #include "hipblas.h"
+    #define CUBLAS_GPU_ERR_CHECK(ans) { gpuAssertCublas((ans), __FILE__, __LINE__); }
+    static const char* my_cublasGetStatusString(hipblasStatus_t error){
+        switch (error) {
+            case HIPBLAS_STATUS_SUCCESS:
+                return "HIPBLAS_STATUS_SUCCESS";
+            case HIPBLAS_STATUS_NOT_INITIALIZED:
+                return "HIPBLAS_STATUS_NOT_INITIALIZED";
+            case HIPBLAS_STATUS_ALLOC_FAILED:
+                return "HIPBLAS_STATUS_ALLOC_FAILED";
+            case HIPBLAS_STATUS_INVALID_VALUE:
+                return "HIPBLAS_STATUS_INVALID_VALUE";
+            case HIPBLAS_STATUS_ARCH_MISMATCH:
+                return "HIPBLAS_STATUS_ARCH_MISMATCH";
+            case HIPBLAS_STATUS_MAPPING_ERROR:
+                return "HIPBLAS_STATUS_MAPPING_ERROR";
+            case HIPBLAS_STATUS_EXECUTION_FAILED:
+                return "HIPBLAS_STATUS_EXECUTION_FAILED";
+            case HIPBLAS_STATUS_INTERNAL_ERROR:
+                return "HIPBLAS_STATUS_INTERNAL_ERROR";
+            case HIPBLAS_STATUS_NOT_SUPPORTED:
+                return "HIPBLAS_STATUS_NOT_SUPPORTED";
+            case HIPBLAS_STATUS_UNKNOWN:
+                return "HIPBLAS_STATUS_UNKNOWN";
+            case HIPBLAS_STATUS_HANDLE_IS_NULLPTR:
+                return "HIPBLAS_STATUS_HANDLE_IS_NULLPTR";
+            case HIPBLAS_STATUS_INVALID_ENUM:
+                return "HIPBLAS_STATUS_INVALID_ENUM";
+        }
+        return "<unknown>";
+    }
 
-inline void gpuAssertCublas( hipblasStatus_t code, const char *file, int line, bool abort=true){
-   if( code != HIPBLAS_STATUS_SUCCESS) {
-      fprintf(stderr,"CUBLAS error: %s %s %d\n", my_cublasGetStatusString(code), file, line);
-      if (abort) exit(code);
-   }
-}
+    inline void gpuAssertCublas( hipblasStatus_t code, const char *file, int line, bool abort=true){
+       if( code != HIPBLAS_STATUS_SUCCESS) {
+          fprintf(stderr,"CUBLAS error: %s %s %d\n", my_cublasGetStatusString(code), file, line);
+          if (abort) exit(code);
+       }
+    }
+
+    // TODO int hipDeviceProp_t::warpSize
+    #define CUDA_WARPSIZE 32
 
 
-#ifdef USE_NVTX
-#include "nvToolsExt.h"
+    #ifdef USE_NVTX
+        #include "nvToolsExt.h"
 
-const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
-const int num_colors = sizeof(colors)/sizeof(uint32_t);
+        const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
+        const int num_colors = sizeof(colors)/sizeof(uint32_t);
 
-#define PUSH_RANGE(name,cid) { \
-    int color_id = cid; \
-    color_id = color_id%num_colors;\
-    nvtxEventAttributes_t eventAttrib = {0}; \
-    eventAttrib.version = NVTX_VERSION; \
-    eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE; \
-    eventAttrib.colorType = NVTX_COLOR_ARGB; \
-    eventAttrib.color = colors[color_id]; \
-    eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII; \
-    eventAttrib.message.ascii = name; \
-    nvtxRangePushEx(&eventAttrib); \
-}
-#define POP_RANGE nvtxRangePop();
-#else
-#define PUSH_RANGE(name,cid)
-#define POP_RANGE
-#endif // USE_NVTX
+        #define PUSH_RANGE(name,cid) { \
+            int color_id = cid; \
+            color_id = color_id%num_colors;\
+            nvtxEventAttributes_t eventAttrib = {0}; \
+            eventAttrib.version = NVTX_VERSION; \
+            eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE; \
+            eventAttrib.colorType = NVTX_COLOR_ARGB; \
+            eventAttrib.color = colors[color_id]; \
+            eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII; \
+            eventAttrib.message.ascii = name; \
+            nvtxRangePushEx(&eventAttrib); \
+        }
+        #define POP_RANGE nvtxRangePop();
+    #else
+        #define PUSH_RANGE(name,cid)
+        #define POP_RANGE
+    #endif // USE_NVTX
+
+#endif // __LIBGINT_OMP_OFFLOAD
 
 #endif // compile guard

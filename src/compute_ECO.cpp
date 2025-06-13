@@ -38,8 +38,8 @@ __global__ void compute_SFT_batched_gpu_low(
       const int la = plan[ op*OP_SIZE + LA_OFFSET ];
       const int lc = plan[ op*OP_SIZE + LC_OFFSET ];
       const int off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
-      const int NcoA = NLco_dev(la);
-      const int NcoC = NLco_dev(lc);
+      const int NcoA = (la+1)*(la+2)/2; // NLco_dev(la);
+      const int NcoC = (lc+1)*(lc+2)/2; // NLco_dev(lc);
       const int NcoAC = NcoA*NcoC;
       const int VBS = vrr_blocksize;
 
@@ -105,8 +105,8 @@ __global__ void compute_ECO_batched_gpu_low(
       lc = plan[ op*OP_SIZE + LC_OFFSET ];
       off_m1 = plan[ op*OP_SIZE + M1_OFFSET ];
       off_m2 = plan[ op*OP_SIZE + M2_OFFSET ];
-      NcoA = NLco_dev(la);
-      NcoC = NLco_dev(lc);
+      NcoA = (la+1)*(la+2)/2; // NLco_dev(la);
+      NcoC = (lc+1)*(lc+2)/2; // NLco_dev(lc);
       NcoAC = NcoA*NcoC;
 
       if ( t != CP2S ){ continue; }

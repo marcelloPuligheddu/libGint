@@ -31,40 +31,6 @@ SOFTWARE.
 #include <stdint.h>
 #include "define.h"
 
-unsigned int encode4( int a, int b, int c, int d );
-OFFLOAD_TARGET HOST_TARGET void decode4(
-      unsigned int abcd, unsigned int* a, unsigned int* b,
-      unsigned int* c, unsigned int* d );
-OFFLOAD_TARGET HOST_TARGET void decode4( unsigned int abcd, uint8_t a[4] );
-
-
-__host__ __device__ int Fsize(int L);
-
-
-//OFFLOAD_TARGET HOST_TARGET int Fsize( int L );
-unsigned int encodeL( int la, int lb, int lc, int ld );
-OFFLOAD_TARGET HOST_TARGET void decodeL( unsigned int L, int* la, int* lb, int* lc, int* ld );
-
-/*
-unsigned int encode_prm( int ipa, int ipb, int ipc, int ipd, int n3 );
-__device__ __host__ void decode_prm(
-      unsigned int ipzn,
-      unsigned int* __restrict__ ipa, unsigned int* __restrict__ ipb,
-      unsigned int* __restrict__ ipc, unsigned int* __restrict__ ipd,
-      unsigned int* __restrict__ n3 );
-*/
-
-unsigned int encode_shell( int nla, int nlb, int nlc, int nld, int n1, int n2 );
-OFFLOAD_TARGET HOST_TARGET void decode_shell(
-      unsigned int shell,
-      unsigned int* __restrict__ nla, unsigned int* __restrict__ nlb,
-      unsigned int* __restrict__ nlc, unsigned int* __restrict__ nld,
-      unsigned int* __restrict__ n1 , unsigned int* __restrict__ n2 );
-OFFLOAD_TARGET HOST_TARGET void decode_shell( const unsigned int shell, uint8_t nl[4], uint8_t np[2] );
-
-OFFLOAD_TARGET HOST_TARGET int compute_Nc( int la, int lb=0, int lc=0, int ld=0 );
-OFFLOAD_TARGET HOST_TARGET int compute_Ns( int la, int lb=0, int lc=0, int ld=0 );
-
 template< typename T >
 OFFLOAD_TARGET HOST_TARGET inline void compute_weighted_distance(
       T X12[3], const T X1[3], const T X2[3],
@@ -74,48 +40,11 @@ OFFLOAD_TARGET HOST_TARGET inline void compute_weighted_distance(
    X12[2] = ( c1*X1[2] + c2*X2[2] ) * c12;
 }
 
-int max( std::vector<int> x );
-
-
-
-//template< bool ortho >
-OFFLOAD_TARGET HOST_TARGET void compute_pbc( const double A[3], const double B[3], const double * const cell, double * AB );
-
-//__device__ __host__ void compute_pbc( const double A[3], const double B[3], const double * cell, double * AB );
-//__device__ __host__ void compute_pbc_shift( const double A[3], const double B[3], const double * cell, double * shift );
-
-
-HOST_TARGET int NLco( int L );
-// Returns L-lx
-// essentialy is using the pattern:
-// s = 0 0 0                                     -> L-lx = 0
-// p = 1 0 0, 0 1 0, 0 0 1                       -> L-Lx = 0 1 1 
-// d = 2 0 0, 1 1 0, 1 0 1, 0 2 0, 0 1 1, 0 0 2  -> L-lx = 0 1 1 2 2 2
-// and noting that L-lx does not really depend on L, but on the index of the cartesian direction. Good up to L=8
-// compute (cartesian) moment on x axis for a given total moment.
-HOST_TARGET int L_lx(const int i );
-HOST_TARGET int lx( const int i, const int L );
-HOST_TARGET int lz( const int i, const int L );
-HOST_TARGET int ly( const int i, const int L );
-//#pragma omp end declare target
-
-OFFLOAD_TARGET int NLco_dev( int L );
-OFFLOAD_TARGET int L_lx_dev(const int i );
-OFFLOAD_TARGET int lx_dev( const int i, const int L );
-OFFLOAD_TARGET int lz_dev( const int i, const int L );
-OFFLOAD_TARGET int ly_dev( const int i, const int L );
-
-
-
-#include <cassert>
-#include <vector>
-#include <cmath>
-
 #define BASE4 256
-unsigned int encode4( int a, int b, int c, int d ){
+inline unsigned int encode4( int a, int b, int c, int d ){
    return a*BASE4*BASE4*BASE4 + b*BASE4*BASE4 + c*BASE4 + d;
 }
-OFFLOAD_TARGET HOST_TARGET void decode4(
+OFFLOAD_TARGET HOST_TARGET inline void decode4(
       unsigned int abcd, unsigned int* a, unsigned int* b,
       unsigned int* c, unsigned int * d ){
    (*d) = abcd % BASE4;
@@ -123,7 +52,7 @@ OFFLOAD_TARGET HOST_TARGET void decode4(
    (*b) = abcd / (BASE4*BASE4) % BASE4 ;
    (*a) = abcd / (BASE4*BASE4*BASE4) ;
 }
-OFFLOAD_TARGET HOST_TARGET void decode4( unsigned int abcd, uint8_t a[4] ){
+OFFLOAD_TARGET HOST_TARGET inline void decode4( unsigned int abcd, uint8_t a[4] ){
    a[3] = abcd % BASE4;
    a[2] = abcd / BASE4 % BASE4 ;
    a[1] = abcd / (BASE4*BASE4) % BASE4 ;
@@ -133,22 +62,22 @@ OFFLOAD_TARGET HOST_TARGET void decode4( unsigned int abcd, uint8_t a[4] ){
 
 #define FM_N_VEC 4
 #define FM_N_SCA 5
-__host__ __device__ int Fsize(int L) { return L + 1 + FM_N_VEC * 3 + FM_N_SCA; }
+__host__ __device__ inline int Fsize(int L) { return L + 1 + FM_N_VEC * 3 + FM_N_SCA; }
 #undef FM_N_VEC
 #undef FM_N_SCA
 
-unsigned int encodeL( int la, int lb, int lc, int ld ){
+inline unsigned int encodeL( int la, int lb, int lc, int ld ){
    return la * NL3 + lb * NL2 + lc * NL + ld;
 }
 
-OFFLOAD_TARGET HOST_TARGET void decodeL( unsigned int L, int* la, int* lb, int* lc, int* ld ){
+OFFLOAD_TARGET HOST_TARGET inline void decodeL( unsigned int L, int* la, int* lb, int* lc, int* ld ){
    (*ld) = L % NL;
    (*lc) = L / NL % NL ;
    (*lb) = L / NL2 % NL ;
    (*la) = L / NL3 ;
 }
 
-unsigned int encode_shell( const int nla, const int nlb, const int nlc, const int nld, const int n1, const int n2 ){
+inline unsigned int encode_shell( const int nla, const int nlb, const int nlc, const int nld, const int n1, const int n2 ){
     assert(nla >= 0);
     assert(nla < MAX_N_L);
     assert(nlb >= 0);
@@ -172,7 +101,7 @@ unsigned int encode_shell( const int nla, const int nlb, const int nlc, const in
     return ret;
 }
 
-HOST_TARGET OFFLOAD_TARGET void decode_shell(
+HOST_TARGET OFFLOAD_TARGET inline void decode_shell(
       const unsigned int shell,
       uint8_t nl[4], 
       uint8_t np[2] ){
@@ -190,7 +119,7 @@ HOST_TARGET OFFLOAD_TARGET void decode_shell(
 }
 
 
-HOST_TARGET OFFLOAD_TARGET void decode_shell(
+HOST_TARGET OFFLOAD_TARGET inline void decode_shell(
       const unsigned int shell,
       unsigned int* __restrict__ nla, unsigned int* __restrict__ nlb,
       unsigned int* __restrict__ nlc, unsigned int* __restrict__ nld,
@@ -203,7 +132,7 @@ HOST_TARGET OFFLOAD_TARGET void decode_shell(
    (*n2)  = (shell) % MAX_N_CELL;
 }
 
-int max( std::vector<int> x ){
+inline int max( std::vector<int> x ){
    if ( x.size() == 0 ){ return 0; };
    int ret = x[0];
    for( unsigned int idx=1; idx<x.size(); idx++ ){ ret = std::max(ret, x[idx]); }
@@ -211,7 +140,7 @@ int max( std::vector<int> x ){
 }
 
 
-OFFLOAD_TARGET HOST_TARGET double anint( double x ){
+OFFLOAD_TARGET HOST_TARGET inline double anint( double x ){
 
    if ( x == 0.5 ) { return 1.0; }
    if ( x == -0.5 ){ return -1.0;}
@@ -219,20 +148,20 @@ OFFLOAD_TARGET HOST_TARGET double anint( double x ){
 
 }
 
-OFFLOAD_TARGET HOST_TARGET double my_round( double x ){
+OFFLOAD_TARGET HOST_TARGET inline double my_round( double x ){
    return x - floor(x) == 0.5 ? trunc(x) : round(x);
 }
 
 
 
-OFFLOAD_TARGET HOST_TARGET double my_wrap( double s ){
+OFFLOAD_TARGET HOST_TARGET inline double my_wrap( double s ){
 //   if ( s >  0.5 - EPS_ROUNDING and s < 0.5 + EPS_ROUNDING ){ return s; }
 //   if ( s < -0.5 + EPS_ROUNDING and s >-0.5 - EPS_ROUNDING ){ return s; }
    return s - round(s);
 }
 
 //template< bool ortho >
-OFFLOAD_TARGET HOST_TARGET void compute_pbc( const double A[3], const double B[3], const double * const cell, double * AB ){
+OFFLOAD_TARGET HOST_TARGET inline void compute_pbc( const double A[3], const double B[3], const double * const cell, double * AB ){
    // modifies AB = B - A + R such that:
    // AB is inside cell
    // R  is a lattice vector
@@ -278,19 +207,19 @@ OFFLOAD_TARGET int NLco_dev( int L ){ return _NLco_lut_dev[L+2]; }
 OFFLOAD_CONSTANT short int lx_lut_dev[45] = { 0, 1,1, 2,2,2, 3,3,3,3, 4,4,4,4,4, 5,5,5,5,5,5, 6,6,6,6,6,6,6, 7,7,7,7,7,7,7,7, 8,8,8,8,8,8,8,8,8 };
 
 // compute (cartesian) moment on x axis for a given total moment.
-OFFLOAD_TARGET int lx_dev( const int i, const int L ){
+OFFLOAD_TARGET inline int lx_dev( const int i, const int L ){
    return L - lx_lut_dev[i];
 }
 
 // 
-OFFLOAD_TARGET int lz_dev( const int i, const int L ){
+OFFLOAD_TARGET inline int lz_dev( const int i, const int L ){
    int i0 = NLco_dev(lx_lut_dev[i]-1);
    int lz_ = i - i0;
    return lz_;
 }
 
 // computes ly as L-lx-lz
-OFFLOAD_TARGET int ly_dev( const int i, const int L ){
+OFFLOAD_TARGET inline int ly_dev( const int i, const int L ){
    int lx_ = lx_dev(i,L);
    int i0 = NLco_dev(lx_lut_dev[i]-1);
    int lz_ = i - i0;
@@ -301,28 +230,28 @@ OFFLOAD_TARGET int ly_dev( const int i, const int L ){
 
 // #### host L ####
 
-int NLco( int L ){
+inline int NLco( int L ){
    const int _NLco_lut[35] = { 0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105, 120, 136, 153, 171, 190, 210, 231, 253, 276, 300, 325, 351, 378, 406, 435, 465, 496, 528, 561 };
    return _NLco_lut[L+2];
 }
 
-int L_lx(const int i ){
+inline int L_lx(const int i ){
    const short int lx_lut[45] = { 0, 1,1, 2,2,2, 3,3,3,3, 4,4,4,4,4, 5,5,5,5,5,5, 6,6,6,6,6,6,6, 7,7,7,7,7,7,7,7, 8,8,8,8,8,8,8,8,8 };
    return lx_lut[i];
 }
 
-int lx( const int i, const int L ){
+inline int lx( const int i, const int L ){
    return L - L_lx(i);
 }
 
-int lz( const int i, const int L ){
+inline int lz( const int i, const int L ){
    int i0 = NLco(L_lx(i)-1);
    int lz_ = i - i0;
    return lz_;
 }
 
 // computes ly as L-lx-lz
-int ly( const int i, const int L ){
+inline int ly( const int i, const int L ){
    int i0 = NLco(L_lx(i)-1);
    int lz_ = i - i0;
    int ly_ = L_lx(i)-lz_;
@@ -331,12 +260,12 @@ int ly( const int i, const int L ){
 
 // #### so far, both OFFLOAD_TARGET and HOST_TARGET are ok ####
 
-OFFLOAD_TARGET HOST_TARGET int compute_Nc( int la, int lb, int lc, int ld ){
+OFFLOAD_TARGET HOST_TARGET inline int compute_Nc( int la, int lb=0, int lc=0, int ld=0 ){
    return (la+1)*(la+2) * (lb+1)*(lb+2) * (lc+1)*(lc+2) * (ld+1)*(ld+2) / 16 ;
 }
 
 
-OFFLOAD_TARGET HOST_TARGET int compute_Ns( int la, int lb, int lc, int ld ){
+OFFLOAD_TARGET HOST_TARGET inline int compute_Ns( int la, int lb=0, int lc=0, int ld=0 ){
    return (2*la+1) * (2*lb+1) * (2*lc+1) * (2*ld+1) ;
 }
 

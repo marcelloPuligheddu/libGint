@@ -1,4 +1,4 @@
-int locate_patch_high_R( const double X1, const double X2 ){
+inline int locate_patch_high_R( const double X1, const double X2 ){
    if (X1 <= 0.500000000000000000E+00) { 
       if (X1 <= 0.250000000000000000E+00) { 
          if (X2 <= 0.500000000000000000E+00) { 

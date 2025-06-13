@@ -29,9 +29,9 @@ SOFTWARE.
 #include <stdio.h>
 
 //double* read_c0( int Nder, FILE* stream, int* ldc0_ptr );
-void fgamma_ref( int nmax , double T, double* f);
-double* create_md_ftable( int nmax, double tmin, double tmax, double tdelta, int* ld );
-__device__ __host__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld, double fac );
+//void fgamma_ref( int nmax , double T, double* f);
+//double* create_md_ftable( int nmax, double tmin, double tmax, double tdelta, int* ld );
+//__device__ __host__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld, double fac );
 
 #include "hip/hip_runtime.h"
 #include "hipblas/hipblas.h"
@@ -87,7 +87,7 @@ double* read_c0( int Nder, FILE* stream, int* ldc0_ptr ){
 }
 */
 
-void fgamma_ref( int nmax , double T, double* f){
+inline void fgamma_ref( int nmax , double T, double* f){
    const int kmax = 50;
    double r[kmax+10];
 
@@ -143,7 +143,7 @@ void fgamma_ref( int nmax , double T, double* f){
    }
 }
 
-double* create_md_ftable( int nmax, double tmin, double tmax, double tdelta, int* ld ){
+inline double * create_md_ftable( int nmax, double tmin, double tmax, double tdelta, int* ld ){
    int n = nmax + 6;
    int itabmin = int(floor(tmin/tdelta));
    int itabmax = int((tmax - tmin)/tdelta);
@@ -159,7 +159,7 @@ double* create_md_ftable( int nmax, double tmin, double tmax, double tdelta, int
    return ftable;
 }
 
-void fgamma0_ref( int nmax, double T, double* f, const double* ftable, int ftable_ld ){
+inline void fgamma0_ref( int nmax, double T, double* f, const double* ftable, int ftable_ld ){
    if ( T < Teps ){
       // eps < T -> T=0
       for( int n = 0 ; n <= nmax ; n++ ){
@@ -230,7 +230,7 @@ void fgamma0_ref( int nmax, double T, double* f, const double* ftable, int ftabl
 }
 
 
-__host__ __device__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld___, double fac ){
+__host__ __device__ inline void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld___, double fac ){
    if ( T < Teps ){
       // eps < T -> T=0
       for( int n = 0 ; n <= nmax ; n++ ){

@@ -79,6 +79,9 @@ inline void compute_weighted_distance_omp(
    X12[2] = ( c1*X1[2] + c2*X2[2] ) * c12;
 }
 
+#include <iostream>
+using std::cout;
+using std::endl;
 
 
 // Fills Fm with intermediate vectors
@@ -93,9 +96,19 @@ void prepare_Fm_omp_blocking(
       const double* const __restrict__ neighs,
       const int Ng ){
 
-   #pragma omp target teams distribute parallel for
+    cout << "Sup 0 " << endl;
+
+    #pragma omp target teams distribute parallel for
+    for( int p = 0 ; p < 100 ; p ++ ){  }
+
+    cout << "Sup 1 " << endl;
+
+//   #pragma omp parallel for
    for( int p = 0 ; p < NFm ; p ++ ){
 
+//    printf("P=%d\n", p);
+
+    cout << "Sup p " << p << endl;
    unsigned int i    =  OF[p];
    unsigned int ipzn = PMX[p*PMX_SIZE+PMX_OFFSET_IPZN];
    uint8_t ipabcd[4];

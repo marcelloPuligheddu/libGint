@@ -691,7 +691,6 @@ void libGint::set_K( double * K_ , int K_size ){
    assert( nspin == 1 );
    K_a = K_;
    FP_size = K_size;
-
 #pragma omp single copyprivate(K_a_dev)
    {
    CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
@@ -962,9 +961,14 @@ void libGint::dispatch( bool dispatch_all ){
 //      PUSH_RANGE("compute",5);
       CUDA_GPU_ERR_CHECK( hipMemsetAsync( Fm_dev, 0, Fm_size[L] , hip_stream ) );
 
+      // Temporary: sync before omp target call
+      hipDeviceSynchronize();
       prepare_Fm( FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, neighs_dev, max_ncells );
 
+      // Temporary: sync after omp target call, prob. unnecessary
+      hipDeviceSynchronize();
+ 
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 

@@ -1,6 +1,7 @@
 set -x
 
-CP2K_ROOT=$1 # "/home/aac/shared/teams/dcgpu_training/epcc/marcellop/fork_cp2k"
+
+CP2K_ROOT="${1:-/home/aac/shared/teams/dcgpu_training/epcc/marcellop/fork_cp2k_exp}"
 
 make install -j 8 PREFIX=${CP2K_ROOT}/tools/toolchain/install/libGint-EXP
 

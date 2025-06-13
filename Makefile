@@ -2,11 +2,14 @@
 HIPCC = hipcc
 CLANGPP = amdclang++
 
+PREFIX ?= $(shell pwd)
+
 # Flags
 COMMON_FLAGS = -std=c++17 -O3 -fPIC -I/opt/rocm-6.4.0/include -I/opt/rocm-6.4.0/include/hipblas
 
 HIP_FLAGS = $(COMMON_FLAGS) --offload-arch=gfx942 # -fopenmp
-OMP_GPU_FLAGS = $(COMMON_FLAGS) -fopenmp=libiomp5 --offload-arch=gfx942 -I/opt/rocm-6.4.0/include -I/opt/rocm-6.4.0/include/hipblas -D__LIBGINT_OMP_OFFLOAD
+#OMP_GPU_FLAGS = $(COMMON_FLAGS) -fopenmp=libiomp5 --offload-arch=gfx942 -I/opt/rocm-6.4.0/include -I/opt/rocm-6.4.0/include/hipblas -D__LIBGINT_OMP_OFFLOAD
+OMP_GPU_FLAGS = $(COMMON_FLAGS) -fopenmp --offload-arch=gfx942 -I/opt/rocm-6.4.0/include -I/opt/rocm-6.4.0/include/hipblas -D__LIBGINT_OMP_OFFLOAD
 
 # Directories
 SRC_DIR = src
@@ -27,9 +30,9 @@ CPP_FILES := $(filter-out $(SPECIAL_CPP), $(wildcard $(SRC_DIR)/*.cpp))
 OBJ_FILES := $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(CPP_FILES))
 A_FILES := $(patsubst $(BUILD_DIR)/%.o, $(LIB_DIR)/lib%.a, $(OBJ_FILES))
 
-FINAL_LIB = $(LIB_DIR)/libfinal.a
+FINAL_LIB = $(LIB_DIR)/libcp2kGint.a
 
-# Default target
+
 all: $(FINAL_LIB)
 
 # Final static library (combine all .a)
@@ -72,7 +75,16 @@ $(BUILD_DIR):
 $(LIB_DIR):
 	mkdir -p $(LIB_DIR)
 
-clean:
-	rm -rf $(BUILD_DIR) $(LIB_DIR)
+# File copying and packaging
+install: all
+	mkdir -p $(PREFIX)
+	mkdir -p $(PREFIX)/lib
+	mkdir -p $(PREFIX)/include
+	
+	cp $(LIB_DIR)/libcp2kGint.a $(PREFIX)/lib
+	cp libgint.mod $(PREFIX)/include
 
-.PHONY: all clean
+clean:
+	rm -rf $(BUILD_DIR) $(LIB_DIR) libcp2kGint.a *.mod
+
+.PHONY: all clean install

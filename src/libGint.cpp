@@ -1,31 +1,27 @@
-#include "hip/hip_runtime.h"
-#include "hipblas/hipblas.h"
 #include <vector>
 #include <iostream>
 #include <cassert>
 #include <unordered_set>
 #include "plan.h"
 #include "util.h"
+#include "c2s.h"
 #include "timer.h"
 #include "UniqueArray.h"
 #include "BW_by_patch.h"
 #include "t_c_g0_n.h"
-#include "prepare_Fm.h"
-#include "compute_Fm.h"
-#include "compute_VRR.h"
-#include "compute_VRR2.h"
-#include "compute_ECO.h"
-#include "compute_HRR.h"
-#include "compute_SPH.h"
 #include "fgamma.h"
+#include "prepare_Fm_omp.h"
+#include "compute_Fm_omp.h"
+#include "compute_VRR2_omp.h"
+#include "compute_ECO_omp.h"
+#include "compute_HRR_omp.h"
+#include "compute_SPH_omp.h"
+#include "compute_KS_omp.h"
 #include "libGint.h"
-#include "c2s.h"
 #include <omp.h>
-
-#include <iomanip>      // std::setprecision
+#include <iomanip>
 
 using std::max;
-
 
 std::vector<LibGint_shared> libGint::shared_obj_ptr; // static // 
 
@@ -37,7 +33,6 @@ void libGint::show_state(){
    }
 }
 
-
 void libGint::init(){
 //   PUSH_RANGE("libGint init",1);
    // IF the static (shared over OMP) persistent vector is not enough, (re)create it
@@ -48,16 +43,16 @@ void libGint::init(){
 #pragma omp master
       shared_obj_ptr = std::vector<LibGint_shared>(omp_get_num_threads());
 #pragma omp barrier
-      CUDA_GPU_ERR_CHECK( hipStreamCreate( &hip_stream ));
-      CUBLAS_GPU_ERR_CHECK( hipblasCreate(&cublas_handle) );
-      CUBLAS_GPU_ERR_CHECK( hipblasSetStream( cublas_handle, hip_stream ));
-      shared_obj_ptr[ my_thr ] = { &cublas_handle, &hip_stream };
+//      CUDA_GPU_ERR_CHECK( hipStreamCreate( &hip_stream ));
+//      CUBLAS_GPU_ERR_CHECK( hipblasCreate(&cublas_handle) );
+//      CUBLAS_GPU_ERR_CHECK( hipblasSetStream( cublas_handle, hip_stream ));
+//      shared_obj_ptr[ my_thr ] = { &cublas_handle, &hip_stream };
       potential_type = COULOMB; // default
    } else {
       // Use the persistent vector to populate the class members
-      cublas_handle = * ( shared_obj_ptr[my_thr].cublas_handle );
-      hip_stream   = * ( shared_obj_ptr[my_thr].hip_stream   );
-      // TODO may want to check if we can save other stuff other than just the stram and hipblas.h
+//      cublas_handle = * ( shared_obj_ptr[my_thr].cublas_handle );
+//      hip_stream   = * ( shared_obj_ptr[my_thr].hip_stream   );
+      // TODO may want to check if we can save other stuff other than just the stream and hipblas.h
       potential_type = COULOMB; // default
    }
 //   POP_RANGE; // libGint init
@@ -72,8 +67,10 @@ void libGint::set_Potential_Truncated( double R_cut_, double * C0_, int ld_C0_, 
 
 #pragma omp single copyprivate(C0_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&C0_dev, C0_size * sizeof(double) ) );
-   CUDA_GPU_ERR_CHECK( hipMemcpy( C0_dev, C0, C0_size * sizeof(double), hipMemcpyHostToDevice ));   
+   C0_dev = (double*) omp_target_alloc(sizeof(double) * C0_size, device);
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&C0_dev, C0_size * sizeof(double) ) );
+   omp_target_memcpy( C0_dev, C0, C0_size * sizeof(double), 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( C0_dev, C0, C0_size * sizeof(double), hipMemcpyHostToDevice ));
    }
    size_t to_patch_size = POT_TRUNC_N1 * POT_TRUNC_N2 * sizeof(int);
 
@@ -86,20 +83,26 @@ void libGint::set_Potential_Truncated( double R_cut_, double * C0_, int ld_C0_, 
 
 #pragma omp single copyprivate(x12_to_patch_low_R_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&x12_to_patch_low_R_dev, to_patch_size ) );
-   CUDA_GPU_ERR_CHECK( hipMemcpy( x12_to_patch_low_R_dev, x12_to_patch_low_R, to_patch_size, hipMemcpyHostToDevice ));   
+   x12_to_patch_low_R_dev = (double*) omp_target_alloc( to_patch_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&x12_to_patch_low_R_dev, to_patch_size ) );
+   omp_target_memcpy( x12_to_patch_low_R_dev, x12_to_patch_low_R, to_patch_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( x12_to_patch_low_R_dev, x12_to_patch_low_R, to_patch_size, hipMemcpyHostToDevice ));   
    }
 
 #pragma omp single copyprivate(x12_to_patch_high_R_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&x12_to_patch_high_R_dev, to_patch_size ) );
-   CUDA_GPU_ERR_CHECK( hipMemcpy( x12_to_patch_high_R_dev, x12_to_patch_high_R, to_patch_size, hipMemcpyHostToDevice ));   
+   x12_to_patch_high_R_dev = (double*) omp_target_alloc( to_patch_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&x12_to_patch_high_R_dev, to_patch_size ) );
+   omp_target_memcpy( x12_to_patch_high_R_dev, x12_to_patch_high_R, to_patch_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( x12_to_patch_high_R_dev, x12_to_patch_high_R, to_patch_size, hipMemcpyHostToDevice ));   
    }
 
 #pragma omp single copyprivate(BW_by_patch_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&BW_by_patch_dev, 207*4 * sizeof(double) ) );
-   CUDA_GPU_ERR_CHECK( hipMemcpy( BW_by_patch_dev, BW_by_patch, 207*4 * sizeof(double), hipMemcpyHostToDevice ));
+   BW_by_patch_dev = (double*) omp_target_alloc( 207*4 * sizeof(double), device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&BW_by_patch_dev, 207*4 * sizeof(double) ) );
+   omp_target_memcpy( BW_by_patch_dev, BW_by_patch, 207*4 * sizeof(double), 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( BW_by_patch_dev, BW_by_patch, 207*4 * sizeof(double), hipMemcpyHostToDevice ));
    }
 }
 
@@ -491,10 +494,13 @@ void libGint::set_P( double * P_, int P_size ){
 
 #pragma omp single copyprivate(P_a_dev)
    {
-   // if this is the first call, P_a_dev is zero and no operation is performed.
-   CUDA_GPU_ERR_CHECK( hipFree(P_a_dev));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&P_a_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemcpy( P_a_dev, P_a, sizeof(double)*FP_size, hipMemcpyHostToDevice ));  
+   // if this is the first call, P_a_dev is zero (NULL ?) and no operation is performed.
+   omp_target_free(P_a_dev, device);
+//   CUDA_GPU_ERR_CHECK( hipFree(P_a_dev));
+   P_a_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&P_a_dev, sizeof(double)*FP_size ));
+   omp_target_memcpy( P_a_dev, P_a, sizeof(double)*FP_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( P_a_dev, P_a, sizeof(double)*FP_size, hipMemcpyHostToDevice ));  
    }
 
    FP_size_omp = 2 * nspin * sizeof(double)*(FP_size) / Nomp ;
@@ -516,15 +522,21 @@ void libGint::set_P( double * P_a_, double * P_b_, int P_size ){
 #pragma omp single copyprivate(P_a_dev) // nowait
    {
    // if this is the first call, P_a_dev is zero and no operation is performed.
-   CUDA_GPU_ERR_CHECK( hipFree(P_a_dev));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&P_a_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemcpy( P_a_dev, P_a_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
+   omp_target_free(P_a_dev, device);
+//   CUDA_GPU_ERR_CHECK( hipFree(P_a_dev));
+   P_a_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&P_a_dev, sizeof(double)*FP_size ));
+   omp_target_memcpy( P_a_dev, P_a, sizeof(double)*FP_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( P_a_dev, P_a_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
    }
 #pragma omp single copyprivate(P_b_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipFree(P_b_dev));     
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&P_b_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemcpy( P_b_dev, P_b_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
+   omp_target_free(P_b_dev, device);
+//   CUDA_GPU_ERR_CHECK( hipFree(P_b_dev));     
+   P_b_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&P_b_dev, sizeof(double)*FP_size ));
+   omp_target_memcpy( P_b_dev, P_b, sizeof(double)*FP_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( P_b_dev, P_b_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
    }
 
    FP_size_omp = 2 * nspin * sizeof(double)*(FP_size) / Nomp ;

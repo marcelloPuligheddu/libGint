@@ -1,9 +1,9 @@
 #include "prepare_Fm_omp.h"
-//#include "util.h"
+//#include "util.cpp"
 #include "define.h"
 #include <omp.h>
 #include <cmath>
-
+#include <cstdint>
 
 #define BASE4 256
 void decode4_omp( unsigned int abcd, uint8_t a[4] ){
@@ -96,19 +96,9 @@ void prepare_Fm_omp_blocking(
       const double* const __restrict__ neighs,
       const int Ng ){
 
-    cout << "Sup 0 " << endl;
-
-    #pragma omp target teams distribute parallel for
-    for( int p = 0 ; p < 100 ; p ++ ){  }
-
-    cout << "Sup 1 " << endl;
-
-//   #pragma omp parallel for
+   #pragma omp target parallel for is_device_ptr( FVH,OF,PMX,data,Fm,cell,neighs ) depend( in:FVH,OF,PMX,data,cell,neighs ) depend( out:Fm )
    for( int p = 0 ; p < NFm ; p ++ ){
 
-//    printf("P=%d\n", p);
-
-    cout << "Sup p " << p << endl;
    unsigned int i    =  OF[p];
    unsigned int ipzn = PMX[p*PMX_SIZE+PMX_OFFSET_IPZN];
    uint8_t ipabcd[4];

@@ -27,14 +27,8 @@ SOFTWARE.
 #include <cassert>
 #include <float.h>
 #include <stdio.h>
+#include "define.h"
 
-//double* read_c0( int Nder, FILE* stream, int* ldc0_ptr );
-//void fgamma_ref( int nmax , double T, double* f);
-//double* create_md_ftable( int nmax, double tmin, double tmax, double tdelta, int* ld );
-//__device__ __host__ void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld, double fac );
-
-#include "hip/hip_runtime.h"
-#include "hipblas/hipblas.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 
@@ -56,9 +50,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-
-
-
 
 #define Teps 1.e-13
 #define NDERIV_MAX 21
@@ -230,7 +221,7 @@ inline void fgamma0_ref( int nmax, double T, double* f, const double* ftable, in
 }
 
 
-__host__ __device__ inline void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld___, double fac ){
+OFFLOAD_TARGET HOST_TARGET inline void fgamma0( int nmax, double T, double* f, const double* ftable, int ftable_ld___, double fac ){
    if ( T < Teps ){
       // eps < T -> T=0
       for( int n = 0 ; n <= nmax ; n++ ){

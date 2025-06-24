@@ -1,5 +1,3 @@
-#include "hip/hip_runtime.h"
-#include "hipblas/hipblas.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 
@@ -59,8 +57,15 @@ typedef std::tuple<unsigned int, unsigned int, unsigned int, unsigned int> four_
 class libGint {
    public:
    // Ctor
-   libGint(){ my_thr = omp_get_thread_num() ; Nomp = omp_get_num_threads(); }
+   libGint(){ 
+      my_thr = omp_get_thread_num();
+      Nomp = omp_get_num_threads();
+      host = omp_get_device_num();
+      #pragma omp target
+      device = omp_get_device_num();
+   }
 
+   int device, host;
    void add_prm ( const int ipa, const int ipb, const int ipc, const int ipd ) ;
    void add_shell (int i, int j , int k, int l, int n1, int n2);
    void add_cell();

@@ -30,7 +30,8 @@ SOFTWARE.
 #include <cstdlib>
 #include <stdint.h>
 #include "define.h"
-
+#include <cassert>
+#include <cmath>
 template< typename T >
 OFFLOAD_TARGET HOST_TARGET inline void compute_weighted_distance(
       T X12[3], const T X1[3], const T X2[3],
@@ -62,7 +63,7 @@ OFFLOAD_TARGET HOST_TARGET inline void decode4( unsigned int abcd, uint8_t a[4] 
 
 #define FM_N_VEC 4
 #define FM_N_SCA 5
-__host__ __device__ inline int Fsize(int L) { return L + 1 + FM_N_VEC * 3 + FM_N_SCA; }
+OFFLOAD_TARGET HOST_TARGET inline int Fsize(int L) { return L + 1 + FM_N_VEC * 3 + FM_N_SCA; }
 #undef FM_N_VEC
 #undef FM_N_SCA
 

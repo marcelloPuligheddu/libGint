@@ -23,29 +23,6 @@ SOFTWARE.
 #ifndef T_C_G0_N_H_COMPILE_GUARD
 #define T_C_G0_N_H_COMPILE_GUARD
 
-
-//double* read_c0( int Nder, FILE* stream, int* ldc0_ptr );
-
-//__device__ __host__ void PD2VAL( double* res, int Nder, double TG1, double TG2, const double* C0_row );
-
-//__device__ __host__ bool t_c_g0_n( double* res, double R, double T, int Nder, const double* C0, int ldc0 );
-
-//__host__ void fill_x12_to_patch( const int N1, const int N2, int * x12_to_patch_low_R, int * x12_to_patch_high_R );
-
-//__device__ __host__ bool t_c_g0_n_v2(
-//      double* res, double R, double T, int Nder, const double* C0, int ld_C0, int N1, int N2, 
-//      const   int*  const __restrict__ x12_to_patch_low_R, const   int*  const __restrict__ x12_to_patch_high_R,
-//      const double* const __restrict__ BW_by_patch, int iw, const double Kfac);
-
-//__device__ bool t_c_g0_n_v3(
-//      double* res, double R, double T, int Nder, const double* C0, int ld_C0, int N1, int N2, 
-//      const   int*  const __restrict__ x12_to_patch_low_R, const   int*  const __restrict__ x12_to_patch_high_R,
-//      const double* const __restrict__ BW_by_patch, int iw);
-
-
-
-#include "hip/hip_runtime.h"
-#include "hipblas/hipblas.h"
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -62,17 +39,6 @@ SOFTWARE.
 #define DEGREE 13
 #define target_error 0.100000E-08
 #define NDERIV_MAX 21
-
-/*
-double* read_c0( int Nder, FILE* stream, int* ldc0_ptr );
-__device__ __host__ void PD2VAL( double* res, int Nder, double TG1, double TG2, const double* C0_row );
-__device__ __host__ bool t_c_g0_n( double* res, double R, double T, int Nder, const double* C0, int ldc0 );
-__host__ void fill_x12_to_patch( const int N1, const int N2, int * x12_to_patch_low_R, int * x12_to_patch_high_R );
-__device__ __host__ bool t_c_g0_n_v2(
-      double* res, double R, double T, int Nder, const double* C0, int ld_C0, int N1, int N2, 
-      const   int*  const __restrict__ x12_to_patch_low_R, const   int*  const __restrict__ x12_to_patch_high_R,
-      const double* const __restrict__ BW_by_patch );
-*/
 
 inline double * read_c0( int Nder, FILE* stream, int* ldc0_ptr ){
    const int patches = 207;
@@ -98,7 +64,7 @@ inline double * read_c0( int Nder, FILE* stream, int* ldc0_ptr ){
    return C0_ptr;
 }
 
-__host__ inline void fill_x12_to_patch(
+HOST_TARGET inline void fill_x12_to_patch(
       const int N1, const int N2, 
       int * x12_to_patch_low_R, int * x12_to_patch_high_R ){
    for ( int i1 = 0 ; i1 < N1 ; i1 ++ ){
@@ -112,7 +78,7 @@ __host__ inline void fill_x12_to_patch(
 }
 
 
-__device__ __host__ inline bool t_c_g0_n_v2( 
+OFFLOAD_TARGET HOST_TARGET inline bool t_c_g0_n_v2( 
       double* res, double R, double T, int Nder, const double* C0, int ld_C0, 
       int N1, int N2,
       const   int*  const __restrict__ x12_to_patch_low_R, 

@@ -20,10 +20,19 @@
 #include "libGint.h"
 #include <omp.h>
 #include <iomanip>
+#include <cstring>
 
 using std::max;
 
-std::vector<LibGint_shared> libGint::shared_obj_ptr; // static // 
+std::vector<LibGint_shared> libGint::shared_obj_ptr; // static //   
+
+// void* memset( void* dest, int ch, std::size_t count );
+void omp_target_memset( void* dest, int ch, std::size_t count, int device ){
+   unsigned char * byte_ptr = static_cast<unsigned char*> (dest);
+   unsigned char byte_val = static_cast<unsigned char> (ch);
+   #pragma omp target teams loop is_device_ptr( dest )
+   for( int i=0; i < count; i++){ byte_ptr[i] = byte_val; }
+}
 
 void libGint::show_state(){
    for (unsigned int L : encoded_moments ){
@@ -83,7 +92,7 @@ void libGint::set_Potential_Truncated( double R_cut_, double * C0_, int ld_C0_, 
 
 #pragma omp single copyprivate(x12_to_patch_low_R_dev)
    {
-   x12_to_patch_low_R_dev = (double*) omp_target_alloc( to_patch_size, device );
+   x12_to_patch_low_R_dev = (int*) omp_target_alloc( to_patch_size, device );
 //   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&x12_to_patch_low_R_dev, to_patch_size ) );
    omp_target_memcpy( x12_to_patch_low_R_dev, x12_to_patch_low_R, to_patch_size, 0, 0, device, host );
 //   CUDA_GPU_ERR_CHECK( hipMemcpy( x12_to_patch_low_R_dev, x12_to_patch_low_R, to_patch_size, hipMemcpyHostToDevice ));   
@@ -91,7 +100,7 @@ void libGint::set_Potential_Truncated( double R_cut_, double * C0_, int ld_C0_, 
 
 #pragma omp single copyprivate(x12_to_patch_high_R_dev)
    {
-   x12_to_patch_high_R_dev = (double*) omp_target_alloc( to_patch_size, device );
+   x12_to_patch_high_R_dev = (int*) omp_target_alloc( to_patch_size, device );
 //   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&x12_to_patch_high_R_dev, to_patch_size ) );
    omp_target_memcpy( x12_to_patch_high_R_dev, x12_to_patch_high_R, to_patch_size, 0, 0, device, host );
 //   CUDA_GPU_ERR_CHECK( hipMemcpy( x12_to_patch_high_R_dev, x12_to_patch_high_R, to_patch_size, hipMemcpyHostToDevice ));   
@@ -614,62 +623,99 @@ void libGint::allocate_on_GPU(){
    }
 //   cout << " Ending at " << ua.internal_buffer.size() << endl;
 
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&data_dev, sizeof(double)*(ua.internal_buffer.size()) ));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&dat_mem_dev, max_dat_mem_per_thread ));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&idx_mem_dev , max_idx_mem_per_thread ));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&cell_h_dev, sizeof(double)*(2*9) ));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&neighs_dev, sizeof(double)*(3*max_ncells) ));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&ftable_dev, sizeof(double)*(nelem) ));
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&C2S_dev, sizeof(double)*245 ));
+   data_dev = (double*) omp_target_alloc( sizeof(double)*ua.internal_buffer.size(), device );
+   dat_mem_dev = (double*) omp_target_alloc( max_dat_mem_per_thread, device );
+   idx_mem_dev = (unsigned int*) omp_target_alloc( max_idx_mem_per_thread, device );
+   cell_h_dev = (double*) omp_target_alloc( sizeof(double)*2*9, device );
+   neighs_dev = (double*) omp_target_alloc( sizeof(double)*3*max_ncells, device );
+   ftable_dev = (double*) omp_target_alloc( sizeof(double)*nelem, device );
+   C2S_dev = (double*) omp_target_alloc( sizeof(double)*245, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&data_dev, sizeof(double)*(ua.internal_buffer.size()) ));
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&dat_mem_dev, max_dat_mem_per_thread ));
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&idx_mem_dev , max_idx_mem_per_thread ));
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&cell_h_dev, sizeof(double)*(2*9) ));
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&neighs_dev, sizeof(double)*(3*max_ncells) ));
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&ftable_dev, sizeof(double)*(nelem) ));
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&C2S_dev, sizeof(double)*245 ));
    // TODO do
    #define max_plan_size_possible 10000000
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&plan_dev,sizeof(int)*max_plan_size_possible ));
-   CUDA_GPU_ERR_CHECK( hipHostAlloc( (void**)&idx_mem_stg, max_idx_mem_per_thread, hipHostMallocPortable ));
-   CUDA_GPU_ERR_CHECK( hipHostAlloc( (void**)&plan_stg, sizeof(int)*max_plan_size_possible, hipHostMallocPortable ));
-   CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
-   CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
+   plan_dev = (int*) omp_target_alloc( sizeof(int)*max_plan_size_possible, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&plan_dev,sizeof(int)*max_plan_size_possible ));
+
+   // TODO alloc to pinned memory
+   idx_mem_stg = (unsigned int*) omp_target_alloc( max_idx_mem_per_thread, host );
+   plan_stg = (int*) omp_target_alloc( sizeof(int)*max_plan_size_possible, host );
+//   CUDA_GPU_ERR_CHECK( hipHostAlloc( (void**)&idx_mem_stg, max_idx_mem_per_thread, hipHostMallocPortable ));
+//   CUDA_GPU_ERR_CHECK( hipHostAlloc( (void**)&plan_stg, sizeof(int)*max_plan_size_possible, hipHostMallocPortable ));
+
+   // TODO maybe ?
+   #pragma omp barrier
+//   CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
+//   CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //   POP_RANGE; // dispatch malloc
 
 //   PUSH_RANGE("dispatch memcpy",1);
-   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
-      data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), hipMemcpyHostToDevice, hip_stream ));
-   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
-      cell_h_dev, cell_h, sizeof(double)*(2*9), hipMemcpyHostToDevice, hip_stream ));
-   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
-      neighs_dev, neighs.data(), sizeof(double)*(3*max_ncells), hipMemcpyHostToDevice, hip_stream )); 
-   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
-      ftable_dev, ftable, sizeof(double)*(nelem), hipMemcpyHostToDevice, hip_stream ));
-   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
-      C2S_dev, c2s, sizeof(double)*245, hipMemcpyHostToDevice, hip_stream ));
+   omp_target_memcpy( data_dev, ua.internal_buffer.data(), ua.internal_buffer.size() * sizeof(double), 0, 0, device, host );
+   omp_target_memcpy( cell_h_dev, cell_h, 2*9 * sizeof(double), 0, 0, device, host );
+   omp_target_memcpy( neighs_dev, neighs.data(), 3*max_ncells * sizeof(double), 0, 0, device, host );
+   omp_target_memcpy( ftable_dev, ftable, nelem * sizeof(double), 0, 0, device, host );
+   omp_target_memcpy( C2S_dev, c2s, 245 * sizeof(double), 0, 0, device, host );
+
+//   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
+//      data_dev, ua.internal_buffer.data(), sizeof(double)*(ua.internal_buffer.size()), hipMemcpyHostToDevice, hip_stream ));
+//   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
+//      cell_h_dev, cell_h, sizeof(double)*(2*9), hipMemcpyHostToDevice, hip_stream ));
+//   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
+//      neighs_dev, neighs.data(), sizeof(double)*(3*max_ncells), hipMemcpyHostToDevice, hip_stream )); 
+//   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
+//      ftable_dev, ftable, sizeof(double)*(nelem), hipMemcpyHostToDevice, hip_stream ));
+//   CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
+//      C2S_dev, c2s, sizeof(double)*245, hipMemcpyHostToDevice, hip_stream ));
 //   POP_RANGE; // dispatch memcpy
 //   CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
    // ! needed after async memcpy TODO move to dispatch
 //   CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
-   CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
+   // TODO maybe ?
+   #pragma omp barrier
+//   CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
 //   CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 }
 
 void libGint::free_on_GPU(){
    // TODO move to some resize / delete function at get_K time
-   CUDA_GPU_ERR_CHECK( hipFree(data_dev) );
-   CUDA_GPU_ERR_CHECK( hipFree(dat_mem_dev) );
-   CUDA_GPU_ERR_CHECK( hipFree(idx_mem_dev) ); 
-   CUDA_GPU_ERR_CHECK( hipFree(cell_h_dev) );
-   CUDA_GPU_ERR_CHECK( hipFree(neighs_dev) );
-   CUDA_GPU_ERR_CHECK( hipFree(ftable_dev) );
-   CUDA_GPU_ERR_CHECK( hipFree(C2S_dev) );
-   CUDA_GPU_ERR_CHECK( hipFree(plan_dev) );
-   CUDA_GPU_ERR_CHECK( hipHostFree(idx_mem_stg) );
-   CUDA_GPU_ERR_CHECK( hipHostFree(plan_stg) );
+   omp_target_free(data_dev,device);
+   omp_target_free(dat_mem_dev,device);
+   omp_target_free(idx_mem_dev,device);
+   omp_target_free(cell_h_dev,device);
+   omp_target_free(neighs_dev,device);
+   omp_target_free(ftable_dev,device);
+   omp_target_free(C2S_dev,device);
+   omp_target_free(plan_dev,device);
+   omp_target_free(idx_mem_stg,host);
+   omp_target_free(plan_stg,host);
+//   CUDA_GPU_ERR_CHECK( hipFree(data_dev) );
+//   CUDA_GPU_ERR_CHECK( hipFree(dat_mem_dev) );
+//   CUDA_GPU_ERR_CHECK( hipFree(idx_mem_dev) ); 
+//   CUDA_GPU_ERR_CHECK( hipFree(cell_h_dev) );
+//   CUDA_GPU_ERR_CHECK( hipFree(neighs_dev) );
+//   CUDA_GPU_ERR_CHECK( hipFree(ftable_dev) );
+//   CUDA_GPU_ERR_CHECK( hipFree(C2S_dev) );
+//   CUDA_GPU_ERR_CHECK( hipFree(plan_dev) );
+//   CUDA_GPU_ERR_CHECK( hipHostFree(idx_mem_stg) );
+//   CUDA_GPU_ERR_CHECK( hipHostFree(plan_stg) );
 #pragma omp single
-   CUDA_GPU_ERR_CHECK( hipFree(K_a_dev));
+   omp_target_free(K_a_dev,device);
+//   CUDA_GPU_ERR_CHECK( hipFree(K_a_dev));
 #pragma omp single
-   CUDA_GPU_ERR_CHECK( hipFree(P_a_dev));
+   omp_target_free(P_a_dev,device);
+//   CUDA_GPU_ERR_CHECK( hipFree(P_a_dev));
    if ( nspin == 2 ){
 #pragma omp single
-      CUDA_GPU_ERR_CHECK( hipFree(K_b_dev));
+      omp_target_free(K_b_dev,device);
+//      CUDA_GPU_ERR_CHECK( hipFree(K_b_dev));
 #pragma omp single
-      CUDA_GPU_ERR_CHECK( hipFree(P_b_dev));
+      omp_target_free(P_b_dev,device);
+//      CUDA_GPU_ERR_CHECK( hipFree(P_b_dev));
    }
 }
 
@@ -678,8 +724,11 @@ void libGint::zero_K( int K_size ){
    FP_size = K_size;
 #pragma omp single copyprivate(K_a_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemset( K_a_dev, 0, sizeof(double)*FP_size ));
+
+   K_a_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
+   omp_target_memset( K_a_dev, 0, sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMemset( K_a_dev, 0, sizeof(double)*FP_size ));
    }
 }
 
@@ -689,13 +738,17 @@ void libGint::zero_K( int K_size, int K_size_ ){
    FP_size = K_size;
 #pragma omp single copyprivate(K_a_dev) // nowait
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemset( K_a_dev, 0, sizeof(double)*FP_size ));
+   K_a_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
+   omp_target_memset( K_a_dev, 0, sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMemset( K_a_dev, 0, sizeof(double)*FP_size ));
    }
 #pragma omp single copyprivate(K_b_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_b_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemset( K_b_dev, 0, sizeof(double)*FP_size ));
+   K_b_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_b_dev, sizeof(double)*FP_size ));
+   omp_target_memset( K_b_dev, 0, sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMemset( K_b_dev, 0, sizeof(double)*FP_size ));
    }
 }
 
@@ -705,8 +758,10 @@ void libGint::set_K( double * K_ , int K_size ){
    FP_size = K_size;
 #pragma omp single copyprivate(K_a_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemcpy( K_a_dev, K_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
+   K_a_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
+   omp_target_memcpy( K_a_dev, K_, sizeof(double)*FP_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( K_a_dev, K_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
    }
 }
 
@@ -719,13 +774,17 @@ void libGint::set_K( double * K_a_, double * K_b_, int K_size ){
    FP_size = K_size;
 #pragma omp single copyprivate(K_a_dev) // nowait
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemcpy( K_a_dev, K_a_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
+   K_a_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_a_dev, sizeof(double)*FP_size ));
+   omp_target_memcpy( K_a_dev, K_a_, sizeof(double)*FP_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( K_a_dev, K_a_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
    }
 #pragma omp single copyprivate(K_b_dev)
    {
-   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_b_dev, sizeof(double)*FP_size ));
-   CUDA_GPU_ERR_CHECK( hipMemcpy( K_b_dev, K_b_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
+   K_b_dev = (double*) omp_target_alloc( sizeof(double)*FP_size, device );
+//   CUDA_GPU_ERR_CHECK( hipMalloc( (void**)&K_b_dev, sizeof(double)*FP_size ));
+   omp_target_memcpy( K_b_dev, K_b_, sizeof(double)*FP_size, 0, 0, device, host );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( K_b_dev, K_b_, sizeof(double)*FP_size, hipMemcpyHostToDevice ));
    }
 }
 void libGint::set_K( std::vector<double> & K_a_ , std::vector<double> & K_b_ ){ set_K( K_a_.data(), K_b_.data(), K_a_.size()); }
@@ -743,8 +802,8 @@ void libGint::get_K( double * K_ ){
 #pragma omp barrier
 
 #pragma omp single
-   CUDA_GPU_ERR_CHECK( hipMemcpy( K_, K_a_dev, sizeof(double)*FP_size, hipMemcpyDeviceToHost ));
-
+   omp_target_memcpy( K_, K_a_dev, sizeof(double)*FP_size, 0, 0, host, device );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( K_, K_a_dev, sizeof(double)*FP_size, hipMemcpyDeviceToHost ));
    free_on_GPU();
 
 //#pragma omp critical
@@ -761,10 +820,11 @@ void libGint::get_K( double * K_a_,  double * K_b_ ){
 #pragma omp barrier
  
 #pragma omp single nowait
-   CUDA_GPU_ERR_CHECK( hipMemcpy( K_a_, K_a_dev, sizeof(double)*FP_size, hipMemcpyDeviceToHost ));
+   omp_target_memcpy( K_a_, K_a_dev, sizeof(double)*FP_size, 0, 0, host, device );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( K_a_, K_a_dev, sizeof(double)*FP_size, hipMemcpyDeviceToHost ));
 #pragma omp single
-   CUDA_GPU_ERR_CHECK( hipMemcpy( K_b_, K_b_dev, sizeof(double)*FP_size, hipMemcpyDeviceToHost ));
-
+   omp_target_memcpy( K_b_, K_b_dev, sizeof(double)*FP_size, 0, 0, host, device );
+//   CUDA_GPU_ERR_CHECK( hipMemcpy( K_b_, K_b_dev, sizeof(double)*FP_size, hipMemcpyDeviceToHost ));
    free_on_GPU();
 
 }
@@ -825,7 +885,8 @@ void libGint::dispatch( bool dispatch_all ){
 
    // There is a (small) chance we get to this point before the previous dispatch on the same stream
    // has finished. To avoid problems, we wait
-   CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
+   // TODO Current omp implementation is blocking, so no need
+//   CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
 
    // Flag to sync before we overwrite the RAM side idx
    bool first_loop_this_dispatch = true;
@@ -922,9 +983,10 @@ void libGint::dispatch( bool dispatch_all ){
       // it is (very) possible that we reach this point before the previous loop completed, so we sync
       // before overwriting index arrays on device
       // TODO ? not necessary ?
+      // TODO Current omp implementation is blocking, so no need
       if ( not first_loop_this_dispatch ){
-         cout << " SYNCING " << endl;
-         CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
+//         cout << " SYNCING " << endl; 
+//         CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
       } else {
          first_loop_this_dispatch = false;
       }
@@ -935,17 +997,19 @@ void libGint::dispatch( bool dispatch_all ){
       memcpy( FVH_stg, FVH[L].data(), sizeof(unsigned int)*(FVH[L].size()) );
       memcpy(  KS_stg,  KS[L].data(), sizeof(unsigned int)*( KS[L].size()) );
       memcpy(plan_stg,  plan->data(), sizeof(int)*( plan->size()) );
-     
-      CUDA_GPU_ERR_CHECK( hipMemcpyAsync( 
-         idx_mem_dev, idx_mem_stg, sizeof(unsigned int)*idx_mem_needed_L, hipMemcpyHostToDevice, hip_stream));
+
+      omp_target_memcpy( idx_mem_dev, idx_mem_stg, sizeof(unsigned int)*idx_mem_needed_L, 0, 0, device, host );
+//      CUDA_GPU_ERR_CHECK( hipMemcpyAsync( 
+//         idx_mem_dev, idx_mem_stg, sizeof(unsigned int)*idx_mem_needed_L, hipMemcpyHostToDevice, hip_stream));
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 
      
 //      PUSH_RANGE("transfer indeces",4);
-      CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
-         plan_dev, plan_stg, sizeof(int)*(plan->size()), hipMemcpyHostToDevice, hip_stream));
+      omp_target_memcpy( plan_dev, plan_stg, sizeof(int)*(plan->size()), 0, 0, device, host );
+//      CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
+//         plan_dev, plan_stg, sizeof(int)*(plan->size()), hipMemcpyHostToDevice, hip_stream));
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
@@ -965,21 +1029,18 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 
       // (nvidia?) GPUs adhere to IEEE-754, so a pattern of all 0s represents a floating-point zero.
-      CUDA_GPU_ERR_CHECK( hipMemsetAsync( dat_mem_dev, 0, dat_mem_needed_L , hip_stream ) );
+
+      omp_target_memset( dat_mem_dev, 0, dat_mem_needed_L, device );
+//      CUDA_GPU_ERR_CHECK( hipMemsetAsync( dat_mem_dev, 0, dat_mem_needed_L , hip_stream ) );
 
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );     
 //      POP_RANGE; // transfer indeces
 
 //      PUSH_RANGE("compute",5);
-      CUDA_GPU_ERR_CHECK( hipMemsetAsync( Fm_dev, 0, Fm_size[L] , hip_stream ) );
+//      CUDA_GPU_ERR_CHECK( hipMemsetAsync( Fm_dev, 0, Fm_size[L] , hip_stream ) );
 
-      // Temporary: sync before omp target call
-      hipDeviceSynchronize();
-      prepare_Fm( FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
+      prepare_Fm_omp( FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, neighs_dev, max_ncells );
-
-      // Temporary: sync after omp target call, prob. unnecessary
-      hipDeviceSynchronize();
  
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
@@ -991,10 +1052,10 @@ void libGint::dispatch( bool dispatch_all ){
 //         cout << ifm << " " << std::setprecision(16) << FM0_on_cpu[ifm] << endl;
 //      } cout << endl;
 
-      int Fm_blocksize = 32;
-      int Fm_numblocks = Nprm; // (Nprm+Fm_blocksize-1)/Fm_blocksize;
+//      int Fm_blocksize = 32;
+//      int Fm_numblocks = Nprm; // (Nprm+Fm_blocksize-1)/Fm_blocksize;
 
-      compute_Fm_batched_gpu_low_private<<<Fm_numblocks,Fm_blocksize,0,hip_stream>>>(
+      compute_Fm_omp(
          Fm_dev, Nprm, labcd, periodic, neighs_dev, 
          ftable_dev, ftable_ld,R_cut,C0_dev,ld_C0,
          x12_to_patch_low_R_dev, x12_to_patch_high_R_dev, BW_by_patch_dev,
@@ -1002,9 +1063,10 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 
-      int Vm_blocksize = 64;
-      int Vm_numblocks = Nprm;
-      compute_Vm_batched_gpu_low_private<<<Vm_numblocks,Vm_blocksize,0,hip_stream>>>(
+//      int Vm_blocksize = 64;
+//      int Vm_numblocks = Nprm;
+      //compute_Vm_batched_gpu_low_private<<<Vm_numblocks,Vm_blocksize,0,hip_stream>>>(
+      compute_Vm_omp(
          Fm_dev, Nprm, labcd, periodic, neighs_dev, 
          ftable_dev, ftable_ld,R_cut,C0_dev,ld_C0,
          x12_to_patch_low_R_dev, x12_to_patch_high_R_dev, BW_by_patch_dev,
@@ -1035,8 +1097,8 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
 //      cout << " Dev is " << dat_mem_dev << " of size " << max_dat_mem_per_thread/1024/1024 << " AC is " << AC_dev << " of size " << AC_size[L]/1024/1024 << " L: " << L << endl;
-
-      CUDA_GPU_ERR_CHECK( hipMemsetAsync( AC_dev, 0, AC_size[L] , hip_stream ) );
+      omp_target_memset( AC_dev, 0, AC_size[L], device );
+//      CUDA_GPU_ERR_CHECK( hipMemsetAsync( AC_dev, 0, AC_size[L] , hip_stream ) );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
@@ -1045,9 +1107,9 @@ void libGint::dispatch( bool dispatch_all ){
 //        Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
 //        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
 
-      compute_VRR_v3(
+      compute_VRR_v3_omp(
         Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
-        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, numV, numVC, max_ncells, hip_stream ); 
+        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, numV, numVC, max_ncells );
 
 
 //         compute_VRR_batched_gpu_low<<<Ncells*max_ncells,64,0,hip_stream>>>(
@@ -1065,17 +1127,20 @@ void libGint::dispatch( bool dispatch_all ){
 //         cout << ifm << " " << std::setprecision(16) << AC0_on_cpu[ifm] << endl;
 //      } cout << endl;    
 
-      CUDA_GPU_ERR_CHECK( hipMemsetAsync( ABCD_dev, 0, ABCD_size[L] , hip_stream ) );
+      omp_target_memset( ABCD_dev, 0, ABCD_size[L], device );
+//      CUDA_GPU_ERR_CHECK( hipMemsetAsync( ABCD_dev, 0, ABCD_size[L] , hip_stream ) );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
-      compute_SFT_batched_gpu_low<<<Ncells*Nop,128,0,hip_stream>>>(
+//      compute_SFT_batched_gpu_low<<<Ncells*Nop,128,0,hip_stream>>>(
+      compute_SFT_omp( // MISSING Nop //
          Ncells, plan_dev, PMX_dev, FVH_dev, nullptr, data_dev,
-         AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
+         AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
-      compute_ECO_batched_gpu_low<<<Ncells*Nop,128,0,hip_stream>>>(
+//      compute_ECO_batched_gpu_low<<<Ncells*Nop,128,0,hip_stream>>>(
+      compute_ECO_omp(
          Ncells, plan_dev, PMX_dev, FVH_dev, nullptr, data_dev,
          AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
@@ -1109,11 +1174,13 @@ void libGint::dispatch( bool dispatch_all ){
 //         if ( ii % FVH_SIZE == FVH_SIZE-1 ){ cout << endl ; }
 //      } cout << endl;
 
-      CUDA_GPU_ERR_CHECK( hipMemsetAsync( ABCD0_dev, 0, ABCD0_size[L] , hip_stream ) );
+      omp_target_memset( ABCD0_dev, 0, ABCD0_size[L], device );
+//      CUDA_GPU_ERR_CHECK( hipMemsetAsync( ABCD0_dev, 0, ABCD0_size[L] , hip_stream ) );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
-      compute_HRR_batched_gpu_low<<<Ncells,128,0,hip_stream>>>(
+//      compute_HRR_batched_gpu_low<<<Ncells,128,0,hip_stream>>>(
+      compute_HRR_omp(
          Ncells, plan_dev, FVH_dev, data_dev, ABCD_dev, ABCD0_dev,
          periodic, cell_h_dev, neighs_dev,
          hrr_blocksize, Nc, numVC, numVCH );
@@ -1139,7 +1206,7 @@ void libGint::dispatch( bool dispatch_all ){
       // (nvidia?) GPUs adhere to IEEE-754, so a pattern of all 0s represents a floating-point zero.
 //      CUDA_GPU_ERR_CHECK( hipMemsetAsync( SPHER_dev, 0, SPHER_size[L]*sizeof(double) , hip_stream ) );
 
-      compute_SPH_batched_gpu_alt ( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, SPTMP_dev, C2S_dev, cublas_handle );
+      compute_SPH_omp ( Nqrtt, la, lb, lc, ld, ABCD0_dev, SPHER_dev, SPTMP_dev );
 
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
@@ -1164,9 +1231,13 @@ void libGint::dispatch( bool dispatch_all ){
 //            if ( q%KS_SIZE==KS_SIZE-1) { cout << endl; }
 //         }
 //      }
-      compute_KS_gpu<<<Nqrtt,128,0,hip_stream>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_a_dev, SPHER_dev, K_a_dev, data_dev, hf_fac );
+//      compute_KS_gpu<<<Nqrtt,128,0,hip_stream>>>(
+      compute_KS_omp(
+         Nqrtt, KS_dev, la,lb,lc,ld, P_a_dev, SPHER_dev, K_a_dev, data_dev, hf_fac );
       if ( nspin == 2 ){
-         compute_KS_gpu<<<Nqrtt,128,0,hip_stream>>>( Nqrtt, KS_dev, la,lb,lc,ld, P_b_dev, SPHER_dev, K_b_dev, data_dev, hf_fac );
+//         compute_KS_gpu<<<Nqrtt,128,0,hip_stream>>>(
+         compute_KS_omp(
+            Nqrtt, KS_dev, la,lb,lc,ld, P_b_dev, SPHER_dev, K_b_dev, data_dev, hf_fac );
       }
 
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );

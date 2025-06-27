@@ -1,5 +1,3 @@
-#include "hip/hip_runtime.h"
-#include "hipblas/hipblas.h"
 /*
 Copyright (c) 2023 Science and Technology Facilities Council
 

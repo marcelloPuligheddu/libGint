@@ -15,7 +15,7 @@ using std::cout;
 using std::endl;
 
 // Computes T and the foundamental ssss(m) integrals
-void compute_Fm_batched_omp( 
+void compute_Fm_omp( 
       double* __restrict__ Fm,
       int NFm, int L, bool periodic,
       double* __restrict__ neighs,

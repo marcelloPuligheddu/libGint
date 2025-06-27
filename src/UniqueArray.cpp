@@ -4,7 +4,7 @@
 #include "UniqueArray.h"
 #include <functional>
 
-#include "hipblas/hipblas.h"
+
 using std::cout;
 using std::endl;
 

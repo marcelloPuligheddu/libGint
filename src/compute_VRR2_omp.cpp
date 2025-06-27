@@ -12518,7 +12518,7 @@ vrr_global_t get_vrr( int vrr_index ){
    return vrr[vrr_index];
 }
 
-void compute_VRR_v3(
+void compute_VRR_v3_omp(
       const int Ncells, 
       const int vrr_index,
       const unsigned int* const __restrict__ PMX,

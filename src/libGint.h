@@ -35,20 +35,14 @@ SOFTWARE.
 #include "util.h"
 #include "timer.h"
 #include "UniqueArray.h"
-#include "compute_Fm.h"
-#include "compute_VRR.h"
-#include "compute_HRR.h"
-#include "compute_SPH.h"
-#include "compute_TRA.h"
-#include "compute_KS.h"
 #include "fgamma.h"
 #include <omp.h>
 
 using std::max;
 
 struct LibGint_shared {
-   hipblasHandle_t * cublas_handle;
-   hipStream_t * hip_stream;
+//   hipblasHandle_t * cublas_handle;
+//   hipStream_t * hip_stream;
 };
 
 typedef std::tuple<unsigned int, unsigned int, unsigned int, unsigned int> four_uint_tuple;
@@ -107,8 +101,8 @@ class libGint {
    std::vector<std::vector<int> > all_nl;
    std::vector<std::vector< unsigned int>> all_idx_K;
    std::vector<unsigned int> kind_of;
-   hipblasHandle_t cublas_handle;
-   hipStream_t hip_stream;
+//   hipblasHandle_t cublas_handle;
+//   hipStream_t hip_stream;
 
    int max_n_prm = 0;
    double hf_fac; // K += fac * I @@ P

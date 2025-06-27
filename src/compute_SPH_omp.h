@@ -23,7 +23,7 @@ SOFTWARE.
 #ifndef COMPUTE_SPH_OMP_H_COMPILE_GUARD
 #define COMPUTE_SPH_OMP_H_COMPILE_GUARD
 
-void compute_SPH_batched_gpu_alt(
+void compute_SPH_omp(
       const int Nqrtt, const int la, const int lb, const int lc, const int ld,
       double* const __restrict__ ABCD0,
       double* const __restrict__ SPHER,

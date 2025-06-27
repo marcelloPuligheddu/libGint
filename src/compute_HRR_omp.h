@@ -26,7 +26,7 @@ SOFTWARE.
 
 #include <vector>
 
-void compute_HRR_batched_gpu_low(
+void compute_HRR_omp(
       const int Ncells,
       const int* const __restrict__ plan,
       const unsigned int* const __restrict__ FVH,

@@ -1,3 +1,5 @@
+PREFIX ?= $(shell pwd)
+
 CXX = g++-12
 FC = gfortran
 AR = ar
@@ -39,6 +41,15 @@ $(OBJDIR):
 
 $(LIBDIR):
 	mkdir -p $(LIBDIR)
+
+install: all
+	mkdir -p $(PREFIX)
+	mkdir -p $(PREFIX)/lib
+	mkdir -p $(PREFIX)/include
+	
+	cp $(TARGET) $(PREFIX)/lib
+	cp libgint.mod $(PREFIX)/include
+	
 
 # Clean up
 clean:

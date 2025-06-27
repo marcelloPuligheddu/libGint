@@ -1,0 +1,5 @@
+create libcp2kGint.a
+addlib obj/single.a
+addlib obj/interface_libgint.a
+save
+end

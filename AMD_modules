@@ -1,1 +1,0 @@
-module load fftw/3.3.10 fftw_mpi/3.3.10 gcc/base openmpi/5.0.7-ucc1.3.0-ucx1.18.0 hipfort/6.4.0

@@ -55,8 +55,26 @@ class libGint {
       my_thr = omp_get_thread_num();
       Nomp = omp_get_num_threads();
       host = omp_get_device_num();
+      int tmp = omp_get_initial_device();
       #pragma omp target
-      device = omp_get_device_num();
+      { device = omp_get_device_num(); }
+      cout << " Libgint started " << my_thr << "/" << Nomp << " + " << host << " " << device << " ? " << tmp << endl;
+
+      int device_num = omp_get_default_device();
+      printf("Number of target devices: %d\n", omp_get_num_devices());
+      printf("Default device: %d\n", device_num);
+
+      int x = 0.0;
+      #pragma omp target map(tofrom:x)
+      {
+         if (!omp_is_initial_device()) {
+            printf("Running on the GPU (offloaded successfully).\n");
+         } else {
+            printf("Running on the host (offload failed or not used).\n");
+         }
+         x += 1.0;
+      }
+      printf("x = %d\n", x);
    }
 
    int device, host;

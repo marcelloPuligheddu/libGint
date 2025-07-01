@@ -12,7 +12,7 @@ double symm_factors[5] = {2.0, 1.0, 0.5, 0.25, 0.0 };
 // The @@ symbol is the exchanged tensor contraction
 // we also make use of the fact that the abcd ERI can be used with Pac Pad Pbc Pbd
 
-void compute_KS_gpu_omp(
+void compute_KS_omp(
       const int Nqrtt,
       const unsigned int * const __restrict__ KS,
       const int la, const int lb, const int lc, const int ld,

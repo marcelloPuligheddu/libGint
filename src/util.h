@@ -197,24 +197,37 @@ OFFLOAD_TARGET HOST_TARGET inline void compute_pbc( const double A[3], const dou
 
 // #### device L ####
 
-OFFLOAD_CONSTANT int _NLco_lut_dev[35] = { 0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105, 120, 136, 153, 171, 190, 210, 231, 253, 276, 300, 325, 351, 378, 406, 435, 465, 496, 528, 561 };
-OFFLOAD_TARGET int NLco_dev( int L ){ return _NLco_lut_dev[L+2]; }
+//OFFLOAD_CONSTANT int _NLco_lut_dev[35] = { 0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105, 120, 136, 153, 171, 190, 210, 231, 253, 276, 300, 325, 351, 378, 406, 435, 465, 496, 528, 561 };
+OFFLOAD_TARGET inline int NLco_dev( int L ){ return (L+1)*(L+2)/2; }
 
 // essentialy is using the pattern:
 // s = 0 0 0
 // p = 1 0 0, 0 1 0, 0 0 1
 // d = 2 0 0, 1 1 0, 1 0 1, 0 2 0, 0 1 1, 0 0 2
 // and noting that L-lx does not really depend on L
-OFFLOAD_CONSTANT short int lx_lut_dev[45] = { 0, 1,1, 2,2,2, 3,3,3,3, 4,4,4,4,4, 5,5,5,5,5,5, 6,6,6,6,6,6,6, 7,7,7,7,7,7,7,7, 8,8,8,8,8,8,8,8,8 };
+// OFFLOAD_CONSTANT short int lx_lut_dev[45] = { 0, 1,1, 2,2,2, 3,3,3,3, 4,4,4,4,4, 5,5,5,5,5,5, 6,6,6,6,6,6,6, 7,7,7,7,7,7,7,7, 8,8,8,8,8,8,8,8,8 };
+
+OFFLOAD_TARGET inline int L_minus_lx_dev( int i ){
+   if ( i == 0 ){ return 0; }
+   int n = 1;
+   int total = 0;
+   while (total + n <= i){
+      total += n;
+      n++;
+   }
+   return n;
+}
 
 // compute (cartesian) moment on x axis for a given total moment.
 OFFLOAD_TARGET inline int lx_dev( const int i, const int L ){
-   return L - lx_lut_dev[i];
+   
+   return L - L_minus_lx_dev( i ); // L-lx_lut_dev[i];
 }
 
-// 
+// Appeared to me in a dream
 OFFLOAD_TARGET inline int lz_dev( const int i, const int L ){
-   int i0 = NLco_dev(lx_lut_dev[i]-1);
+   int Lmlx = L_minus_lx_dev( i );
+   int i0 = NLco_dev(Lmlx-1);
    int lz_ = i - i0;
    return lz_;
 }
@@ -222,7 +235,8 @@ OFFLOAD_TARGET inline int lz_dev( const int i, const int L ){
 // computes ly as L-lx-lz
 OFFLOAD_TARGET inline int ly_dev( const int i, const int L ){
    int lx_ = lx_dev(i,L);
-   int i0 = NLco_dev(lx_lut_dev[i]-1);
+   int Lmlx = L_minus_lx_dev( i );
+   int i0 = NLco_dev(Lmlx-1);
    int lz_ = i - i0;
    int ly_ = L-lx_-lz_;
    return ly_;

@@ -85,7 +85,7 @@ using std::endl;
 
 
 // Fills Fm with intermediate vectors
-void prepare_Fm_omp_blocking(
+void prepare_Fm_omp(
       const unsigned int* const __restrict__ FVH,
       const unsigned int* const __restrict__ OF,
       const unsigned int* const __restrict__ PMX,

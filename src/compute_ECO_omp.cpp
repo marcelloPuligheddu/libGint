@@ -75,7 +75,7 @@ void compute_SFT_omp(
 // The results are saved into ABCD, since they will be the starting points of the HHR
 // Computes the 4 matrix products CC1 @ CC2 @ CC3 @ CC4 @ AC
 
-void compute_ECO_batched_gpu_low(
+void compute_ECO_omp(
       const int Ncells, const int* __restrict__ plan,
       const unsigned int* const __restrict__ PMX,
       const unsigned int* const __restrict__ FVH,

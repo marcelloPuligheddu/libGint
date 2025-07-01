@@ -23,70 +23,106 @@ constexpr int SA ( int L ) {
 
 constexpr int NLco_dev_but_constexpr( int L ){ return (L+1)*(L+2) / 2; }
 
+template<int L>
+constexpr int NCl = (L + 1) * (L + 2) / 2;
+template<int L>
+constexpr int NCm = (L + 0) * (L + 1) / 2;
+template<int L>
+constexpr int NCw = (L - 1) * (L + 0) / 2;
+
 constexpr int MAXL = 4*2;
 
-int _d[ SA(MAXL+1) ] = {
-0, 
-0, 1, 2, 
-0, 0, 0, 1, 1, 2, 
-0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-};
+template< int L > 
+int _d ( int i ){
+   if constexpr (L == 0){ return 0; }
+   else if constexpr (L == 1){ return i; }
+   else { return i / NCm<L> + (i+1) / NCl<L>; }
+}
 
-int _idx_m[ SA(MAXL+1) ] = {
-0, 
-0, 0, 0, 
-0, 1, 2, 1, 2, 2, 
-0, 1, 2, 3, 4, 5, 3, 4, 5, 5, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 6, 7, 8, 9, 9, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 10, 11, 12, 13, 14, 14, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 15, 16, 17, 18, 19, 20, 20, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 21, 22, 23, 24, 25, 26, 27, 27, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 28, 29, 30, 31, 32, 33, 34, 35, 35, 
-};
+template< int L >
+int _idx_m ( int i ){
+   if constexpr ( L == 0 or L == 1 ){ return 0; } 
+   else {
+      unsigned int ui = static_cast<unsigned>(i);
+      unsigned int w_ness = 1u - (ui / NCm<L>);
+      unsigned int m_ness = (ui >= NCm<L> && ui < NCl<L> - 1) ? 1u : 0u;
+      unsigned int l_ness = (ui == (unsigned int )(NCl<L> - 1)) ? 1u : 0u;
+      int val_w = i;
+      int val_m = (i - NCm<L>) + NCw<L>;
+      int val_l = (L -  1) + NCw<L>;
+      return val_w * w_ness + val_m * m_ness + val_l * l_ness;
+   }
+}
 
-int _idx_w[ SA(MAXL+1) ] = {
-0, 
-0, 0, 0, 
-0, 1, 2, 0, 1, 0, 
-0, 1, 2, 3, 4, 5, 1, 2, 3, 2, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 3, 4, 5, 6, 5, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 6, 7, 8, 9, 10, 9, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 10, 11, 12, 13, 14, 15, 14, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 15, 16, 17, 18, 19, 20, 21, 20, 
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 21, 22, 23, 24, 25, 26, 27, 28, 27, 
-};
+template<int L>
+int _idx_off(int i) {
+    return (L * (L + 1) * (L + 2)) / 2 + ((L + 1) * (L + 2) / 2) * i;
+}
 
-double _f2[ SA(MAXL+1) ] = {
-0, 
-0, 0, 0, 
-1, 0, 0, 1, 0, 1, 
-2, 1, 1, 0, 0, 0, 2, 1, 0, 2, 
-3, 2, 2, 1, 1, 1, 0, 0, 0, 0, 3, 2, 1, 0, 3, 
-4, 3, 3, 2, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 4, 3, 2, 1, 0, 4, 
-5, 4, 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 5, 4, 3, 2, 1, 0, 5, 
-6, 5, 5, 4, 4, 4, 3, 3, 3, 3, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 6, 5, 4, 3, 2, 1, 0, 6, 
-7, 6, 6, 5, 5, 5, 4, 4, 4, 4, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 7, 6, 5, 4, 3, 2, 1, 0, 7, 
-};
+template<int L>
+int _idx_w(int i) {
+    constexpr int nl = (L + 1) * (L + 2) / 2;
+    constexpr int nm = (L + 0) * (L + 1) / 2;
+    constexpr int nw = (L - 1) * (L + 0) / 2;
+    constexpr int nx = (L - 2) * (L - 1) / 2;
 
-int _idx_off[ 3*(MAXL+1) ] = {
-     0,  0,  0,
-     3,  6,  9,
-    12, 18, 24,
-    30, 40, 50,
-    60, 75, 90,
-   105,126,147,
-   168,196,224,
-   252,288,324,
-   360,405,450
-};
+    if constexpr (L <= 2) {
+        return 0;
+    }
+
+    // Compute masks without branching on i, using boolean arithmetic.
+    // bool-to-int conversions in C++: true=1, false=0
+    int mask_i_lt_nw = int(i < nw);
+    int mask_i_ge_nw = 1 - mask_i_lt_nw;
+    int mask_i_lt_nw_plus_L = int(i < nw + L);
+    int mask_i_eq_nl_1 = int(i == nl - 1);
+    int mask_i_eq_nl_2 = int(i == nl - 2);
+
+    // Calculate return values multiplied by masks and sum:
+    int res = 0;
+    res += mask_i_lt_nw * i;                       // i < nw : return i
+    res += (mask_i_ge_nw && mask_i_lt_nw_plus_L) * 0; // nw <= i < nw + L : 0
+    res += mask_i_eq_nl_1 * (nw - 1);              // i == nl-1 : nw-1
+    res += mask_i_eq_nl_2 * 0;                      // i == nl-2 : 0
+
+    // Else return i - nm + nx for all other cases
+    int mask_else = 1 - (mask_i_lt_nw + (mask_i_ge_nw && mask_i_lt_nw_plus_L) + mask_i_eq_nl_1 + mask_i_eq_nl_2);
+    res += mask_else * (i - nm + nx);
+
+    return res;
+}
 
 
-uint8_t _idx_r[ 3*SA(MAXL+1) ] = {
+template<int L>
+inline int triangular_row(int i) {
+    int k = 0;
+    for (int j = 1; j <= L; ++j) {
+        int tj = j * (j + 1) / 2;
+        k += (i >= tj); // Increments k if i >= T(j)
+    }
+    return k;
+}
+
+template<int L>
+int _f2(int i) {
+    if constexpr (L == 0 || L == 1) { return 0; }
+
+    constexpr int nl = (L + 1) * (L + 2) / 2;
+    constexpr int nm = (L + 0) * (L + 1) / 2;
+    
+    int k = triangular_row<L>(i);
+    int is_eq_nl_1 = (i == (nl - 1));
+    int is_lt_nm   = (i < nm);
+    int is_else    = 1 - (is_eq_nl_1 | is_lt_nm);
+    int val1 = is_eq_nl_1 * (L - 1);
+    int val2 = is_lt_nm   * (L - 1 - k);
+    int val3 = is_else    * (L + nm - i - 1);
+
+    return val1 + val2 + val3;
+}
+
+
+const uint8_t _idx_r[ 3*SA(MAXL+1) ] = {
 0, 
 0, 
 0, // 3
@@ -116,7 +152,7 @@ uint8_t _idx_r[ 3*SA(MAXL+1) ] = {
 0, 0, 0, 0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14, 14, 15, 16, 17, 18, 19, 20, 20, 21, 22, 23, 24, 25, 26, 27, 27, 28, 29, 30, 31, 32, 33, 34, 35,  // 165*3 = 495
 };
 
-double _e2[ 3*SA(MAXL+1) ] = {
+const double _e2[ 3*SA(MAXL+1) ] = {
 0, 
 0, 
 0, 
@@ -145,6 +181,14 @@ double _e2[ 3*SA(MAXL+1) ] = {
 0, 1, 0, 2, 1, 0, 3, 2, 1, 0, 4, 3, 2, 1, 0, 5, 4, 3, 2, 1, 0, 6, 5, 4, 3, 2, 1, 0, 7, 6, 5, 4, 3, 2, 1, 0, 8, 7, 6, 5, 4, 3, 2, 1, 0, 
 0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 8,   
 };
+
+#pragma omp declare target
+
+extern const double _e2[3*SA(MAXL+1)];
+extern const uint8_t _idx_r[3*SA(MAXL+1)];
+#pragma omp end declare target
+
+
 
 
 template < int VTS, int AL, int CL, int m >
@@ -188,10 +232,10 @@ void execute_VRR2_gpu(
 
       int i  = imm % NcoA ;
       int mm = imm / NcoA ;
-      int d  = _d[SA(AL)+i];
-      int im = _idx_m[SA(AL)+i];
-      int iw = _idx_w[SA(AL)+i];
-      double e2 = _f2[SA(AL)+i];
+      int d  = _d<AL>(i);
+      int im = _idx_m<AL>(i);
+      int iw = _idx_w<AL>(i);
+      double e2 = _f2<AL>(i);
 
       int idx_000 = imm ;
       int idx_m00 = im + NcoAm*mm ;
@@ -239,11 +283,11 @@ void execute_VRR5_gpu(
       k  = ik % NcoC;
       i  = ik / NcoC;
       constexpr int t = SA(CL);
-      d  = _d[t+k];
-      km = _idx_m[t+k];
-      kw = _idx_w[t+k];
-      f2 = _f2[t+k];
-      o  = _idx_off[3*AL+d];
+      d  = _d<CL>(k);
+      km = _idx_m<CL>(k);
+      kw = _idx_w<CL>(k);
+      f2 = _f2<CL>(k);
+      o  = _idx_off<AL>(d);
       im = _idx_r[o+i];
       e2 = _e2[o+i];
 
@@ -296,7 +340,7 @@ void execute_VRR6_gpu(
       i  = ik / NcoC;
 
       d = k;
-      o  = _idx_off[3*AL+d];
+      o  = _idx_off<AL>(d);
       im = _idx_r[o+i];
       e2 = _e2[o+i];
       km = 0;
@@ -12419,8 +12463,8 @@ void compute_VRR_v3_batched_gpu_low(
 
 //   int my_vrr_rank = threadIdx.x % VTS ;
 //   int my_vrr_team = threadIdx.x / VTS ;
-
-   #pragma omp target teams distribute thread_limit(NVT*VTS) is_device_ptr(PMX,FVH,Fm,data,AC) depend( in:PMX,FVH,Fm,data ) depend( out:AC )
+   #pragma omp target enter data map(to: _idx_r[0:3*SA(MAXL+1)],_e2[0:3*SA(MAXL+1)] )
+   #pragma omp target teams distribute thread_limit(NVT*VTS) is_device_ptr(PMX,FVH,Fm,data,AC) depend( in:PMX,FVH,Fm,data ) depend( out:AC ) 
    for( int block=0; block < Ncells*Ng ; block ++ ){
 
       int p = block / Ng; 

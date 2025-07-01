@@ -1,9 +1,10 @@
 PREFIX ?= $(shell pwd)
 
 CXX = g++-12
-FC = gfortran
+FC = gfortran-12
 AR = ar
-ARFLAGS = rcs
+ARFLAGS = rcs 
+
 
 CXXFLAGS = -c -fopenmp -foffload=nvptx-none -fcf-protection=none -no-pie -D__LIBGINT_OMP_OFFLOAD -std=c++17
 FCFLAGS = -c
@@ -11,6 +12,8 @@ LIBDIR = lib
 SRCDIR = src
 OBJDIR = obj
 TARGET = $(LIBDIR)/libcp2kGint.a
+
+# FCFLAGS = -foffload=nvptx-none -fopenmp test_libGint.o -Wl,--whole-archive lib/libcp2kGint.a -Wl,--no-whole-archive -o test_libGint -lc -lstdc++
 
 CPP_SRCS = $(wildcard $(SRCDIR)/*.cpp)
 CPP_OBJS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SRCS))
@@ -49,7 +52,11 @@ install: all
 	
 	cp $(TARGET) $(PREFIX)/lib
 	cp libgint.mod $(PREFIX)/include
-	
+
+test: $(TARGET)
+	$(FC) -c -fopenmp -c test_libGint.f90 -o test_libGint.o
+	$(FC) -foffload=nvptx-none -fopenmp test_libGint.o -Wl,--whole-archive lib/libcp2kGint.a -Wl,--no-whole-archive -o test_libGint -lc -lstdc++
+	./test_libGint
 
 # Clean up
 clean:

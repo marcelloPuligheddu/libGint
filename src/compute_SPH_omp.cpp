@@ -41,6 +41,7 @@ constexpr double c2s[1*1+3*3+5*6+7*10+9*15] = {
 ,0.072168784,0,0,-0.433012702,0,0,0,0,0,0,0.072168784,0,0,0,0
 
 };
+
 template< int l, int s >
 constexpr int first_cart_contr_to_sph( ){
    if constexpr ( l == 0 ){ return 0; }
@@ -66,6 +67,7 @@ constexpr int first_cart_contr_to_sph( ){
       if constexpr( s == 5 ){ return 2; }
       if constexpr( s == 6 ){ return 0; }
    }
+   return 0;
 }
 
 constexpr int c2s_ptr[5] = {0, 1*1, 1*1+3*3, 1*1+3*3+5*6, 1*1+3*3+5*6+7*10};
@@ -104,10 +106,13 @@ typedef void (*sph_func_t)(double* __restrict__, double* __restrict__, double* _
 
 template< int la, int lb, int lc, int ld, int BS >
 void sph( double * block_ABCD0, double * block_SPHER, double * block_tmp ){
-   sph_term< la, 0,0, NC(lb)*NC(lc)*NC(ld), BS >( block_ABCD0, block_tmp );
-   sph_term< lb, 0,0, NS(la)*NC(lc)*NC(ld), BS >( block_tmp, block_ABCD0 );
-   sph_term< lc, 0,0, NS(la)*NS(lb)*NC(ld), BS >( block_ABCD0, block_tmp );
-   sph_term< ld, 0,0, NS(la)*NS(lb)*NS(lc), BS >( block_tmp, block_SPHER ); 
+   if constexpr ( la == 0 and lb == 0 and lc ==0 and ld == 0 ){ block_SPHER[0] = block_ABCD0[0]; }
+   else {
+      sph_term< la, 0,0, NC(lb)*NC(lc)*NC(ld), BS >( block_ABCD0, block_tmp );
+      sph_term< lb, 0,0, NS(la)*NC(lc)*NC(ld), BS >( block_tmp, block_ABCD0 );
+      sph_term< lc, 0,0, NS(la)*NS(lb)*NC(ld), BS >( block_ABCD0, block_tmp );
+      sph_term< ld, 0,0, NS(la)*NS(lb)*NS(lc), BS >( block_tmp, block_SPHER ); 
+   }
 }
 
 #define INSTANTIATE_SPH(la, lb, lc, ld, BS) sph< la,lb,lc,ld, BS >

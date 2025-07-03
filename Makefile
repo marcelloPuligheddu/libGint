@@ -6,7 +6,7 @@ AR = ar
 ARFLAGS = rcs 
 
 
-CXXFLAGS = -c -fopenmp -foffload=nvptx-none -fcf-protection=none -no-pie -D__LIBGINT_OMP_OFFLOAD -std=c++17
+CXXFLAGS = -c -fopenmp -foffload=nvptx-none -fcf-protection=none -no-pie -D__LIBGINT_OMP_OFFLOAD -std=c++17 -save-temps -save-temps=obj -fno-stack-protector
 FCFLAGS = -c
 LIBDIR = lib
 SRCDIR = src
@@ -55,7 +55,7 @@ install: all
 
 test: $(TARGET)
 	$(FC) -c -fopenmp -c test_libGint.f90 -o test_libGint.o
-	$(FC) -foffload=nvptx-none -fopenmp test_libGint.o -Wl,--whole-archive lib/libcp2kGint.a -Wl,--no-whole-archive -o test_libGint -lc -lstdc++
+	$(FC) -foffload=nvptx-none -fopenmp test_libGint.o -Wl,--whole-archive lib/libcp2kGint.a -Wl,--no-whole-archive -o test_libGint -lc -lstdc++ -foffload-options=nvptx-none="-lm" -no-pie -save-temps 
 	./test_libGint
 
 # Clean up

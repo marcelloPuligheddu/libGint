@@ -5,165 +5,151 @@
 #include "compute_SPH_omp.h"
 #include <iostream>
 
-using std::cout;
-using std::endl;
+constexpr int inline NC( int la ){ return (la+1)*(la+2)/2; }
+constexpr int inline NS( int la ){ return (2*la+1); }
 
-
-constexpr double c2s[1*1+3*3+5*6+7*10+9*15] = {
-1.0,
-
-0.0, 1.0, 0.0, 
-0.0, 0.0, 1.0, 
-1.0, 0.0, 0.0, 
-
- 0., 1., 0., 0., 0., 0.,
- 0., 0., 0., 0., 1., 0.,
- -0.28867513459,0., 0., -0.28867513459, 0., 0.57735026919,
- 0., 0., 1., 0., 0., 0.,
- 0.5, 0., 0., -0.5, 0., 0.,
-
- 0,0.612372436,0,0,0,0,-0.204124145,0,0,0,
- 0,0,0,0,1,0,0,0,0,0,
- 0,-0.158113883,0,0,0,0,-0.158113883,0,0.632455532,0,
- 0,0,-0.387298335,0,0,0,0,-0.387298335,0,0.25819889,
--0.158113883,0,0,-0.158113883,0,0.632455532,0,0,0,0,
- 0,0,0.5,0,0,0,0,-0.5,0,0,
- 0.204124145,0,0,-0.612372436,0,0,0,0,0,0,
-
-0,0.288675135,0,0,0,0,-0.288675135,0,0,0,0,0,0,0,0
-,0,0,0,0,0.612372436,0,0,0,0,0,0,-0.204124145,0,0,0
-,0,-0.109108945,0,0,0,0,-0.109108945,0,0.654653671,0,0,0,0,0,0
-,0,0,0,0,-0.231455025,0,0,0,0,0,0,-0.231455025,0,0.3086067,0
-,0.036596253,0,0,0.073192505,0,-0.292770022,0,0,0,0,0.036596253,0,-0.292770022,0,0.097590007
-,0,0,-0.231455025,0,0,0,0,-0.231455025,0,0.3086067,0,0,0,0,0
-,-0.054554473,0,0,0,0,0.327326835,0,0,0,0,0.054554473,0,-0.327326835,0,0
-,0,0,0.204124145,0,0,0,0,-0.612372436,0,0,0,0,0,0,0
-,0.072168784,0,0,-0.433012702,0,0,0,0,0,0,0.072168784,0,0,0,0
-
-};
-
-template< int l, int s >
-constexpr int first_cart_contr_to_sph( ){
-   if constexpr ( l == 0 ){ return 0; }
-
-   if constexpr ( l == 1 ){ 
-      if constexpr( s == 0 ){ return 1; }
-      if constexpr( s == 1 ){ return 2; }
-      if constexpr( s == 2 ){ return 0; }
-   }
-   if constexpr ( l == 2 ){ 
-      if constexpr( s == 0 ){ return 1; }
-      if constexpr( s == 1 ){ return 4; }
-      if constexpr( s == 2 ){ return 0; }
-      if constexpr( s == 3 ){ return 2; }
-      if constexpr( s == 4 ){ return 0; }
-   }
-   if constexpr ( l == 3 ){ 
-      if constexpr( s == 0 ){ return 1; }
-      if constexpr( s == 1 ){ return 4; }
-      if constexpr( s == 2 ){ return 1; }
-      if constexpr( s == 3 ){ return 2; }
-      if constexpr( s == 4 ){ return 0; }
-      if constexpr( s == 5 ){ return 2; }
-      if constexpr( s == 6 ){ return 0; }
-   }
-   return 0;
-}
-
-constexpr int c2s_ptr[5] = {0, 1*1, 1*1+3*3, 1*1+3*3+5*6, 1*1+3*3+5*6+7*10};
-
-constexpr int NC( int la ){ return (la+1)*(la+2)/2; }
-constexpr int NS( int la ){ return (2*la+1); }
-
-template < int la, int ac, int as, int N, int BS >
-void sph_term( 
+template < int la, int N >
+void inline sph_term(
       double * const __restrict__ I,
-      double * const __restrict__ O ){
-   constexpr int nca = NC(la);
-   constexpr int nsa = NS(la);
-
-//   const int tid = threadIdx.x;
-
-   if constexpr ( ac < nca and as < nsa ){
-      constexpr double C = c2s[ c2s_ptr[la] + as*nca + ac];
-      if constexpr ( C != 0 ){
-         #pragma omp parallel for
-         for ( int n=0; n<N; n++ ){
-            if constexpr ( first_cart_contr_to_sph<la,as>() == ac ){
-               O[as+n*NS(la)]  = C * I[N*ac+n];
-            } else {
-               O[as+n*NS(la)] += C * I[N*ac+n];
-            }
-         }
+      double * const __restrict__ O )
+{
+   if constexpr ( la == 0 ){
+      #pragma omp parallel for
+      for( int n = 0; n < N; n++ ){
+         O[0+n*1] = 1.0* I[N*0+n];
       }
-      if constexpr ( ac+1 < nca ){ sph_term<la,ac+1,as,N,BS>(I,O); }
-      if constexpr ( ac+1 == nca and as+1 < nsa ){ sph_term<la,0,as+1,N,BS>(I,O); }
-      if constexpr ( ac+1 == nca and as+1 == nsa ){  }
+   }
+   if constexpr ( la == 1 ){
+      #pragma omp parallel for
+      for( int n = 0; n < N; n++ ){
+         O[0+n*3] = 1.0* I[N*1+n];
+         O[1+n*3] = 1.0* I[N*2+n];
+         O[2+n*3] = 1.0* I[N*0+n];
+      }
+   }
+   if constexpr ( la == 2 ){
+      #pragma omp parallel for
+      for( int n = 0; n < N; n++ ){
+         O[0+n*5] = 1.0* I[N*1+n];
+         O[1+n*5] = 1.0* I[N*4+n];
+         O[2+n*5] = -0.28867513459* I[N*0+n]+-0.28867513459* I[N*3+n]; +0.57735026919* I[N*5+n];
+         O[3+n*5] = 1.0* I[N*2+n];
+         O[4+n*5] = 0.5* I[N*0+n]+-0.5* I[N*3+n]; 
+      }
+   }
+   if constexpr ( la == 3 ){
+      #pragma omp parallel for
+      for( int n = 0; n < N; n++ ){
+         O[0+n*7] = 0.612372436* I[N*1+n]+-0.204124145* I[N*6+n]; 
+         O[1+n*7] = 1* I[N*4+n];
+         O[2+n*7] = -0.158113883* I[N*1+n]+-0.158113883* I[N*6+n]; +0.632455532* I[N*8+n]; 
+         O[3+n*7] = -0.387298335* I[N*2+n]+-0.387298335* I[N*7+n]; +0.25819889* I[N*9+n]; 
+         O[4+n*7] = -0.158113883* I[N*0+n]+-0.158113883* I[N*3+n]; +0.632455532* I[N*5+n]; 
+         O[5+n*7] = 0.5* I[N*2+n]+-0.5* I[N*7+n]; 
+         O[6+n*7] = 0.204124145* I[N*0+n]+-0.612372436* I[N*3+n]; 
+      }
+   }
+   if constexpr ( la == 4 ){
+      #pragma omp parallel for
+      for( int n = 0; n < N; n++ ){
+         O[0+n*9] = 0.288675135* I[N*1+n]+-0.288675135* I[N*6+n]; 
+         O[1+n*9] = 0.612372436* I[N*4+n]+-0.204124145* I[N*11+n]; 
+         O[2+n*9] = -0.109108945* I[N*1+n]+-0.109108945* I[N*6+n]; +0.654653671* I[N*8+n]; 
+         O[3+n*9] = -0.231455025* I[N*4+n]+-0.231455025* I[N*11+n]; +0.3086067* I[N*13+n]; 
+         O[4+n*9] = 0.036596253* I[N*0+n]+0.073192505* I[N*3+n]; +-0.292770022* I[N*5+n]; +0.036596253* I[N*10+n]; +-0.292770022* I[N*12+n]; +0.097590007* I[N*14+n]; 
+         O[5+n*9] = -0.231455025* I[N*2+n]+-0.231455025* I[N*7+n]; +0.3086067* I[N*9+n]; 
+         O[6+n*9] = -0.054554473* I[N*0+n]+0.327326835* I[N*5+n]; +0.054554473* I[N*10+n]; +-0.327326835* I[N*12+n]; 
+         O[7+n*9] = 0.204124145* I[N*2+n]+-0.612372436* I[N*7+n]; 
+         O[8+n*9] = 0.072168784* I[N*0+n]+-0.433012702* I[N*3+n]; +0.072168784* I[N*10+n]; 
+      }
    }
 }
 
-typedef void (*sph_func_t)(double* __restrict__, double* __restrict__, double* __restrict__);
-
-template< int la, int lb, int lc, int ld, int BS >
-void sph( double * block_ABCD0, double * block_SPHER, double * block_tmp ){
-   if constexpr ( la == 0 and lb == 0 and lc ==0 and ld == 0 ){ block_SPHER[0] = block_ABCD0[0]; }
-   else {
-      sph_term< la, 0,0, NC(lb)*NC(lc)*NC(ld), BS >( block_ABCD0, block_tmp );
-      sph_term< lb, 0,0, NS(la)*NC(lc)*NC(ld), BS >( block_tmp, block_ABCD0 );
-      sph_term< lc, 0,0, NS(la)*NS(lb)*NC(ld), BS >( block_ABCD0, block_tmp );
-      sph_term< ld, 0,0, NS(la)*NS(lb)*NS(lc), BS >( block_tmp, block_SPHER ); 
-   }
+template < int la, int lb, int lc, int ld >
+void sph_omp_templated( const int Nqrtt, double* const __restrict__ ABCD0,
+      double* const __restrict__ SPHER,
+      double* const __restrict__ tmp_scratch )
+{
+   #pragma omp target teams distribute is_device_ptr(ABCD0,SPHER,tmp_scratch) depend( in:ABCD0,tmp_scratch) depend(out:SPHER)
+   for( int b=0; b < Nqrtt; b++ ){
+      double * block_ABCD0 = ABCD0 + b * NC(la)*NC(lb)*NC(lc)*NC(ld);
+      double * block_tmp   = tmp_scratch + b * NC(la)*NC(lb)*NC(lc)*NC(ld);
+      double * block_SPHER = SPHER + b * NS(la)*NS(lb)*NS(lc)*NS(ld);
+      sph_term< la, NC(lb)*NC(lc)*NC(ld) >( block_ABCD0, block_tmp );
+      sph_term< lb, NS(la)*NC(lc)*NC(ld) >( block_tmp, block_ABCD0 );
+      sph_term< lc, NS(la)*NS(lb)*NC(ld) >( block_ABCD0, block_tmp );
+      sph_term< ld, NS(la)*NS(lb)*NS(lc) >( block_tmp, block_SPHER );
+  }
 }
 
-#define INSTANTIATE_SPH(la, lb, lc, ld, BS) sph< la,lb,lc,ld, BS >
 
-#define INSTANTIATE_SPH_LD(la, lb, lc, BS ) \
-  INSTANTIATE_SPH(la, lb, lc, 0, BS), \
-  INSTANTIATE_SPH(la, lb, lc, 1, BS), \
-  INSTANTIATE_SPH(la, lb, lc, 2, BS), \
-  INSTANTIATE_SPH(la, lb, lc, 3, BS)
+typedef void (*sph_func_t)(const int Nqrtt, double* __restrict__, double* __restrict__, double* __restrict__);
 
-#define INSTANTIATE_SPH_LC(la, lb, BS) \
-  INSTANTIATE_SPH_LD(la, lb, 0, BS), \
-  INSTANTIATE_SPH_LD(la, lb, 1, BS), \
-  INSTANTIATE_SPH_LD(la, lb, 2, BS), \
-  INSTANTIATE_SPH_LD(la, lb, 3, BS)
 
-#define INSTANTIATE_SPH_LB(la, BS) \
-  INSTANTIATE_SPH_LC(la, 0, BS), \
-  INSTANTIATE_SPH_LC(la, 1, BS), \
-  INSTANTIATE_SPH_LC(la, 2, BS), \
-  INSTANTIATE_SPH_LC(la, 3, BS)
+#define INSTANTIATE_SPH(la, lb, lc, ld ) template void sph_omp_templated<la, lb, lc, ld >(const int, double*, double*, double*);
+#define SPT_ENTRY(la, lb, lc, ld) &sph_omp_templated<la, lb, lc, ld>
+#define SPH_MAX_L 4
 
-#define INSTANTIATE_ALL_SPH(BS) \
-  INSTANTIATE_SPH_LB(0, BS), \
-  INSTANTIATE_SPH_LB(1, BS), \
-  INSTANTIATE_SPH_LB(2, BS), \
-  INSTANTIATE_SPH_LB(3, BS)
+#define INSTANTIATE_SPH_LD(la, lb, lc ) \
+  INSTANTIATE_SPH(la, lb, lc, 0); \
+  INSTANTIATE_SPH(la, lb, lc, 1); \
+  INSTANTIATE_SPH(la, lb, lc, 2); \
+  INSTANTIATE_SPH(la, lb, lc, 3);
 
-sph_func_t get_sph( int idx ){
-   sph_func_t sph_funcs[] = {
-      INSTANTIATE_ALL_SPH( 64 )
-   };
-   return sph_funcs[idx];
-}
+#define INSTANTIATE_SPH_LC(la, lb) \
+  INSTANTIATE_SPH_LD(la, lb, 0); \
+  INSTANTIATE_SPH_LD(la, lb, 1); \
+  INSTANTIATE_SPH_LD(la, lb, 2); \
+  INSTANTIATE_SPH_LD(la, lb, 3);
+
+#define INSTANTIATE_SPH_LB(la) \
+  INSTANTIATE_SPH_LC(la, 0); \
+  INSTANTIATE_SPH_LC(la, 1); \
+  INSTANTIATE_SPH_LC(la, 2); \
+  INSTANTIATE_SPH_LC(la, 3);
+
+#define INSTANTIATE_ALL_SPH \
+  INSTANTIATE_SPH_LB(0); \
+  INSTANTIATE_SPH_LB(1); \
+  INSTANTIATE_SPH_LB(2); \
+  INSTANTIATE_SPH_LB(3);
+
+INSTANTIATE_ALL_SPH
+
+#define FOR_EACH_LD_PTR(la, lb, lc) \
+    SPT_ENTRY(la, lb, lc, 0), \
+    SPT_ENTRY(la, lb, lc, 1), \
+    SPT_ENTRY(la, lb, lc, 2), \
+    SPT_ENTRY(la, lb, lc, 3)
+
+#define FOR_EACH_LC_PTR(la, lb) \
+    FOR_EACH_LD_PTR(la, lb, 0), \
+    FOR_EACH_LD_PTR(la, lb, 1), \
+    FOR_EACH_LD_PTR(la, lb, 2), \
+    FOR_EACH_LD_PTR(la, lb, 3)
+
+#define FOR_EACH_LB_PTR(la) \
+    FOR_EACH_LC_PTR(la, 0), \
+    FOR_EACH_LC_PTR(la, 1), \
+    FOR_EACH_LC_PTR(la, 2), \
+    FOR_EACH_LC_PTR(la, 3)
+
+#define SPT_TABLE_ENTRIES \
+    FOR_EACH_LB_PTR(0), \
+    FOR_EACH_LB_PTR(1), \
+    FOR_EACH_LB_PTR(2), \
+    FOR_EACH_LB_PTR(3)
+
+sph_func_t sph_table[] = {
+    SPT_TABLE_ENTRIES
+};
 
 void compute_SPH_omp(
       const int Nqrtt, int la, int lb, int lc, int ld,
       double* const __restrict__ ABCD0,
       double* const __restrict__ SPHER,
       double* const __restrict__ tmp_scratch ){
-
-   #pragma omp target teams distribute is_device_ptr(ABCD0,SPHER,tmp_scratch) depend( in:ABCD0,tmp_scratch) depend(out:SPHER)
-   for( int b=0; b < Nqrtt; b++ ){
-      double * block_ABCD0 = ABCD0 + b * NC(la)*NC(lb)*NC(lc)*NC(ld);
-      double * block_tmp   = tmp_scratch + b * NC(la)*NC(lb)*NC(lc)*NC(ld);
-      double * block_SPHER = SPHER + b * NS(la)*NS(lb)*NS(lc)*NS(ld);
-
-      int idx = la * 64 + lb * 16 + lc * 4 + ld;
-
-      get_sph( idx )( block_ABCD0, block_SPHER, block_tmp );
-
-  }
+   int idx = (( la * SPH_MAX_L + lb ) * SPH_MAX_L + lc) * SPH_MAX_L + ld;
+   sph_table[idx]( Nqrtt, ABCD0, SPHER, tmp_scratch );
 }
 

@@ -1,3 +1,21 @@
+
+!> @brief Handles initialization and interface with the libGint library.
+!>
+!> This module provides Fortran wrappers for the libGint C++ backend,
+!> including creation of libGint handles, environment setup, and
+!> Fock matrix updates.
+!>
+!> @details
+!> The functions in this module act as a bridge between Fortran
+!> and the C++ implementation of libGint. They use opaque C pointers
+!> (c_ptr) to store handles to C++ objects.
+!>
+!> Interfaces are not commented, see the subroutines later on for documentation
+!>
+!> @author M Puligheddu
+!> 
+!> @date 2025-10-09
+
 module libgint
    use, intrinsic :: iso_c_binding, only : c_loc, c_ptr, c_null_ptr, c_int, c_bool
    implicit none
@@ -223,12 +241,23 @@ module libgint
    public :: libgint_add_qrtt, libgint_add_set, libgint_dispatch
 
 contains
+
+!> @brief Initializes the libGint engine.
+!>
+!> This Fortran wrapper allocates and initializes a new libGint context
+!> by calling the underlying C++ constructor and initialization routines.
+!> The returned handle is an opaque pointer that should be passed
+!> to other libGint interface functions.
+!>
+!> @param[out] handle pointer to a new libGint instance.
    subroutine libgint_init ( handle )
       type (c_ptr) :: handle
       handle = libgint_internal_create_handle()
       call libgint_internal_init( handle )
    end subroutine libgint_init
 
+!> @brief Sets the Truncated Coulomb as the potential, pass R_cut and C0
+!>        to libGint internals
    subroutine libgint_set_Potential_Truncated( handle, R_cut, C0 )
       type (c_ptr) :: handle
       real(kind=8) :: R_cut
@@ -239,18 +268,22 @@ contains
       call libgint_internal_set_Potential_Truncated( handle, %val(R_cut), c_loc(C0), %val(ld_C0), %val(C0_size) )
    end subroutine libgint_set_Potential_Truncated
 
+!> @brief Sets the fraction of Hartree Fock exchange, in case of hybrids functionals
+!>        to libGint internals
    subroutine libgint_set_hf_fac( handle, fac )
       type(c_ptr) :: handle
       real(kind=8), value :: fac
       call libgint_internal_set_hf_fac( handle, fac )
    end subroutine libgint_set_hf_fac
 
-   subroutine libgint_set_max_mem( handle, max_mem )
+!> @brief Sets the maximum memory ( in MB ) usable by libGint on gpu per mpi thread
+subroutine libgint_set_max_mem( handle, max_mem )
       type(c_ptr) :: handle
       integer(kind=c_int), value :: max_mem
       call libgint_internal_set_max_mem( handle, max_mem )
    end subroutine libgint_set_max_mem
 
+!> @brief Inform libGint of the location of the density matrix, no spin
    subroutine libgint_set_P ( handle, P )
       type (c_ptr) :: handle
       integer(kind=c_int) :: P_size
@@ -259,6 +292,7 @@ contains
       call libgint_internal_set_P( handle, c_loc(P), %val(P_size) )
    end subroutine libgint_set_P
    
+!> @brief Inform libGint of the location of the density matrix, spin case
    subroutine libgint_set_P_polarized ( handle, Pa, Pb )
       type (c_ptr) :: handle
       integer(kind=c_int) :: P_size
@@ -267,6 +301,11 @@ contains
       call libgint_internal_set_P_polarized( handle, c_loc(Pa), c_loc(Pb), %val(P_size) )
    end subroutine libgint_set_P_polarized
 
+!> @brief Inform libGint of the location of the fock matrix on cpu.
+!> @note  This routine will copy the existing K matrix, only use if 
+!>        K is not zero at the start of the HF exchange calculation
+!>        If K is zero, do nothing, libGint will manage K internally
+!>        until get_K is called
    subroutine libgint_set_K ( handle, K, fac )
       type (c_ptr) :: handle
       integer(kind=c_int) :: K_size
@@ -276,6 +315,8 @@ contains
       call libgint_internal_set_K( handle, c_loc(K), %val(K_size), fac )
    end subroutine libgint_set_K
    
+!> @brief Inform libGint of the location of the fock matrices on cpu.
+!>        see libgint_set_K notes for details and use
    subroutine libgint_set_K_polarized ( handle, Ka, Kb )
       type (c_ptr) :: handle
       integer(kind=c_int) :: K_size
@@ -284,18 +325,24 @@ contains
       call libgint_internal_set_K_polarized( handle, c_loc(Ka), c_loc(Kb), %val(K_size) )
    end subroutine libgint_set_K_polarized
 
+!> @brief when this function returns, K will point to the Fock matrix
    subroutine libgint_get_K ( handle, K )
       type (c_ptr) :: handle
       real(kind=8), dimension(:), target :: K
       call libgint_internal_get_K( handle, c_loc(K) )
    end subroutine libgint_get_K
 
+!> @brief when this function returns, Ks will point to the Fock matrices
    subroutine libgint_get_K_polarized ( handle, Ka, Kb )
       type (c_ptr) :: handle
       real(kind=8), dimension(:), target :: Ka, Kb
       call libgint_internal_get_K_polarized( handle, c_loc(Ka), c_loc(Kb) )
    end subroutine libgint_get_K_polarized
 
+!> @brief sets the simulation box, cell_h is the 3x3 h matrix, cell_i its inverse
+!> @param periodic  same meaning as in cp2k. Non periodic may work, but not supported
+!> @param cell_h    3x3 H matrix
+!> @param cell_h    3x3 H^-1 matrix
    subroutine libgint_set_cell( handle, periodic, cell_h, cell_i )
       type (c_ptr) :: handle
       logical(kind=c_bool), value :: periodic
@@ -303,6 +350,11 @@ contains
       call libgint_internal_set_cell( handle, periodic, c_loc(cell_h), c_loc(cell_i) )
    end subroutine libgint_set_cell
 
+!> @brief Incredibly badly named, done for consistency with cp2k,
+          sets the list of lattice vectors for pbc loops,
+          each element is a 3d vector pointing to a box in the lattice
+!> @param neighs array with lattice vectors, each element is a 3d vector pointing to a box in the lattice
+!> @param nneighs number of lattice vectors
    subroutine libgint_set_neighs( handle, neighs, nneighs )
       type (c_ptr) :: handle
       integer(kind=c_int) :: nneighs
@@ -311,6 +363,12 @@ contains
       call libgint_internal_set_neighs( handle, c_loc(neighs), nneighs )
    end subroutine libgint_set_neighs
 
+!> @brief Pass information about set i
+!>        Called in combination with libgint_set_Atom_L
+!> @param i index of set, i are assumed to increase by one for each new set
+!> @param R positon of the atom associated with this set
+!> @param Z gaussian coefficients
+!> @param np number of gaussian coefficients
    subroutine libgint_set_Atom( handle, i, R, Z, np )
       type (c_ptr) :: handle
       integer(kind=c_int), value :: i, np
@@ -319,6 +377,13 @@ contains
       call libgint_internal_set_Atom( handle, i, c_loc(R), c_loc(Z), np )
    end subroutine libgint_set_Atom
 
+!> @brief Pass information about subset/shell of angular moment l of set i
+!>        Called in combination with libgint_set_Atom
+!> @param i index of set
+!> @param l angular moment of this subset/shell
+!> @param nl number of linear combinations
+!> @param K matrix of contraction coefficients
+!> @note R Z and K are populated from libgint_set_Atom_L
    subroutine libgint_set_Atom_L( handle, i, l, nl, K )
       type (c_ptr) :: handle
       integer(kind=c_int), value :: i, l , nl
@@ -327,6 +392,7 @@ contains
       call libgint_internal_set_Atom_L( handle, i, l, nl, c_loc(K) )
    end subroutine libgint_set_Atom_L
 
+!> @brief Unused, see extern_function.cpp for notes
    subroutine ligbint_set_AtomInfo( handle, i, R, Z, np, lmin, Lmax, nl, K )
       type (c_ptr) :: handle
       integer(kind=c_int), value :: i, np, lmin, Lmax
@@ -335,29 +401,45 @@ contains
       call libgint_internal_set_AtomInfo( handle, i, c_loc(R), c_loc(Z), np, lmin, Lmax, c_loc(nl) , c_loc(K) )
    end subroutine ligbint_set_AtomInfo
 
+!> @param Add a quartet of primitives to the work list.
+!>        called in combination with libgint_add_shell
    subroutine libgint_add_prm( handle, ipa, ipb, ipc, ipd )
       type (c_ptr) :: handle
       integer(kind=c_int), value :: ipa,ipb,ipc,ipd
       call libgint_internal_add_prm( handle, ipa,ipb,ipc,ipd )
    end subroutine libgint_add_prm
-
+!> @brief Add a set to the work list, 
+!>        called in combination with libgint_add_prm
+!> @note add_prm and add_shell contains enough info to compute the integrals
+!>       we still need add_qrt, add_qrtt and add_set to digest the integrals
    subroutine libgint_add_shell( handle, i, j, k, l, n1, n2 )
       type (c_ptr) :: handle
       integer(kind=c_int), value :: i,j,k,l,n1,n2
       call libgint_internal_add_shell( handle, i,j,k,l,n1,n2 )
    end subroutine libgint_add_shell
 
+!> @brief Unused 
    subroutine libgint_add_cell( handle )
       type (c_ptr) :: handle
       call libgint_internal_add_cell( handle )
    end subroutine libgint_add_cell
 
+!> @brief Prepare libGint for the fact that an integral with nlx linear combinations
+!>        at angular moments lx will be added to the work list
+!>        called in combination with libgint_add_qrtt and libgint_add_set
    subroutine libgint_add_qrt( handle, la,lb,lc,ld, nla,nlb,nlc,nld )
       type (c_ptr) :: handle
       integer(kind=c_int), value :: la,lb,lc,ld, nla,nlb,nlc,nld
       call libgint_internal_add_qrt( handle, la,lb,lc,ld,nla,nlb,nlc,nld )
    end subroutine libgint_add_qrt
 
+!> @brief Add to the work list the digestion of an integral
+!>        at angular moments lx, for the linear combination inlx
+!>        using a sub-block of the sparse density matrix, of leading dimension ld_xy
+!>        pointed to by offset_xy_L_set.
+!>        The density matrix is triangular, so we need to know if each sub-block xy
+!>        is ordered as x then y or y then x. Txy is true if transposed
+!> @note Remeber c and f ordering 
    subroutine libgint_add_qrtt( handle, symm_fac, la,lb,lc,ld, inla,inlb,inlc,inld, &
          ld_ac,ld_ad,ld_bc,ld_bd, offset_ac_L_set,offset_ad_L_set, &
          offset_bc_L_set,offset_bd_L_set, Tac,Tad,Tbc,Tbd )
@@ -373,12 +455,14 @@ contains
          offset_bc_L_set,offset_bd_L_set, Tac,Tad,Tbc,Tbd )
    end subroutine libgint_add_qrtt
 
+!> @brief Inform libgint we are done with this particular quartet of sets.
    subroutine libgint_add_set( handle )
       type (c_ptr) :: handle
       call libgint_internal_add_set( handle )
    end subroutine libgint_add_set
 
-   subroutine libgint_dispatch( handle )
+!> @brief Force libGint to compute K NOW. Generally better to wait for get_K
+subroutine libgint_dispatch( handle )
       type (c_ptr) :: handle
       call libgint_internal_dispatch( handle )
    end subroutine libgint_dispatch

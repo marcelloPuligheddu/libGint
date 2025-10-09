@@ -2,7 +2,7 @@
 #include <vector>
 
 
-// Most functions are pass through. The others have comments exaplining theur use
+// Most functions are pass through. The others have comments explaining their use
 extern "C" {
 
 // Creates a libGint engine, returns a handle. Called by each omp thread

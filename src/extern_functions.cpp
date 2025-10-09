@@ -5,6 +5,7 @@
 // Most functions are pass through. The others have comments exaplining theur use
 extern "C" {
 
+// Creates a libGint engine, returns a handle. Called by each omp thread
 void * libgint_create_handle () {
    libGint * handle;
    handle = new libGint() ;

@@ -1,6 +1,8 @@
 #include "libGint.h"
 #include <vector>
 
+
+// Most functions are pass through. The others have comments exaplining theur use
 extern "C" {
 
 void * libgint_create_handle () {
@@ -86,6 +88,9 @@ void libgint_set_Atom( void * handle, int i, double * R, double * Z, int np){
 
 
 
+// cp2k has a funny definition of normalization.
+// Here we use our own funny definition of normalization
+// by dividing by (pi^(3/2)/2^l) * sqrt[ sum_ij Ki Kj / (zi+zj)^(3/2+l) ]
 double compute_norm_psi( double * K, double * z, int np, int l ){
    double ans = 0.0;
    for ( int i=0; i < np; i++ ){
@@ -101,10 +106,10 @@ double compute_norm_psi( double * K, double * z, int np, int l ){
 //   }
 //   cout << "[" << np << "] = " << sqrt(ans) << endl ;
    return sqrt(ans);
-
 }
 
-
+// Add information about the set i with ang. mom l and nl linear combinations
+// Mostly renormalize K and pass info to set_Atom_L
 void libgint_set_Atom_L( void * handle, int i, int l, int nl, double * K ){
    libGint * g_handle = (libGint *) handle ;
 
@@ -126,11 +131,10 @@ void libgint_set_Atom_L( void * handle, int i, int l, int nl, double * K ){
 //      } cout << endl ;
 //   } cout << endl;
 
-
-
    g_handle -> set_Atom_L( i, l, nl, K_normalized.data() );
 }
 
+// Not used anymore, due to cp2k funny normalization
 void libgint_set_AtomInfo( void * handle, int i, double * R, double * Z, int np, int lmin, int Lmax, int * nl, double * K ){
    libGint * g_handle = (libGint *) handle ;
    g_handle -> set_Atom( i, R, Z, np );

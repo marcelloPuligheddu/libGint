@@ -16,51 +16,51 @@ void inline sph_term(
    if constexpr ( la == 0 ){
       #pragma omp parallel for
       for( int n = 0; n < N; n++ ){
-         O[0+n*1] = 1.0* I[N*0+n];
+         O[0+n*1] = I[N*0+n];
       }
    }
    if constexpr ( la == 1 ){
       #pragma omp parallel for
       for( int n = 0; n < N; n++ ){
-         O[0+n*3] = 1.0* I[N*1+n];
-         O[1+n*3] = 1.0* I[N*2+n];
-         O[2+n*3] = 1.0* I[N*0+n];
+         O[0+n*3] = I[N*1+n];
+         O[1+n*3] = I[N*2+n];
+         O[2+n*3] = I[N*0+n];
       }
    }
    if constexpr ( la == 2 ){
       #pragma omp parallel for
       for( int n = 0; n < N; n++ ){
-         O[0+n*5] = 1.0* I[N*1+n];
-         O[1+n*5] = 1.0* I[N*4+n];
-         O[2+n*5] = -0.28867513459* I[N*0+n]+-0.28867513459* I[N*3+n]; +0.57735026919* I[N*5+n];
-         O[3+n*5] = 1.0* I[N*2+n];
-         O[4+n*5] = 0.5* I[N*0+n]+-0.5* I[N*3+n]; 
+         O[0+n*5] = I[N*1+n];
+         O[1+n*5] = I[N*4+n];
+         O[2+n*5] = -0.28867513459 * I[N*0+n] - 0.28867513459 * I[N*3+n] + 0.57735026919 * I[N*5+n];
+         O[3+n*5] = I[N*2+n];
+         O[4+n*5] = 0.5 * I[N*0+n] - 0.5 * I[N*3+n]; 
       }
    }
    if constexpr ( la == 3 ){
       #pragma omp parallel for
       for( int n = 0; n < N; n++ ){
-         O[0+n*7] = 0.612372436* I[N*1+n]+-0.204124145* I[N*6+n]; 
-         O[1+n*7] = 1* I[N*4+n];
-         O[2+n*7] = -0.158113883* I[N*1+n]+-0.158113883* I[N*6+n]; +0.632455532* I[N*8+n]; 
-         O[3+n*7] = -0.387298335* I[N*2+n]+-0.387298335* I[N*7+n]; +0.25819889* I[N*9+n]; 
-         O[4+n*7] = -0.158113883* I[N*0+n]+-0.158113883* I[N*3+n]; +0.632455532* I[N*5+n]; 
-         O[5+n*7] = 0.5* I[N*2+n]+-0.5* I[N*7+n]; 
-         O[6+n*7] = 0.204124145* I[N*0+n]+-0.612372436* I[N*3+n]; 
+         O[0+n*7] =  0.612372436 * I[N*1+n] - 0.204124145 * I[N*6+n];
+         O[1+n*7] = I[N*4+n];
+         O[2+n*7] = -0.158113883 * I[N*1+n] - 0.158113883 * I[N*6+n] + 0.632455532 * I[N*8+n]; 
+         O[3+n*7] = -0.387298335 * I[N*2+n] - 0.387298335 * I[N*7+n] + 0.25819889  * I[N*9+n]; 
+         O[4+n*7] = -0.158113883 * I[N*0+n] - 0.158113883 * I[N*3+n] + 0.632455532 * I[N*5+n]; 
+         O[5+n*7] =  0.5 * I[N*2+n] - 0.5 * I[N*7+n];
+         O[6+n*7] =  0.204124145 * I[N*0+n] - 0.612372436 * I[N*3+n]; 
       }
    }
    if constexpr ( la == 4 ){
       #pragma omp parallel for
       for( int n = 0; n < N; n++ ){
-         O[0+n*9] = 0.288675135* I[N*1+n]+-0.288675135* I[N*6+n]; 
-         O[1+n*9] = 0.612372436* I[N*4+n]+-0.204124145* I[N*11+n]; 
-         O[2+n*9] = -0.109108945* I[N*1+n]+-0.109108945* I[N*6+n]; +0.654653671* I[N*8+n]; 
-         O[3+n*9] = -0.231455025* I[N*4+n]+-0.231455025* I[N*11+n]; +0.3086067* I[N*13+n]; 
-         O[4+n*9] = 0.036596253* I[N*0+n]+0.073192505* I[N*3+n]; +-0.292770022* I[N*5+n]; +0.036596253* I[N*10+n]; +-0.292770022* I[N*12+n]; +0.097590007* I[N*14+n]; 
-         O[5+n*9] = -0.231455025* I[N*2+n]+-0.231455025* I[N*7+n]; +0.3086067* I[N*9+n]; 
-         O[6+n*9] = -0.054554473* I[N*0+n]+0.327326835* I[N*5+n]; +0.054554473* I[N*10+n]; +-0.327326835* I[N*12+n]; 
-         O[7+n*9] = 0.204124145* I[N*2+n]+-0.612372436* I[N*7+n]; 
-         O[8+n*9] = 0.072168784* I[N*0+n]+-0.433012702* I[N*3+n]; +0.072168784* I[N*10+n]; 
+         O[0+n*9] =  0.288675135 * I[N*1+n] - 0.288675135 * I[N*6+n]; 
+         O[1+n*9] =  0.612372436 * I[N*4+n] - 0.204124145 * I[N*11+n]; 
+         O[2+n*9] = -0.109108945 * I[N*1+n] - 0.109108945 * I[N*6+n]  + 0.654653671* I[N*8+n]; 
+         O[3+n*9] = -0.231455025 * I[N*4+n] - 0.231455025 * I[N*11+n] + 0.3086067  * I[N*13+n]; 
+         O[4+n*9] =  0.036596253 * I[N*0+n] + 0.073192505 * I[N*3+n] - 0.292770022 * I[N*5+n] +  0.036596253 * I[N*10+n] - 0.292770022 * I[N*12+n] + 0.097590007* I[N*14+n]; 
+         O[5+n*9] = -0.231455025 * I[N*2+n] - 0.231455025 * I[N*7+n] + 0.3086067   * I[N*9+n]; 
+         O[6+n*9] = -0.054554473 * I[N*0+n] + 0.327326835 * I[N*5+n] + 0.054554473 * I[N*10+n] - 0.327326835* I[N*12+n];
+         O[7+n*9] =  0.204124145 * I[N*2+n] - 0.612372436 * I[N*7+n];
+         O[8+n*9] =  0.072168784 * I[N*0+n] - 0.433012702 * I[N*3+n] + 0.072168784 * I[N*10+n]; 
       }
    }
 }
@@ -72,12 +72,20 @@ void sph_omp_templated( const int Nqrtt, double* const __restrict__ ABCD0,
 {
    #pragma omp target teams distribute is_device_ptr(ABCD0,SPHER,tmp_scratch) depend( in:ABCD0,tmp_scratch) depend(out:SPHER)
    for( int b=0; b < Nqrtt; b++ ){
-      double * block_ABCD0 = ABCD0 + b * NC(la)*NC(lb)*NC(lc)*NC(ld);
-      double * block_tmp   = tmp_scratch + b * NC(la)*NC(lb)*NC(lc)*NC(ld);
-      double * block_SPHER = SPHER + b * NS(la)*NS(lb)*NS(lc)*NS(ld);
+      constexpr int ab0_ld = NC(la)*NC(lb)*NC(lc)*NC(ld);
+      constexpr int tmp_ld = NC(la)*NC(lb)*NC(lc)*NC(ld); // todo check if it should be NS(la)
+      constexpr int sph_ld = NS(la)*NS(lb)*NS(lc)*NS(ld);
+
+      double * block_ABCD0 = ABCD0       + b * ab0_ld;
+      double * block_tmp   = tmp_scratch + b * tmp_ld;
+      double * block_SPHER = SPHER       + b * sph_ld;
+      for( int i=0; i < tmp_ld; i++ ){ block_tmp[i] = 0.; }
       sph_term< la, NC(lb)*NC(lc)*NC(ld) >( block_ABCD0, block_tmp );
+      for( int i=0; i < ab0_ld; i++ ){ block_ABCD0[i] = 0.; }
       sph_term< lb, NS(la)*NC(lc)*NC(ld) >( block_tmp, block_ABCD0 );
+      for( int i=0; i < tmp_ld; i++ ){ block_tmp[i] = 0.; }
       sph_term< lc, NS(la)*NS(lb)*NC(ld) >( block_ABCD0, block_tmp );
+      for( int i=0; i < sph_ld; i++ ){ block_SPHER[i] = 0.; }
       sph_term< ld, NS(la)*NS(lb)*NS(lc) >( block_tmp, block_SPHER );
   }
 }
@@ -88,7 +96,7 @@ typedef void (*sph_func_t)(const int Nqrtt, double* __restrict__, double* __rest
 
 #define INSTANTIATE_SPH(la, lb, lc, ld ) template void sph_omp_templated<la, lb, lc, ld >(const int, double*, double*, double*);
 #define SPT_ENTRY(la, lb, lc, ld) &sph_omp_templated<la, lb, lc, ld>
-#define SPH_MAX_L 4
+#define SPH_MAX_L 3
 
 #define INSTANTIATE_SPH_LD(la, lb, lc ) \
   INSTANTIATE_SPH(la, lb, lc, 0); \
@@ -149,7 +157,6 @@ void compute_SPH_omp(
       double* const __restrict__ ABCD0,
       double* const __restrict__ SPHER,
       double* const __restrict__ tmp_scratch ){
-   int idx = (( la * SPH_MAX_L + lb ) * SPH_MAX_L + lc) * SPH_MAX_L + ld;
+   int idx = (( la * (SPH_MAX_L+1) + lb ) * (SPH_MAX_L+1) + lc) * (SPH_MAX_L+1) + ld;
    sph_table[idx]( Nqrtt, ABCD0, SPHER, tmp_scratch );
 }
-

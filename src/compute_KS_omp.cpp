@@ -1,7 +1,7 @@
 #include "compute_KS_omp.h"
 #include "define.h"
 #include "util.h"
-
+#include <cstdio>
 
 double symm_factors[5] = {2.0, 1.0, 0.5, 0.25, 0.0 };
 
@@ -55,7 +55,7 @@ void compute_KS_omp(
       // OR move the hf_fac multiplication to the GCC factors
       const double fac = symm_factors[idx_fac] * hf_fac;
       
-      #pragma omp parallel
+      #pragma omp parallel for
       for ( int t = 0 ; t < nsabcd; t ++ ){
 
 
@@ -108,12 +108,12 @@ void compute_KS_omp(
          const double kac = iabcd * P [Ibd_T];
 
 
-//         printf( " ---------- KS GPU %lg %lg %lg %lg %lg \n", iabcd, kbd,kbc,kad,kac );
-//         printf("KS GPU %d.%d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d [%p] @ K %d [%p] \n ", block, t, kbd, fac, I[ Oq + t ], P[Iac_T], K[Ibd_T], Iac_T, &P[Iac_T], Ibd_T, &K[Ibd_T] );
-//         printf("KS GPU %d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbd, fac, I[ Oq + t ], P[Iac_T], K[Ibd_T], Iac_T, Ibd_T );
-//         printf("KS GPU %d.1: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbc, fac, I[ Oq + t ], P[Iad_T], K[Ibc_T], Iad_T, Ibc_T );
-//         printf("KS GPU %d.2: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kad, fac, I[ Oq + t ], P[Ibc_T], K[Iad_T], Ibc_T, Iad_T );
-//         printf("KS GPU %d.3: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kac, fac, I[ Oq + t ], P[Ibd_T], K[Iac_T], Ibd_T, Iac_T );
+         printf( " ---------- KS GPU %lg %lg %lg %lg %lg \n", iabcd, kbd,kbc,kad,kac );
+         printf("KS GPU %d.%d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d [%p] @ K %d [%p] \n ", block, t, kbd, fac, I[ Oq + t ], P[Iac_T], K[Ibd_T], Iac_T, &P[Iac_T], Ibd_T, &K[Ibd_T] );
+         printf("KS GPU %d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbd, fac, I[ Oq + t ], P[Iac_T], K[Ibd_T], Iac_T, Ibd_T );
+         printf("KS GPU %d.1: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kbc, fac, I[ Oq + t ], P[Iad_T], K[Ibc_T], Iad_T, Ibc_T );
+         printf("KS GPU %d.2: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kad, fac, I[ Oq + t ], P[Ibc_T], K[Iad_T], Ibc_T, Iad_T );
+         printf("KS GPU %d.3: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d @ K %d \n ", block, kac, fac, I[ Oq + t ], P[Ibd_T], K[Iac_T], Ibd_T, Iac_T );
 
          // MUST be atomics on device, or however K is distributed
          #pragma omp atomic

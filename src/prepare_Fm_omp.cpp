@@ -96,7 +96,7 @@ void prepare_Fm_omp(
       const double* const __restrict__ neighs,
       const int Ng ){
 
-   #pragma omp target parallel for is_device_ptr( FVH,OF,PMX,data,Fm,cell,neighs ) depend( in:FVH,OF,PMX,data,cell,neighs ) depend( out:Fm )
+   #pragma omp target teams distribute parallel for // is_device_ptr( FVH,OF,PMX,data,Fm,cell,neighs ) depend( in:FVH,OF,PMX,data,cell,neighs ) depend( out:Fm )
    for( int p = 0 ; p < NFm ; p ++ ){
 
    unsigned int i    =  OF[p];
@@ -230,6 +230,7 @@ void prepare_Fm_omp(
 //            p,     Ao[0],Ao[1],Ao[2], Bo[0],Bo[1],Bo[2], Co[0],Co[1],Co[2], Do[0],Do[1],Do[2], (int)n1, (int)n2);
 //   printf(" p %d | B: %lg %lg %lg  C: %lg %lg %lg || S: %lg %lg %lg | Cs %lg %lg %lg | Kfactor %lg \n", 
 //            p,     B[0],B[1],B[2], C[0],C[1],C[2],   shift[0],shift[1],shift[2], Fm[Of+L+1],Fm[Of+L+2],Fm[Of+L+3], Kfactor );
+//   printf(" Fm %d = %lg = %lg \n", Of+L, Fm[Of+L+14], inv_z );
    }
 }
 

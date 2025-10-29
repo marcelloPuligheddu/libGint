@@ -63,6 +63,7 @@ void compute_Fm_omp(
             POT_TRUNC_N1, POT_TRUNC_N2,
             x12_to_patch_low_R, x12_to_patch_high_R, bias_and_weight_by_patch, 0, Kfac );
          if (use_gamma) { fgamma0( L, T, &Fm[Of], ftable, ftable_ld, Kfac ); }
+//         printf(" p %d n3 %d Of %d : T %lg -> %lg \n", p, n3, Of, T, Fm[Of] );
       }
    }
 }

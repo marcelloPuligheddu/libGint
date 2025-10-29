@@ -1,7 +1,7 @@
 PREFIX ?= $(shell pwd)
 
-CXX = g++-12
-FC = gfortran-12
+CXX = g++
+FC = gfortran
 AR = ar
 ARFLAGS = rcs 
 
@@ -15,7 +15,11 @@ TARGET = $(LIBDIR)/libcp2kGint.a
 
 # FCFLAGS = -foffload=nvptx-none -fopenmp test_libGint.o -Wl,--whole-archive lib/libcp2kGint.a -Wl,--no-whole-archive -o test_libGint -lc -lstdc++
 
-CPP_SRCS = $(wildcard $(SRCDIR)/*.cpp)
+CPP_SRCS_O = $(wildcard $(SRCDIR)/*.cpp)
+CPP_SRCS_S = $(filter-out src/compute_SPH_omp.cpp,  $(CPP_SRCS_O))
+CPP_SRCS_B = $(filter-out src/compute_VRR2_omp.cpp, $(CPP_SRCS_S))
+CPP_SRCS_V = $(filter-out src/compute_VRR2_omp.cpp, $(CPP_SRCS_O))
+CPP_SRCS = $(CPP_SRCS_V)
 CPP_OBJS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SRCS))
 
 F90_SRC = $(SRCDIR)/interface_libgint.F90

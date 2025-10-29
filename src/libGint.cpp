@@ -12,7 +12,7 @@
 #include "fgamma.h"
 #include "prepare_Fm_omp.h"
 #include "compute_Fm_omp.h"
-#include "compute_VRR2_omp.h"
+#include "compute_VRR1_omp.h"
 #include "compute_ECO_omp.h"
 #include "compute_HRR_omp.h"
 #include "compute_SPH_omp.h"
@@ -999,6 +999,7 @@ void libGint::dispatch( bool dispatch_all ){
       memcpy(plan_stg,  plan->data(), sizeof(int)*( plan->size()) );
 
       omp_target_memcpy( idx_mem_dev, idx_mem_stg, sizeof(unsigned int)*idx_mem_needed_L, 0, 0, device, host );
+
 //      CUDA_GPU_ERR_CHECK( hipMemcpyAsync( 
 //         idx_mem_dev, idx_mem_stg, sizeof(unsigned int)*idx_mem_needed_L, hipMemcpyHostToDevice, hip_stream));
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
@@ -1008,6 +1009,7 @@ void libGint::dispatch( bool dispatch_all ){
      
 //      PUSH_RANGE("transfer indeces",4);
       omp_target_memcpy( plan_dev, plan_stg, sizeof(int)*(plan->size()), 0, 0, device, host );
+
 //      CUDA_GPU_ERR_CHECK( hipMemcpyAsync(
 //         plan_dev, plan_stg, sizeof(int)*(plan->size()), hipMemcpyHostToDevice, hip_stream));
 //      CUDA_GPU_ERR_CHECK( hipStreamSynchronize(hip_stream) );
@@ -1039,16 +1041,27 @@ void libGint::dispatch( bool dispatch_all ){
 //      PUSH_RANGE("compute",5);
 //      CUDA_GPU_ERR_CHECK( hipMemsetAsync( Fm_dev, 0, Fm_size[L] , hip_stream ) );
 
+//
+//      std::vector<unsigned int > idx_on_cpu(idx_mem_needed_l);
+//      omp_target_memcpy( idx_on_cpu.data(), idx_mem_dev, sizeof(unsigned int)*(idx_mem_needed_l), 0, 0, host, device );
+//      cuda_gpu_err_check( hipmemcpy( fm0_on_cpu.data(),  fm_dev, sizeof(double)*(fm_size[l]), hipmemcpydevicetohost) );
+//      cout << " idx " << endl;
+//      for( unsigned int ifm=0; ifm < idx_mem_needed_l; ifm++ ){
+//         cout << ifm << " " << std::setprecision(16) << idx_mem_stg[ifm] << " = " << idx_on_cpu[ifm] << endl;
+//      } cout << endl;
+//
+
       prepare_Fm_omp( FVH_dev, OF_dev, PMX_dev, data_dev, Fm_dev, Nprm, labcd,
          periodic, cell_h_dev, neighs_dev, max_ncells );
  
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
-
+//      #pragma omp barrier
 //      std::vector<double> FM0_on_cpu(Fm_size[L]);
+//      omp_target_memcpy( FM0_on_cpu.data(), Fm_dev, sizeof(double)*(Fm_size[L]), 0, 0, host, device );
 //      CUDA_GPU_ERR_CHECK( hipMemcpy( FM0_on_cpu.data(),  Fm_dev, sizeof(double)*(Fm_size[L]), hipMemcpyDeviceToHost) );
 //      cout << " FM " << endl;
-//      for( unsigned int ifm=0; ifm < Fm_size[L]; ifm++ ){
+//      for( unsigned int ifm=0; ifm < 128; ifm++ ){
 //         cout << ifm << " " << std::setprecision(16) << FM0_on_cpu[ifm] << endl;
 //      } cout << endl;
 
@@ -1063,6 +1076,16 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 
+//      #pragma omp barrier
+//      std::vector<double> FM1_on_cpu(Fm_size[L]);
+//      omp_target_memcpy( FM1_on_cpu.data(), Fm_dev, sizeof(double)*(Fm_size[L]), 0, 0, host, device );
+//      CUDA_GPU_ERR_CHECK( hipMemcpy( FM1_on_cpu.data(),  Fm_dev, sizeof(double)*(Fm_size[L]), hipMemcpyDeviceToHost) );
+//      cout << " FM 1 " << endl;
+//      for( unsigned int ifm=0; ifm < Fm_size[L]; ifm++ ){
+//         cout << ifm << " " << std::setprecision(16) << FM1_on_cpu[ifm] << endl;
+//      } cout << endl;
+
+
 //      int Vm_blocksize = 64;
 //      int Vm_numblocks = Nprm;
       //compute_Vm_batched_gpu_low_private<<<Vm_numblocks,Vm_blocksize,0,hip_stream>>>(
@@ -1072,65 +1095,28 @@ void libGint::dispatch( bool dispatch_all ){
          x12_to_patch_low_R_dev, x12_to_patch_high_R_dev, BW_by_patch_dev,
          potential_type, max_ncells );
 
-//      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
+      std::vector<double> Fm_on_cpu(Fm_size[L]);
+      omp_target_memcpy( Fm_on_cpu.data(), Fm_dev, Fm_size[L], 0, 0, host, device );
+      cout << " Fm " << la << " " << lb << " " << lc << " " << ld << " " << Fm_on_cpu.size() << endl;
+      for( size_t ifm=0; ifm < Fm_on_cpu.size(); ifm++ ){
+         if ( Fm_on_cpu[ifm]*Fm_on_cpu[ifm] > 1.e-6 ) { cout << ifm << " " << std::setprecision(16) << Fm_on_cpu[ifm] << endl; }
+      } cout << endl;
 
-//      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
-//      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
-//      std::vector<double> FM_on_cpu(Fm_size[L]);
-//      CUDA_GPU_ERR_CHECK( hipMemcpy( FM_on_cpu.data(),  Fm_dev, sizeof(double)*(Fm_size[L]), hipMemcpyDeviceToHost) );
-//      cout << " FM " << endl;
-//      for( unsigned int ifm=0; ifm < Fm_size[L]; ifm++ ){
-//         cout << ifm << " " << std::setprecision(16) << FM_on_cpu[ifm] << endl;
-//      } cout << endl;
 
-//      std::vector<unsigned int> FVH_on_cpu(FVH[L].size());
-//      CUDA_GPU_ERR_CHECK( hipMemcpy( FVH_on_cpu.data(),  FVH_dev, sizeof(unsigned int )*(FVH[L].size()), hipMemcpyDeviceToHost) );
-//      cout << " FVH <- " << la << " " << lb << " " << lc << " " << ld << endl;
-//      for( int ifm=0; ifm < FVH[L].size(); ifm++ ){
-//         cout << " " << FVH_on_cpu[ifm] ;
-//         if (ifm % FVH_SIZE == FVH_SIZE-1 ){ cout << endl ; }
-//      } cout << endl;
-//
-//      // (nvidia?) GPUs adhere to IEEE-754, so a pattern of all 0s represents a floating-point zero.
-//      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
-//      cout << " Dev is " << dat_mem_dev << " of size " << max_dat_mem_per_thread/1024/1024 << " AC is " << AC_dev << " of size " << AC_size[L]/1024/1024 << " L: " << L << endl;
       omp_target_memset( AC_dev, 0, AC_size[L], device );
-//      CUDA_GPU_ERR_CHECK( hipMemsetAsync( AC_dev, 0, AC_size[L] , hip_stream ) );
-//      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
-      int vrr_index = 64*la+16*lb+4*lc+ld;
-//      compute_VRR_v2_batched_gpu_low<<<Ncells*max_ncells,64,0,hip_stream>>>(
-//        Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
-//        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
+      compute_VRR1_omp( Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev,
+                        data_dev, AC_dev, ABCD_dev, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells );
 
-      compute_VRR_v3_omp(
-        Ncells, vrr_index, PMX_dev, FVH_dev, Fm_dev, data_dev,
-        AC_dev, nullptr, vrr_blocksize, hrr_blocksize, numV, numVC, max_ncells );
-
-
-//         compute_VRR_batched_gpu_low<<<Ncells*max_ncells,64,0,hip_stream>>>(
-//            Ncells, plan_dev, PMX_dev, FVH_dev, Fm_dev, data_dev,
-//            AC_dev, nullptr, vrr_blocksize, hrr_blocksize, labcd, numV, numVC, max_ncells ); 
-
-
-//      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
-
-//      std::vector<double> AC0_on_cpu(AC_size[L]);
-//      CUDA_GPU_ERR_CHECK( hipMemcpy( AC0_on_cpu.data(),  AC_dev, AC_size[L], hipMemcpyDeviceToHost) );
-//      cout << " AC " << la << " " << lb << " " << lc << " " << ld << " " << AC_size[L] << endl;
-//      for( unsigned int ifm=0; ifm < AC_size[L]; ifm++ ){
-//         cout << ifm << " " << std::setprecision(16) << AC0_on_cpu[ifm] << endl;
-//      } cout << endl;    
+      std::vector<double> AC0_on_cpu(AC_size[L]/sizeof(double));
+      omp_target_memcpy( AC0_on_cpu.data(), AC_dev, AC_size[L], 0, 0, host, device );
+      cout << " AC0 " << la << " " << lb << " " << lc << " " << ld << " " << AC0_on_cpu.size() << endl;
+      for( size_t ifm=0; ifm < AC0_on_cpu.size(); ifm++ ){
+         if ( AC0_on_cpu[ifm]*AC0_on_cpu[ifm] > 1.e-6 ) { cout << ifm << " " << std::setprecision(16) << AC0_on_cpu[ifm] << endl; }
+      } cout << endl;
 
       omp_target_memset( ABCD_dev, 0, ABCD_size[L], device );
-//      CUDA_GPU_ERR_CHECK( hipMemsetAsync( ABCD_dev, 0, ABCD_size[L] , hip_stream ) );
-//      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
-//      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
 //      compute_SFT_batched_gpu_low<<<Ncells*Nop,128,0,hip_stream>>>(
       compute_SFT_omp( // MISSING Nop //
@@ -1146,19 +1132,21 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
-//      std::vector<double> AC_on_cpu(AC_size[L]);
-//      CUDA_GPU_ERR_CHECK( hipMemcpy( AC_on_cpu.data(),  AC_dev, sizeof(double)*(AC_size[L]), hipMemcpyDeviceToHost) );
-//      cout << " AC " << AC_size[L] << endl;
-//      for( unsigned int ifm=0; ifm < AC_size[L]; ifm++ ){
-//         cout << ifm << " " << std::setprecision(16) << AC_on_cpu[ifm] << endl;
-//      } cout << endl;
+      std::vector<double> AC_on_cpu(AC_size[L]/sizeof(double));
+      omp_target_memcpy( AC_on_cpu.data(), AC_dev, AC_size[L], 0, 0, host, device );
+      cout << " AC " << la << " " << lb << " " << lc << " " << ld << " " << AC_on_cpu.size() << endl;
+      for( size_t ifm=0; ifm < AC_on_cpu.size(); ifm++ ){
+         if ( AC_on_cpu[ifm]*AC_on_cpu[ifm] > 1.e-6 ) { cout << ifm << " " << std::setprecision(16) << AC_on_cpu[ifm] << endl; }
+      } cout << endl;
 
-//      std::vector<double> ABCD_on_cpu(ABCD_size[L]);
+
+      std::vector<double> ABCD_on_cpu(ABCD_size[L]/sizeof(double));
+      omp_target_memcpy( ABCD_on_cpu.data(), ABCD_dev, ABCD_size[L], 0, 0, host, device );
 //      CUDA_GPU_ERR_CHECK( hipMemcpy( ABCD_on_cpu.data(),  ABCD_dev, sizeof(double)*(ABCD_size[L]), hipMemcpyDeviceToHost) );
-//      cout << " ABCD " << ABCD_size[L] << endl;
-//      for( unsigned int ifm=0; ifm < ABCD_size[L]; ifm++ ){
-//         cout << ifm << " " << std::setprecision(16) << ABCD_on_cpu[ifm] << endl;
-//      } cout << endl;
+      cout << " ABCD " << ABCD_on_cpu.size() << endl;
+      for( size_t ifm=0; ifm < ABCD_on_cpu.size(); ifm++ ){
+         if ( ABCD_on_cpu[ifm]*ABCD_on_cpu[ifm] > 1.e-6 ) { cout << ifm << " " << std::setprecision(16) << ABCD_on_cpu[ifm] << endl; }
+      } cout << endl;
 
 //      std::vector<unsigned int> FVH2_on_cpu(FVH[L].size());
 //      CUDA_GPU_ERR_CHECK( hipMemcpy( FVH2_on_cpu.data(),  FVH_dev, sizeof(unsigned int )*(FVH[L].size()), hipMemcpyDeviceToHost) );
@@ -1187,12 +1175,20 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
 
-//      std::vector<double> ABCD0_on_cpu(ABCD0_size[L]);
-//      CUDA_GPU_ERR_CHECK( hipMemcpy( ABCD0_on_cpu.data(),  ABCD0_dev, sizeof(double)*(ABCD0_size[L]), hipMemcpyDeviceToHost) );
-//      cout << " ABCD0 " << endl;
-//      for( int ifm=0; ifm < ABCD0_size[L]; ifm++ ){
-//         cout << ifm << " " << std::setprecision(16) << ABCD0_on_cpu[ifm] << endl;
-//      } cout << endl;
+      std::vector<double> ABCD2_on_cpu(ABCD_size[L]/sizeof(double));
+      omp_target_memcpy( ABCD2_on_cpu.data(), ABCD_dev, ABCD_size[L], 0, 0, host, device );
+//      CUDA_GPU_ERR_CHECK( hipMemcpy( ABCD_on_cpu.data(),  ABCD_dev, sizeof(double)*(ABCD_size[L]), hipMemcpyDeviceToHost) );
+      cout << " ABCD2 " << ABCD2_on_cpu.size() << endl;
+      for( size_t ifm=0; ifm < ABCD2_on_cpu.size(); ifm++ ){
+         if ( ABCD2_on_cpu[ifm]*ABCD2_on_cpu[ifm] > 1.e-6 ) { cout << ifm << " " << std::setprecision(16) << ABCD2_on_cpu[ifm] << endl; }
+      } cout << endl;
+
+      std::vector<double> ABCD0_on_cpu(ABCD0_size[L]/sizeof(double));
+      omp_target_memcpy( ABCD0_on_cpu.data(), ABCD0_dev, ABCD0_size[L], 0, 0, host, device );
+      cout << " ABCD0 " << endl;
+      for( size_t ifm=0; ifm < ABCD0_on_cpu.size(); ifm++ ){
+         if ( ABCD0_on_cpu[ifm]*ABCD0_on_cpu[ifm] > 1.e-6 ) { cout << ifm << " " << std::setprecision(16) << ABCD0_on_cpu[ifm] << endl; }
+      } cout << endl;
 
 
       // Note: we need to DeviceSynchronize before going from kernels to cublas. TODO actually check it is true
@@ -1213,12 +1209,13 @@ void libGint::dispatch( bool dispatch_all ){
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipPeekAtLastError() );
 //      CUDA_GPU_ERR_CHECK( hipDeviceSynchronize() );
-//      std::vector<double> SPHER_on_cpu(SPHER_size[L]);
+      std::vector<double> SPHER_on_cpu(SPHER_size[L]/sizeof(double));
+      omp_target_memcpy( SPHER_on_cpu.data(), SPHER_dev, SPHER_size[L], 0, 0, host, device );
 //      CUDA_GPU_ERR_CHECK( hipMemcpy( SPHER_on_cpu.data(),  SPHER_dev, sizeof(double)*(SPHER_size[L]), hipMemcpyDeviceToHost) );
-//      cout << " SPHER " << endl;
-//      for( int ifm=0; ifm < SPHER_size[L]; ifm++ ){
-//         cout << ifm << " " << std::setprecision(16) << SPHER_on_cpu[ifm] << endl;
-//      } cout << endl;
+      cout << " SPHER " << endl;
+      for( int ifm=0; ifm < SPHER_on_cpu.size(); ifm++ ){
+         if ( SPHER_on_cpu[ifm]*SPHER_on_cpu[ifm] > 1.e-6 ) { cout << ifm << " " << std::setprecision(16) << SPHER_on_cpu[ifm] << endl; }
+      } cout << endl;
 
 //      #pragma omp critical
 //      {

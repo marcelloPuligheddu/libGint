@@ -2,6 +2,14 @@
 #include "define.h"
 #include "util.h"
 #include <omp.h>
+#include <iostream>
+
+int l_x(const int L, const int i ) {
+    int row = static_cast<int>(floor((sqrt(8.0 * i + 1) - 1) / 2));
+    int row_start = row * (row + 1) / 2;
+    int col = i - row_start;
+    return L - row;
+}
 
 // computes HHR of the type ascd = as+- + CD asc-
 void execute_HRR1_gpu(
@@ -9,7 +17,7 @@ void execute_HRR1_gpu(
       double* __restrict__ abcd,
       const double* const __restrict__ abpm,
       const double* const __restrict__ abcm,
-      const double CD[3], const int hrr_blocksize, const int nlabcd ){
+      const double CD[3], const int hrr_blocksize, const int nlabcd, bool write=false ){
 
    const int NcoA  = NLco_dev(AL);
    const int NcoC  = NLco_dev(CL);
@@ -23,7 +31,7 @@ void execute_HRR1_gpu(
       int k = (ikl/NcoD)%NcoC;
       int i = ikl/NcoD/NcoC;
       int kp, lm, d ;
-      int fx = lx_dev(k,CL);
+      int fx = l_x(CL,k);
 
       if ( l < NcoDm ){
          kp = k;
@@ -44,6 +52,9 @@ void execute_HRR1_gpu(
          int idx_pm = idx_off + (i*NcoCp+kp)*NcoDm + lm;
          int idx_0m = idx_off + (i*NcoC +k )*NcoDm + lm;
          abcd[ idx_00 ] = abpm[idx_pm] + CD[d] * abcm[idx_0m];
+         if ( write ) { printf(" %d %d %d %d %d | %lg %lg %lg %lg \n",
+                                 idx_off, idx_00, idx_pm, idx_0m, d,
+                                                abcd[ idx_00 ] , abpm[idx_pm] , CD[d] , abcm[idx_0m]); }
       }
    }
 }
@@ -55,7 +66,7 @@ void execute_HRR2_gpu(
       double* const __restrict__ abcd,
       const double* const __restrict__ pmcd,
       const double* const __restrict__ amcd,
-      const double AB[3], const int hrr_blocksize, const int nlabcd ){
+      const double AB[3], const int hrr_blocksize, const int nlabcd, bool write ){
 
    const int NcoA = NLco_dev(AL);
    const int NcoB = NLco_dev(BL);
@@ -71,7 +82,7 @@ void execute_HRR2_gpu(
       int k = (ijkl/NcoD)%NcoC;
       int j = (ijkl/NcoD/NcoC)%NcoB;
       int i = ijkl/NcoD/NcoC/NcoB;// % NcoA
-      int ex = lx_dev(i,AL);
+      int ex = l_x(AL,i);
       int ip, jm, d ;
 
       if ( j < NcoBm ){
@@ -93,6 +104,9 @@ void execute_HRR2_gpu(
          int idx_pm = idx_off + (ip*NcoBm+jm)*NcoC*NcoD+k*NcoD+l;
          int idx_0m = idx_off + (i *NcoBm+jm)*NcoC*NcoD+k*NcoD+l;
          abcd[ idx_00 ] = pmcd[ idx_pm ] + AB[d] * amcd[ idx_0m ];
+         if ( write ) { printf(" %d %d %d %d %d | %lg %lg %lg %lg \n",
+                                 idx_off, idx_00, idx_pm, idx_0m, d,
+                                                abcd[ idx_00 ] , pmcd[idx_pm] , AB[d] , amcd[idx_0m]); }
       }
    }
 }
@@ -110,7 +124,7 @@ void compute_HRR_omp(
       const double* const __restrict__ neighs,
       int hrr_blocksize, int Nc, int numVC, int numVCH ){
 
-   #pragma omp target teams distribute depend( in:plan,FVH,data,ABCD,cell,neighs ) depend( out:ABCD0 )
+   #pragma omp target teams distribute depend( in:plan,FVH,data,ABCD,cell,neighs ) depend( out:ABCD0,ABCD )
    for( int block=0; block < Ncells ; block++ ){
 
       unsigned int Og     = FVH[block*FVH_SIZE+FVH_OFFSET_OG];
@@ -172,12 +186,12 @@ void compute_HRR_omp(
 
       double* sh_mem = &ABCD[ Og * hrr_blocksize ];
 
-//      for ( unsigned int ilabcd=0 ; ilabcd < nlabcd; ilabcd++ ){
-//         int s0_st = (Oq + ilabcd) * Nc;
-//         for ( int i=threadIdx.x ; i < Nc; i+=blockDim.x ){
-//            ABCD0[ s0_st + i ] = 0. ;
-//         }
-//      }
+      for ( unsigned int ilabcd=0 ; ilabcd < nlabcd; ilabcd++ ){
+         int s0_st = (Oq + ilabcd) * Nc;
+         for ( int i=0 ; i < Nc; i++ ){
+            ABCD0[ s0_st + i ] = 0. ;
+         }
+      }
 
 //      __syncthreads();
 //      ompx_sync_block_acq_rel();
@@ -198,11 +212,11 @@ void compute_HRR_omp(
          if ( t == HRR1 ){
             execute_HRR1_gpu(
                la, lc, ld, &sh_mem[off_m1], &sh_mem[off_m2], &sh_mem[off_m3],
-               CD, hrr_blocksize, nlabcd );
+               CD, hrr_blocksize, nlabcd, block==0 );
          } else if ( t == HRR2 ){
             execute_HRR2_gpu(
                la, lb, lc, ld, &sh_mem[off_m1], &sh_mem[off_m2], &sh_mem[off_m3],
-               AB, hrr_blocksize, nlabcd );
+               AB, hrr_blocksize, nlabcd, block==0 );
          } else if ( t == SYBL ){
 //            #pragma omp team barrier (?)
 //            ompx_sync_block_acq_rel();
@@ -213,11 +227,15 @@ void compute_HRR_omp(
 //      __syncthreads();
 
       // sums over cell from ABCD[Og:Og+nlabcd*Nc] to ABCD0[Oq:Oq+nlabcd*Nc]
-      #pragma omp parallel for
+//      #pragma omp parallel for
       for ( unsigned int ilabcd=0 ; ilabcd < nlabcd; ilabcd++ ){
          int sh_st = ilabcd * hrr_blocksize;
          int s0_st = (Oq + ilabcd) * Nc;
          for ( int i=0 ; i < Nc; i++ ){
+            if ( block == 0 ){ printf(" ABCD0 %d %d | %d %d %d %d %d %d | : %d += %d | %lg += %lg ? %lg \n", 
+                                              ilabcd, i, 
+                                                      hrr_blocksize, Oq, Nc, s0_st, sh_st, Og, 
+                                                                         s0_st+i, sh_st+i, ABCD0[s0_st+i], sh_mem[sh_st+i], ABCD[i] ); }
             // must be atomic
             #pragma omp atomic
             ABCD0[ s0_st + i ] += sh_mem[ sh_st + i ];

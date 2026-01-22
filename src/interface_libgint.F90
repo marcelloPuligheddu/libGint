@@ -351,8 +351,8 @@ subroutine libgint_set_max_mem( handle, max_mem )
    end subroutine libgint_set_cell
 
 !> @brief Incredibly badly named, done for consistency with cp2k,
-          sets the list of lattice vectors for pbc loops,
-          each element is a 3d vector pointing to a box in the lattice
+!>        sets the list of lattice vectors for pbc loops,
+!>        each element is a 3d vector pointing to a box in the lattice
 !> @param neighs array with lattice vectors, each element is a 3d vector pointing to a box in the lattice
 !> @param nneighs number of lattice vectors
    subroutine libgint_set_neighs( handle, neighs, nneighs )

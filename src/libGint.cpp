@@ -887,16 +887,16 @@ void libGint::dispatch( bool dispatch_all ){
 //#pragma omp critical
 //      {
 //      size_t tot_mem_L = Fm_size[L] + AC_size[L] + ABCD_size[L] + ABCD0_size[L] + SPHER_size[L];
-      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
-      cout << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << max_ncells << " Ng " ;
-      cout <<    Fm_size[L]/1024/1024 << " " ;
-      cout <<    AC_size[L]/1024/1024 << " " ;
-      cout <<  ABCD_size[L]/1024/1024 << " ";
-      cout << ABCD0_size[L]/1024/1024 << " ";
-      cout << SPHER_size[L]/1024/1024 << " | ";
-      cout << dispatch_all << " " << must_be_computed << " " << is_too_small << " " << first_loop_this_dispatch << " | ";
-      cout << dat_mem_needed_L_1/1024/1024 << " MB | " << dat_mem_needed_L_2/1024/1024 << " MB | ";
-      cout << endl;
+//      cout << " L " << la << "" << lb << "" << lc << "" << ld << " | ";
+//      cout << Nprm << " prms " << Ncells << " cells " << Nqrtt << " qrtts " << max_ncells << " Ng " ;
+//      cout <<    Fm_size[L]/1024/1024 << " " ;
+//      cout <<    AC_size[L]/1024/1024 << " " ;
+//      cout <<  ABCD_size[L]/1024/1024 << " ";
+//      cout << ABCD0_size[L]/1024/1024 << " ";
+//      cout << SPHER_size[L]/1024/1024 << " | ";
+//      cout << dispatch_all << " " << must_be_computed << " " << is_too_small << " " << first_loop_this_dispatch << " | ";
+//      cout << dat_mem_needed_L_1/1024/1024 << " MB | " << dat_mem_needed_L_2/1024/1024 << " MB | ";
+//      cout << endl;
 //      }
 
 //      PUSH_RANGE(Lname.c_str(),3);
@@ -909,7 +909,7 @@ void libGint::dispatch( bool dispatch_all ){
       // before overwriting index arrays on device
       // TODO ? not necessary ?
       if ( not first_loop_this_dispatch ){
-         cout << " SYNCING " << endl;
+//         cout << " SYNCING " << endl;
          CUDA_GPU_ERR_CHECK( cudaStreamSynchronize(cuda_stream) );
       } else {
          first_loop_this_dispatch = false;

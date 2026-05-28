@@ -5,10 +5,9 @@ GFORTRAN = gfortran
 
 ARCH_NUM ?= 70
 PREFIX ?= $(shell pwd)
-NVCC_C_OPTS =  -ccbin=/usr/bin/g++-12 -rdc=true --generate-line-info -std=c++17 -gencode arch=compute_$(ARCH_NUM),code=sm_$(ARCH_NUM) -lcudart -lcublas -Xcompiler -fPIC -Xcompiler -fopenmp -Xcompiler -O3 -Xcompiler -g -Xcompiler -Wall
-NVCC_D_OPTS = -arch=sm_$(ARCH_NUM) -lgomp
-MPICPP_EX_OPTS = -std=c++17 -Wall -fPIC -O3
-GFORTRAN_OPTS = -O3 -g -fopenmp
+NVCC_C_OPTS =  -rdc=true --generate-line-info -std=c++17 -gencode arch=compute_$(ARCH_NUM),code=sm_$(ARCH_NUM) -lcudart -lcublas -Xcompiler -fPIC -Xcompiler -fopenmp -Xcompiler -O3 -Xcompiler -g -Xcompiler -Wall
+NVCC_D_OPTS = -arch=sm_$(ARCH_NUM) -lgomp  -Xcompiler -fPIC
+GFORTRAN_OPTS = -O3 -g -fopenmp -fPIC
 
 LIS = 
 # Directories
@@ -31,9 +30,6 @@ $(OBJ_DIR)/libGint_unlinked.o: $(SRC_DIR)/libGint.cpp
 
 $(OBJ_DIR)/libGint.o: $(OBJ_DIR)/libGint_unlinked.o $(OBJECTS_2)
 	$(NVCC) -dlink $(NVCC_D_OPTS) -o $@ $^ $(LIS)
-
-#$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
-#	$(MPICPP) -c -g -O3 $(MPICPP_EX_OPTS) $< -o $@ $(LIS) -fopenmp
 
 $(OBJ_DIR)/interface_libgint.o: $(SRC_DIR)/interface_libgint.F90
 	$(GFORTRAN) $(GFORTRAN_OPTS) -c $< -o $@ -lstdc++ -lcudadevrt -lcudart 

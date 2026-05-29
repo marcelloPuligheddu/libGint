@@ -26,10 +26,7 @@ __device__ __host__ void decode4( unsigned int abcd, uint8_t a[4] ){
 
 #define FM_N_VEC 4
 #define FM_N_SCA 5
-__device__ __host__ int Fsize( int L ){
-//    if ( L == 0 ){ return 1 ; }
-    return L + 1 + FM_N_VEC * 3 + FM_N_SCA;
-}
+__device__ __host__ int Fsize( int L ){ return L + 1 + FM_N_VEC * 3 + FM_N_SCA; }
 #undef FM_N_VEC
 #undef FM_N_SCA
 

@@ -5,6 +5,13 @@
 
 __constant__ double symm_factors[5] = {2.0, 1.0, 0.5, 0.25, 0.0 };
 
+
+// Add P @@ S[I] to K 
+// where P is the density, K the Fock matrix, 
+// S is ugual to minus the hf fraction times the symm factor for this combination of atoms
+// The @@ symbol is the exchanged tensor contraction, where we 
+// make use of the fact that the abcd ERI can be used with Pac Pad Pbc Pbd
+
 __global__ void compute_KS_gpu(
       const int Nqrtt,
       const unsigned int * const __restrict__ KS,
@@ -98,6 +105,7 @@ __global__ void compute_KS_gpu(
          const double kbc = iabcd * P [Iad_T];
          const double kad = iabcd * P [Ibc_T];
          const double kac = iabcd * P [Ibd_T];
+
 
 //         printf( " ---------- KS GPU %lg %lg %lg %lg %lg \n", iabcd, kbd,kbc,kad,kac );
 //         printf("KS GPU %d.%d.0: Adding %4.10lg ( - %lg * %lg * %lg ) to %lg from P %d [%p] @ K %d [%p] \n ", block, t, kbd, fac, I[ Oq + t ], P[Iac_T], K[Ibd_T], Iac_T, &P[Iac_T], Ibd_T, &K[Ibd_T] );

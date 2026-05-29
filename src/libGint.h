@@ -25,6 +25,9 @@ SOFTWARE.
 
 
 #include <vector>
+#include <set>
+#include <map>
+#include <tuple>
 #include <iostream>
 #include <cassert>
 #include <unordered_set>
@@ -48,6 +51,7 @@ struct LibGint_shared {
    cudaStream_t * cuda_stream;
 };
 
+typedef std::tuple<unsigned int, unsigned int, unsigned int, unsigned int> four_uint_tuple;
 
 
 class libGint {
@@ -108,7 +112,15 @@ class libGint {
    size_t max_idx_mem_needed = 0;
    int ftable_ld;
 
+   bool all_idx_Kabcd_ready = false;
+   std::set< unsigned int > unique_K_set;
+   std::vector< unsigned int > unique_K_list;
+   std::vector< unsigned int > l_from_K_list;
+   std::vector< unsigned int > p_from_K_list;
 
+
+   std::map< four_uint_tuple, unsigned int > all_idx_Kabcd;
+ 
    int nspin = 0 ;
    double * K_a; // not owned 
    double * P_a; // not owned  
@@ -123,6 +135,7 @@ class libGint {
    double *dat_mem_dev;
    unsigned int * idx_mem_dev;
    unsigned int * idx_mem_stg;
+   int * plan_stg;
    int *plan_dev;
 
 
@@ -172,7 +185,7 @@ class libGint {
    std::vector<unsigned int> this_set_OF[NL4];
    std::vector<unsigned int> this_set_PMX[NL4];
    std::vector<unsigned int> this_set_KS[NL4];
-
+   std::vector<unsigned int> new_prm_tmp_list;
    std::vector<unsigned int> prm_tmp_list;
    UniqueArray ua;
 
@@ -215,8 +228,8 @@ class libGint {
    size_t idx_mem_needed[NL4] = {0};
    size_t dat_mem_needed[NL4] = {0};
 
-   double cell_h[9] = {0};
-   double cell_inv_h[9] = {0};
+   double cell_h[18] = {0};
+//   double cell_inv_h[9] = {0};
    std::vector<double> neighs;
 
    std::unordered_set<unsigned int> encoded_moments ;

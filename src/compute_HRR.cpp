@@ -3,7 +3,7 @@
 #include "util.h"
 
 
-//#pragma omp declare target
+// computes HHR of the type ascd = as+- + CD asc-
 __device__ void execute_HRR1_gpu(
       const int AL, const int CL, const int DL,
       double* __restrict__ abcd,
@@ -18,7 +18,6 @@ __device__ void execute_HRR1_gpu(
    const int NcoD  = NLco_dev(DL);
    const int NcoDm = NLco_dev(DL-1);
    
-//#pragma omp parallel for 
    for( int ikl=tid ; ikl < NcoA*NcoC*NcoD ; ikl+=Nt ){
       int l = ikl%NcoD;
       int k = (ikl/NcoD)%NcoC;
@@ -50,7 +49,7 @@ __device__ void execute_HRR1_gpu(
 }
 
 
-//#pragma omp declare target
+// General HHR of the type abcd = +-cd + AB a-cd
 __device__ void execute_HRR2_gpu(
       const int AL, const int BL, const int CL, const int DL,
       double* const __restrict__ abcd,
@@ -65,7 +64,7 @@ __device__ void execute_HRR2_gpu(
    const int NcoC = NLco_dev(CL);
    const int NcoD = NLco_dev(DL);
    const int NcoABCD = NcoA*NcoB*NcoC*NcoD;
-//#pragma omp parallel for
+
    for( int ijkl=tid ; ijkl < NcoABCD ; ijkl+=Nt ){
 
       int l = ijkl%NcoD;
@@ -97,7 +96,7 @@ __device__ void execute_HRR2_gpu(
       }
    }
 }
-//#pragma omp end declare target
+
 
 __global__ void compute_HRR_batched_gpu_low(
       const int Ncells,
@@ -119,7 +118,8 @@ __global__ void compute_HRR_batched_gpu_low(
       unsigned int idx_B  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_B];
       unsigned int idx_C  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_C];
       unsigned int idx_D  = FVH[block*FVH_SIZE+FVH_OFFSET_IDX_D];
-      unsigned int encoded_nlabcd_12 = FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
+      unsigned int elabcd = FVH[block*FVH_SIZE+FVH_OFFSET_ELABCD];
+      int nlabcd = (int)    FVH[block*FVH_SIZE+FVH_OFFSET_NLABCD];
 
 //      if (blockIdx.x == 0 and threadIdx.x == 0 ){
 //         printf(" HRR FVH: " );
@@ -129,10 +129,10 @@ __global__ void compute_HRR_batched_gpu_low(
 //      }
 
       unsigned int nla,nlb,nlc,nld, n1,n2;
-      int nlabcd;
 
-      decode_shell( encoded_nlabcd_12, &nla,&nlb,&nlc,&nld,&n1,&n2);
-      nlabcd = nla*nlb*nlc*nld;
+
+      decode_shell( elabcd, &nla,&nlb,&nlc,&nld,&n1,&n2);
+
 
       
 //      if (threadIdx.x == 0 ){

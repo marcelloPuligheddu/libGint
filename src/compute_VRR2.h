@@ -20,19 +20,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef COMPUTE_SPH_H_COMPILE_GUARD
-#define COMPUTE_SPH_H_COMPILE_GUARD
+#ifndef COMPUTE_VRR2_H_COMPILE_GUARD
+#define COMPUTE_VRR2_H_COMPILE_GUARD
 
 #include <vector>
-#include "cublas_v2.h"
 
-void compute_SPH_batched_gpu_alt(
-      const int Nqrtt, const int la, const int lb, const int lc, const int ld,
-      double* const __restrict__ ABCD0,
-      double* const __restrict__ SPHER,
-      double* const __restrict__ tmp_scratch, 
-      double* const __restrict__ C2S_dev, cublasHandle_t handle );
+__global__ void compute_VRR_v2_batched_gpu_low(
+      const int Ncells, const int vrr_index,
+      const unsigned int* const __restrict__ PMX,
+      const unsigned int* const __restrict__ FVH,
+      const double* const __restrict__ Fm,
+      const double* const __restrict__ data,
+      double* const __restrict__ AC,
+      double* const __restrict__ ABCD,
+      int vrr_blocksize, int hrr_blocksize, int L, int numV, int numVC, const int Ng );
+
+void compute_VRR_v3(
+      const int Ncells, const int vrr_index,
+      const unsigned int* const __restrict__ PMX,
+      const unsigned int* const __restrict__ FVH,
+      const double* const __restrict__ Fm,
+      const double* const __restrict__ data,
+      double* const __restrict__ AC,
+      double* const __restrict__ ABCD,
+      int vrr_blocksize, int hrr_blocksize, int numV, int numVC, const int Ng, cudaStream_t cuda_stream );
 
 
-
-#endif // #ifndef COMPUTE_SPH_H_COMPILE_GUARD 
+#endif // COMPUTE_VRR_H_COMPILE_GUARD
